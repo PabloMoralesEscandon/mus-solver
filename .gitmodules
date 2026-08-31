@@ -1,0 +1,6 @@
+[submodule "C-CFR"]
+	path = C-CFR
+	url = https://github.com/PabloMoralesEscandon/C-CFR
+[submodule "Simulador-Mus"]
+	path = Simulador-Mus
+	url = https://github.com/PabloMoralesEscandon/Simulador-Mus
