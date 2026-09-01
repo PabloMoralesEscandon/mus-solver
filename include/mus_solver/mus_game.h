@@ -80,7 +80,18 @@ typedef struct {
 } MusGameModel;
 
 typedef struct {
+    int grande_key;
+    int chica_key;
+    int pairs_key;
+    int pairs_points;
+    int game_key;
+    int game_points;
+    int point_value;
+} MusHandSummary;
+
+typedef struct {
     MusGameModel model;
+    MusHandSummary hand_summaries[MUS_GAME_PLAYER_COUNT];
     MusGameModel undo_history[MUS_GAME_UNDO_CAPACITY];
     size_t undo_count;
 } MusGameState;

@@ -10,6 +10,8 @@
 #include "cfr/info_store.h"
 #include "cfr/kuhn_poker.h"
 #include "cfr/trainer.h"
+#include "baraja_espanola.h"
+#include "mus.h"
 #include "mus_solver/mus_evaluation.h"
 #include "mus_solver/mus_game.h"
 #include "mus_solver/mus_strategy.h"
@@ -59,6 +61,82 @@ typedef struct {
     double total_probability;
 } DealStats;
 
+static const int TEST_CLASS_NUMBERS[MUS_GAME_CLASS_COUNT] = {
+    AS, CUATRO, CINCO, SEIS, SIETE, SOTA, CABALLO, REY,
+};
+
+static void check_hand_summaries(const MusGameState *state) {
+    Carta cards[MUS_GAME_PLAYER_COUNT][MUS_GAME_HAND_SIZE];
+    Mano hands[MUS_GAME_PLAYER_COUNT];
+
+    for (int player = 0; player < MUS_GAME_PLAYER_COUNT; player += 1) {
+        size_t card_index = 0;
+
+        for (int card_class = 0; card_class < MUS_GAME_CLASS_COUNT;
+             card_class += 1) {
+            for (int count = 0; count < state->model.hands[player][card_class];
+                 count += 1) {
+                cards[player][card_index] =
+                    (Carta){.numero = TEST_CLASS_NUMBERS[card_class],
+                            .palo = OROS};
+                card_index += 1;
+            }
+        }
+        CHECK(card_index == MUS_GAME_HAND_SIZE);
+        hands[player] = (Mano){.cartas = cards[player], .tamano = card_index};
+        CHECK(state->hand_summaries[player].grande_key ==
+              claveGrande(hands[player]));
+        CHECK(state->hand_summaries[player].chica_key ==
+              claveChica(hands[player]));
+        CHECK(state->hand_summaries[player].pairs_key ==
+              clavePar(hands[player]));
+        CHECK(state->hand_summaries[player].pairs_points ==
+              tantosPares(hands[player]));
+        CHECK(state->hand_summaries[player].point_value ==
+              sumaMano(hands[player]));
+        CHECK((state->hand_summaries[player].game_key >= 0) ==
+              (tieneJuego(hands[player]) == 1));
+        CHECK(state->hand_summaries[player].game_points ==
+              tantosJuego(hands[player]));
+    }
+    CHECK((state->hand_summaries[1].grande_key >
+           state->hand_summaries[0].grande_key
+               ? 1
+               : 0) == ganadorGrandeConJugadores(hands, 2, 0));
+    CHECK((state->hand_summaries[1].chica_key >
+           state->hand_summaries[0].chica_key
+               ? 1
+               : 0) == ganadorChicaConJugadores(hands, 2, 0));
+    CHECK((state->hand_summaries[1].pairs_key >
+           state->hand_summaries[0].pairs_key
+               ? 1
+               : 0) == ganadorParConJugadores(hands, 2, 0));
+    CHECK((state->hand_summaries[1].point_value >
+           state->hand_summaries[0].point_value
+               ? 1
+               : 0) == ganadorPuntoConJugadores(hands, 2, 0));
+    {
+        int cached_game_winner;
+
+        if (state->hand_summaries[0].game_key < 0 &&
+            state->hand_summaries[1].game_key < 0) {
+            cached_game_winner =
+                state->hand_summaries[1].point_value >
+                        state->hand_summaries[0].point_value
+                    ? 1
+                    : 0;
+        } else {
+            cached_game_winner =
+                state->hand_summaries[1].game_key >
+                        state->hand_summaries[0].game_key
+                    ? 1
+                    : 0;
+        }
+        CHECK(cached_game_winner ==
+              ganadorJuegoConJugadores(hands, 2, 0));
+    }
+}
+
 static void enumerate_deals(MusGameState *state, double reach,
                             DealStats *stats) {
     Actor actor;
@@ -70,6 +148,7 @@ static void enumerate_deals(MusGameState *state, double reach,
     CHECK(cfr_game_current_actor(game(), game_state(state), &actor) ==
           CFR_STATUS_SUCCESS);
     if (actor.kind == CFR_ACTOR_PLAYER) {
+        check_hand_summaries(state);
         stats->joint_deals += 1;
         stats->total_probability += reach;
         return;
@@ -135,6 +214,19 @@ static void test_apply_undo_and_contract(void) {
     CHECK(state.undo_count == 0);
     CHECK(memcmp(&state.model, &root, sizeof(root)) == 0);
     CHECK(cfr_game_undo_action(game(), game_state(&state)) ==
+          CFR_STATUS_INVALID_ARGUMENT);
+}
+
+static void test_cached_hand_summary_validation(void) {
+    const uint8_t low_a[MUS_GAME_CLASS_COUNT] = {1, 1, 1, 1, 0, 0, 0, 0};
+    const uint8_t low_b[MUS_GAME_CLASS_COUNT] = {1, 1, 1, 0, 1, 0, 0, 0};
+    MusGameState state;
+
+    deal(&state, low_a, low_b);
+    CHECK(cfr_game_validate_state(game(), game_state(&state)) ==
+          CFR_STATUS_SUCCESS);
+    state.hand_summaries[0].point_value += 1;
+    CHECK(cfr_game_validate_state(game(), game_state(&state)) ==
           CFR_STATUS_INVALID_ARGUMENT);
 }
 
@@ -367,6 +459,7 @@ static void test_training_resume_and_export(void) {
 
 int main(void) {
     test_apply_undo_and_contract();
+    test_cached_hand_summary_validation();
     test_exact_deal_distribution();
     test_information_boundaries();
     test_literal_scoring();

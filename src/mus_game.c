@@ -2,8 +2,6 @@
 #include <stdint.h>
 #include <string.h>
 
-#include "baraja_espanola.h"
-#include "mus.h"
 #include "mus_solver/mus_game.h"
 
 #define MUS_HAND_CODE_RADIX 390625
@@ -15,8 +13,20 @@ static const uint8_t CLASS_CAPACITIES[MUS_GAME_CLASS_COUNT] = {
     8, 4, 4, 4, 4, 4, 4, 8,
 };
 
-static const int CLASS_NUMBERS[MUS_GAME_CLASS_COUNT] = {
-    AS, CUATRO, CINCO, SEIS, SIETE, SOTA, CABALLO, REY,
+static const int GRANDE_WEIGHTS[MUS_GAME_CLASS_COUNT] = {
+    1, 10, 100, 1000, 10000, 100000, 1000000, 10000000,
+};
+
+static const int CHICA_WEIGHTS[MUS_GAME_CLASS_COUNT] = {
+    10000000, 1000000, 100000, 10000, 1000, 100, 10, 1,
+};
+
+static const int POINT_VALUES[MUS_GAME_CLASS_COUNT] = {
+    1, 4, 5, 6, 7, 10, 10, 10,
+};
+
+static const int GAME_VALUES[8] = {
+    33, 34, 35, 36, 37, 40, 32, 31,
 };
 
 static Status mus_is_terminal(const void *context, const GameState *state,
@@ -134,39 +144,93 @@ static size_t hand_total(const uint8_t hand[MUS_GAME_CLASS_COUNT]) {
     return total;
 }
 
-static void make_hands(const MusGameModel *model, Mano hands[2],
-                       Carta cards[2][MUS_GAME_HAND_SIZE]) {
-    for (int player = 0; player < MUS_GAME_PLAYER_COUNT; player += 1) {
-        size_t position = 0;
-
-        for (int card_class = 0; card_class < MUS_GAME_CLASS_COUNT;
-             card_class += 1) {
-            for (uint8_t copy = 0; copy < model->hands[player][card_class];
-                 copy += 1) {
-                cards[player][position] =
-                    (Carta){.numero = CLASS_NUMBERS[card_class],
-                            .palo = (int)(position % 4)};
-                position += 1;
-            }
-        }
-        hands[player] = (Mano){.cartas = cards[player], .tamano = position};
+static int game_key(int point_value) {
+    for (int index = 0; index < 8; index += 1) {
+        if (point_value == GAME_VALUES[index])
+            return index;
     }
+    return -1;
 }
 
-static int player_has_pairs(const MusGameModel *model, int player) {
-    Mano hands[2];
-    Carta cards[2][MUS_GAME_HAND_SIZE];
+static Status summarize_hand(const uint8_t hand[MUS_GAME_CLASS_COUNT],
+                             MusHandSummary *summary) {
+    enum { SUMMARY_NO_PAIRS, SUMMARY_PAIRS, SUMMARY_TRIPLES, SUMMARY_DUPLEX };
+    int pairs_type = SUMMARY_NO_PAIRS;
+    int high_pair = 0;
+    int low_pair = 0;
 
-    make_hands(model, hands, cards);
-    return tipoPares(hands[player]) != NO_PAR;
+    if (hand == NULL || summary == NULL ||
+        hand_total(hand) != MUS_GAME_HAND_SIZE) {
+        return CFR_STATUS_INVALID_ARGUMENT;
+    }
+    *summary = (MusHandSummary){.game_key = -1};
+    for (int card_class = 0; card_class < MUS_GAME_CLASS_COUNT;
+         card_class += 1) {
+        const int count = hand[card_class];
+
+        summary->grande_key += count * GRANDE_WEIGHTS[card_class];
+        summary->chica_key += count * CHICA_WEIGHTS[card_class];
+        summary->point_value += count * POINT_VALUES[card_class];
+    }
+    for (int card_class = 0; card_class < MUS_GAME_CLASS_COUNT;
+         card_class += 1) {
+        const int count = hand[card_class];
+
+        if (count == 4) {
+            pairs_type = SUMMARY_DUPLEX;
+            high_pair = card_class + 1;
+            low_pair = high_pair;
+            break;
+        }
+        if (count == 3) {
+            pairs_type = SUMMARY_TRIPLES;
+            high_pair = card_class + 1;
+        } else if (count == 2) {
+            if (pairs_type == SUMMARY_PAIRS) {
+                pairs_type = SUMMARY_DUPLEX;
+                low_pair = high_pair;
+                high_pair = card_class + 1;
+                break;
+            }
+            pairs_type = SUMMARY_PAIRS;
+            high_pair = card_class + 1;
+        }
+    }
+    if (pairs_type == SUMMARY_PAIRS) {
+        summary->pairs_key = high_pair;
+        summary->pairs_points = 1;
+    } else if (pairs_type == SUMMARY_TRIPLES) {
+        summary->pairs_key = high_pair * 10;
+        summary->pairs_points = 2;
+    } else if (pairs_type == SUMMARY_DUPLEX) {
+        summary->pairs_key = high_pair * 1000 + low_pair * 100;
+        summary->pairs_points = 3;
+    }
+    if (summary->point_value >= 31) {
+        summary->game_key = game_key(summary->point_value);
+        summary->game_points = summary->point_value == 31 ? 3 : 2;
+        if (summary->game_key < 0)
+            return CFR_STATUS_INVALID_ARGUMENT;
+    }
+    return CFR_STATUS_SUCCESS;
 }
 
-static int player_has_game(const MusGameModel *model, int player) {
-    Mano hands[2];
-    Carta cards[2][MUS_GAME_HAND_SIZE];
+static Status summarize_hands(
+    const MusGameModel *model,
+    MusHandSummary summaries[MUS_GAME_PLAYER_COUNT]) {
+    MusHandSummary temporary[MUS_GAME_PLAYER_COUNT];
 
-    make_hands(model, hands, cards);
-    return tieneJuego(hands[player]);
+    if (model == NULL || summaries == NULL)
+        return CFR_STATUS_INVALID_ARGUMENT;
+    for (int player = 0; player < MUS_GAME_PLAYER_COUNT; player += 1) {
+        Status status = summarize_hand(model->hands[player],
+                                       &temporary[player]);
+
+        if (status != CFR_STATUS_SUCCESS)
+            return status;
+    }
+    memcpy(summaries, temporary, sizeof(temporary));
+    return CFR_STATUS_SUCCESS;
 }
 
 static int phase_lance_index(MusGamePhase phase) {
@@ -192,10 +256,12 @@ static void start_betting(MusGameModel *model, MusGamePhase phase) {
     model->bettor = CFR_PLAYER_0;
 }
 
-static void prepare_final_lance(MusGameModel *model) {
+static void prepare_final_lance(
+    MusGameModel *model,
+    const MusHandSummary summaries[MUS_GAME_PLAYER_COUNT]) {
     model->game_revealed = true;
-    model->game[0] = player_has_game(model, 0) != 0;
-    model->game[1] = player_has_game(model, 1) != 0;
+    model->game[0] = summaries[0].game_key >= 0;
+    model->game[1] = summaries[1].game_key >= 0;
 
     if (model->game[0] && model->game[1]) {
         start_betting(model, MUS_PHASE_JUEGO);
@@ -207,7 +273,9 @@ static void prepare_final_lance(MusGameModel *model) {
     }
 }
 
-static void advance_lance(MusGameModel *model, MusLanceOutcome outcome) {
+static void advance_lance(
+    MusGameModel *model, MusLanceOutcome outcome,
+    const MusHandSummary summaries[MUS_GAME_PLAYER_COUNT]) {
     const MusGamePhase completed_phase = model->phase;
     const int lance = phase_lance_index(completed_phase);
 
@@ -217,16 +285,16 @@ static void advance_lance(MusGameModel *model, MusLanceOutcome outcome) {
         start_betting(model, MUS_PHASE_CHICA);
     } else if (completed_phase == MUS_PHASE_CHICA) {
         model->pairs_revealed = true;
-        model->pairs[0] = player_has_pairs(model, 0) != 0;
-        model->pairs[1] = player_has_pairs(model, 1) != 0;
+        model->pairs[0] = summaries[0].pairs_key > 0;
+        model->pairs[1] = summaries[1].pairs_key > 0;
         if (model->pairs[0] && model->pairs[1]) {
             start_betting(model, MUS_PHASE_PARES);
         } else {
             model->outcomes[2] = MUS_LANCE_SKIPPED;
-            prepare_final_lance(model);
+            prepare_final_lance(model, summaries);
         }
     } else if (completed_phase == MUS_PHASE_PARES) {
-        prepare_final_lance(model);
+        prepare_final_lance(model, summaries);
     } else if (completed_phase == MUS_PHASE_JUEGO ||
                completed_phase == MUS_PHASE_PUNTO) {
         model->phase = MUS_PHASE_TERMINAL;
@@ -369,6 +437,42 @@ static Status validate_model(const MusGameModel *model) {
     return CFR_STATUS_SUCCESS;
 }
 
+static bool summaries_are_equal(const MusHandSummary *left,
+                                const MusHandSummary *right) {
+    return left->grande_key == right->grande_key &&
+           left->chica_key == right->chica_key &&
+           left->pairs_key == right->pairs_key &&
+           left->pairs_points == right->pairs_points &&
+           left->game_key == right->game_key &&
+           left->game_points == right->game_points &&
+           left->point_value == right->point_value;
+}
+
+static Status validate_hand_summaries(
+    const MusGameModel *model,
+    const MusHandSummary summaries[MUS_GAME_PLAYER_COUNT]) {
+    MusHandSummary expected[MUS_GAME_PLAYER_COUNT];
+
+    if (summarize_hands(model, expected) != CFR_STATUS_SUCCESS)
+        return CFR_STATUS_INVALID_ARGUMENT;
+    for (int player = 0; player < MUS_GAME_PLAYER_COUNT; player += 1) {
+        if (!summaries_are_equal(&summaries[player], &expected[player]))
+            return CFR_STATUS_INVALID_ARGUMENT;
+    }
+    return CFR_STATUS_SUCCESS;
+}
+
+static Status validate_state_data(const MusGameState *state) {
+    Status status;
+
+    if (state == NULL)
+        return CFR_STATUS_INVALID_ARGUMENT;
+    status = validate_model(&state->model);
+    if (status != CFR_STATUS_SUCCESS || phase_is_deal(state->model.phase))
+        return status;
+    return validate_hand_summaries(&state->model, state->hand_summaries);
+}
+
 Status mus_game_state_init(MusGameState *state) {
     if (state == NULL)
         return CFR_STATUS_INVALID_ARGUMENT;
@@ -397,8 +501,7 @@ static Status mus_is_terminal(const void *context, const GameState *state,
                               bool *result) {
     const MusGameState *mus = as_mus_const(state);
 
-    if (result == NULL || mus == NULL ||
-        validate_model(&mus->model) != CFR_STATUS_SUCCESS) {
+    if (result == NULL || validate_state_data(mus) != CFR_STATUS_SUCCESS) {
         return CFR_STATUS_INVALID_ARGUMENT;
     }
     return mus_trusted_is_terminal(context, state, result);
@@ -437,27 +540,26 @@ static int outcome_bettor(MusLanceOutcome outcome) {
     return -1;
 }
 
-static Status score_terminal(const MusGameModel *model, int scores[2]) {
-    Mano hands[2];
-    Carta cards[2][MUS_GAME_HAND_SIZE];
+static Status score_terminal(const MusGameState *mus, int scores[2]) {
+    const MusGameModel *model;
+    const MusHandSummary *summaries;
     int winner;
     MusLanceOutcome outcome;
 
-    if (model == NULL || scores == NULL ||
-        model->phase != MUS_PHASE_TERMINAL) {
+    if (mus == NULL || scores == NULL ||
+        mus->model.phase != MUS_PHASE_TERMINAL) {
         return CFR_STATUS_INVALID_ARGUMENT;
     }
+    model = &mus->model;
+    summaries = mus->hand_summaries;
     scores[0] = 0;
     scores[1] = 0;
-    make_hands(model, hands, cards);
 
     outcome = model->outcomes[0];
     if (outcome_is_rejected(outcome)) {
         scores[outcome_bettor(outcome)] += 1;
     } else {
-        winner = ganadorGrandeConJugadores(hands, 2, 0);
-        if (winner < 0)
-            return CFR_STATUS_INVALID_ARGUMENT;
+        winner = summaries[1].grande_key > summaries[0].grande_key ? 1 : 0;
         scores[winner] += outcome_is_accepted(outcome) ? 2 : 1;
     }
 
@@ -465,9 +567,7 @@ static Status score_terminal(const MusGameModel *model, int scores[2]) {
     if (outcome_is_rejected(outcome)) {
         scores[outcome_bettor(outcome)] += 1;
     } else {
-        winner = ganadorChicaConJugadores(hands, 2, 0);
-        if (winner < 0)
-            return CFR_STATUS_INVALID_ARGUMENT;
+        winner = summaries[1].chica_key > summaries[0].chica_key ? 1 : 0;
         scores[winner] += outcome_is_accepted(outcome) ? 2 : 1;
     }
 
@@ -477,16 +577,11 @@ static Status score_terminal(const MusGameModel *model, int scores[2]) {
             winner = outcome_bettor(outcome);
             scores[winner] += 1;
         } else if (model->pairs[0] && model->pairs[1]) {
-            winner = ganadorParConJugadores(hands, 2, 0);
+            winner = summaries[1].pairs_key > summaries[0].pairs_key ? 1 : 0;
         } else {
             winner = model->pairs[0] ? 0 : 1;
         }
-        {
-            const int intrinsic = tantosPares(hands[winner]);
-            if (intrinsic < 0)
-                return CFR_STATUS_INVALID_ARGUMENT;
-            scores[winner] += intrinsic;
-        }
+        scores[winner] += summaries[winner].pairs_points;
         if (outcome_is_accepted(outcome))
             scores[winner] += 2;
     }
@@ -497,16 +592,11 @@ static Status score_terminal(const MusGameModel *model, int scores[2]) {
             winner = outcome_bettor(outcome);
             scores[winner] += 1;
         } else if (model->game[0] && model->game[1]) {
-            winner = ganadorJuegoConJugadores(hands, 2, 0);
+            winner = summaries[1].game_key > summaries[0].game_key ? 1 : 0;
         } else {
             winner = model->game[0] ? 0 : 1;
         }
-        {
-            const int intrinsic = tantosJuego(hands[winner]);
-            if (intrinsic < 0)
-                return CFR_STATUS_INVALID_ARGUMENT;
-            scores[winner] += intrinsic;
-        }
+        scores[winner] += summaries[winner].game_points;
         if (outcome_is_accepted(outcome))
             scores[winner] += 2;
     } else {
@@ -514,9 +604,9 @@ static Status score_terminal(const MusGameModel *model, int scores[2]) {
             winner = outcome_bettor(outcome);
             scores[winner] += 2;
         } else {
-            winner = ganadorPuntoConJugadores(hands, 2, 0);
-            if (winner < 0)
-                return CFR_STATUS_INVALID_ARGUMENT;
+            winner = summaries[1].point_value > summaries[0].point_value
+                         ? 1
+                         : 0;
             scores[winner] += 1 + (outcome_is_accepted(outcome) ? 2 : 0);
         }
     }
@@ -528,8 +618,8 @@ static Status mus_terminal_utility(const void *context,
                                    Utility *result) {
     const MusGameState *mus = as_mus_const(state);
 
-    if (mus == NULL || result == NULL || !player_is_valid(player) ||
-        validate_model(&mus->model) != CFR_STATUS_SUCCESS) {
+    if (result == NULL || !player_is_valid(player) ||
+        validate_state_data(mus) != CFR_STATUS_SUCCESS) {
         return CFR_STATUS_INVALID_ARGUMENT;
     }
     return mus_trusted_terminal_utility(context, state, player, result);
@@ -547,7 +637,7 @@ static Status mus_trusted_terminal_utility(const void *context,
         mus->model.phase != MUS_PHASE_TERMINAL) {
         return CFR_STATUS_INVALID_ARGUMENT;
     }
-    status = score_terminal(&mus->model, scores);
+    status = score_terminal(mus, scores);
     if (status != CFR_STATUS_SUCCESS)
         return status;
     *result = player == CFR_PLAYER_0 ? (Utility)(scores[0] - scores[1])
@@ -559,8 +649,7 @@ static Status mus_current_actor(const void *context, const GameState *state,
                                 Actor *result) {
     const MusGameState *mus = as_mus_const(state);
 
-    if (mus == NULL || result == NULL ||
-        validate_model(&mus->model) != CFR_STATUS_SUCCESS) {
+    if (result == NULL || validate_state_data(mus) != CFR_STATUS_SUCCESS) {
         return CFR_STATUS_INVALID_ARGUMENT;
     }
     return mus_trusted_current_actor(context, state, result);
@@ -592,8 +681,8 @@ static Status mus_legal_actions(const void *context, const GameState *state,
                                 size_t *required_count) {
     const MusGameState *mus = as_mus_const(state);
 
-    if (mus == NULL || actions == NULL || required_count == NULL ||
-        validate_model(&mus->model) != CFR_STATUS_SUCCESS) {
+    if (actions == NULL || required_count == NULL ||
+        validate_state_data(mus) != CFR_STATUS_SUCCESS) {
         return CFR_STATUS_INVALID_ARGUMENT;
     }
     return mus_trusted_legal_actions(context, state, actions, capacity,
@@ -646,7 +735,9 @@ static bool player_action_is_legal(const MusGameModel *model, Action action) {
     return action == MUS_ACTION_PASS || action == MUS_ACTION_BET_TWO;
 }
 
-static Status apply_to_model(MusGameModel *model, Action action) {
+static Status apply_to_model(
+    MusGameModel *model, Action action,
+    const MusHandSummary summaries[MUS_GAME_PLAYER_COUNT]) {
     if (phase_is_deal(model->phase)) {
         const int player = deal_player(model);
         const int count = action;
@@ -691,7 +782,7 @@ static Status apply_to_model(MusGameModel *model, Action action) {
         }
     } else if (model->bet_stage == MUS_BET_SECOND_AFTER_PASS) {
         if (action == MUS_ACTION_PASS) {
-            advance_lance(model, MUS_LANCE_ALL_PASS);
+            advance_lance(model, MUS_LANCE_ALL_PASS, summaries);
         } else {
             model->bet_stage = MUS_BET_RESPONSE;
             model->bettor = CFR_PLAYER_1;
@@ -709,7 +800,7 @@ static Status apply_to_model(MusGameModel *model, Action action) {
                           ? MUS_LANCE_SECOND_BET_ACCEPTED
                           : MUS_LANCE_SECOND_BET_REJECTED;
         }
-        advance_lance(model, outcome);
+        advance_lance(model, outcome, summaries);
     }
     return CFR_STATUS_SUCCESS;
 }
@@ -717,6 +808,9 @@ static Status apply_to_model(MusGameModel *model, Action action) {
 static Status apply_action_to_state(MusGameState *mus, Action action,
                                     bool validate_result) {
     MusGameModel temporary;
+    MusHandSummary completed_summaries[MUS_GAME_PLAYER_COUNT];
+    const MusHandSummary *active_summaries;
+    bool completed_deal;
     Status status;
 
     if (mus == NULL)
@@ -724,16 +818,33 @@ static Status apply_action_to_state(MusGameState *mus, Action action,
     if (mus->undo_count >= MUS_GAME_UNDO_CAPACITY)
         return CFR_STATUS_BUFFER_TOO_SMALL;
     temporary = mus->model;
-    status = apply_to_model(&temporary, action);
+    status = apply_to_model(&temporary, action, mus->hand_summaries);
     if (status != CFR_STATUS_SUCCESS)
         return status;
-    if (validate_result &&
-        validate_model(&temporary) != CFR_STATUS_SUCCESS) {
-        return CFR_STATUS_INVALID_ARGUMENT;
+    completed_deal = phase_is_deal(mus->model.phase) &&
+                     !phase_is_deal(temporary.phase);
+    active_summaries = mus->hand_summaries;
+    if (completed_deal) {
+        status = summarize_hands(&temporary, completed_summaries);
+        if (status != CFR_STATUS_SUCCESS)
+            return status;
+        active_summaries = completed_summaries;
+    }
+    if (validate_result) {
+        status = validate_model(&temporary);
+        if (status == CFR_STATUS_SUCCESS && !phase_is_deal(temporary.phase)) {
+            status = validate_hand_summaries(&temporary, active_summaries);
+        }
+        if (status != CFR_STATUS_SUCCESS)
+            return CFR_STATUS_INVALID_ARGUMENT;
     }
     mus->undo_history[mus->undo_count] = mus->model;
     mus->undo_count += 1;
     mus->model = temporary;
+    if (completed_deal) {
+        memcpy(mus->hand_summaries, completed_summaries,
+               sizeof(completed_summaries));
+    }
     return CFR_STATUS_SUCCESS;
 }
 
@@ -742,7 +853,7 @@ static Status mus_apply_action(const void *context, GameState *state,
     MusGameState *mus = as_mus(state);
 
     (void)context;
-    if (mus == NULL || validate_model(&mus->model) != CFR_STATUS_SUCCESS)
+    if (validate_state_data(mus) != CFR_STATUS_SUCCESS)
         return CFR_STATUS_INVALID_ARGUMENT;
     return apply_action_to_state(mus, action, true);
 }
@@ -756,7 +867,7 @@ static Status mus_trusted_apply_action(const void *context, GameState *state,
 static Status mus_undo_action(const void *context, GameState *state) {
     MusGameState *mus = as_mus(state);
 
-    if (mus == NULL || validate_model(&mus->model) != CFR_STATUS_SUCCESS) {
+    if (validate_state_data(mus) != CFR_STATUS_SUCCESS) {
         return CFR_STATUS_INVALID_ARGUMENT;
     }
     return mus_trusted_undo_action(context, state);
@@ -780,8 +891,7 @@ static Status mus_chance_probability(const void *context,
                                      Probability *result) {
     const MusGameState *mus = as_mus_const(state);
 
-    if (mus == NULL || result == NULL ||
-        validate_model(&mus->model) != CFR_STATUS_SUCCESS) {
+    if (result == NULL || validate_state_data(mus) != CFR_STATUS_SUCCESS) {
         return CFR_STATUS_INVALID_ARGUMENT;
     }
     return mus_trusted_chance_probability(context, state, action, result);
@@ -843,8 +953,7 @@ static Status mus_information_set_key(const void *context,
                                       InfoSetKey *result) {
     const MusGameState *mus = as_mus_const(state);
 
-    if (mus == NULL || result == NULL ||
-        validate_model(&mus->model) != CFR_STATUS_SUCCESS) {
+    if (result == NULL || validate_state_data(mus) != CFR_STATUS_SUCCESS) {
         return CFR_STATUS_INVALID_ARGUMENT;
     }
     return mus_trusted_information_set_key(context, state, result);
@@ -891,7 +1000,7 @@ static Status mus_validate_state(const void *context, const GameState *state) {
     (void)context;
     if (mus == NULL || mus->undo_count > MUS_GAME_UNDO_CAPACITY)
         return CFR_STATUS_INVALID_ARGUMENT;
-    return validate_model(&mus->model);
+    return validate_state_data(mus);
 }
 
 static Status mus_chance_outcomes(const void *context, const GameState *state,
@@ -899,9 +1008,8 @@ static Status mus_chance_outcomes(const void *context, const GameState *state,
                                   size_t capacity, size_t *required_count) {
     const MusGameState *mus = as_mus_const(state);
 
-    if (mus == NULL || actions == NULL || probabilities == NULL ||
-        required_count == NULL ||
-        validate_model(&mus->model) != CFR_STATUS_SUCCESS) {
+    if (actions == NULL || probabilities == NULL || required_count == NULL ||
+        validate_state_data(mus) != CFR_STATUS_SUCCESS) {
         return CFR_STATUS_INVALID_ARGUMENT;
     }
     return mus_trusted_chance_outcomes(
