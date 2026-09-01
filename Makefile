@@ -9,6 +9,8 @@ DEBUG_FLAGS := -O0 -g3
 DEPENDENCY_FLAGS := -MMD -MP
 
 BUILD_DIR := build
+CFR_BUILD_DIR ?= build
+LTO_BUILD_DIR ?= build/lto
 RELEASE_DIR := $(BUILD_DIR)/release
 DEBUG_DIR := $(BUILD_DIR)/debug
 
@@ -25,8 +27,8 @@ RELEASE_APP_OBJECT := $(patsubst %.c,$(RELEASE_DIR)/%.o,$(APP_SOURCE))
 DEBUG_APP_OBJECT := $(patsubst %.c,$(DEBUG_DIR)/%.o,$(APP_SOURCE))
 DEBUG_TEST_OBJECT := $(patsubst %.c,$(DEBUG_DIR)/%.o,$(TEST_SOURCE))
 
-RELEASE_CFR_LIBRARY := C-CFR/build/release/libcfr.a
-DEBUG_CFR_LIBRARY := C-CFR/build/debug/libcfr.a
+RELEASE_CFR_LIBRARY := C-CFR/$(CFR_BUILD_DIR)/release/libcfr.a
+DEBUG_CFR_LIBRARY := C-CFR/$(CFR_BUILD_DIR)/debug/libcfr.a
 RELEASE_LIBRARY := $(RELEASE_DIR)/libmus_solver.a
 DEBUG_LIBRARY := $(DEBUG_DIR)/libmus_solver.a
 RELEASE_BINARY := $(RELEASE_DIR)/mus-solver
@@ -37,9 +39,13 @@ DEPENDENCY_FILES := $(RELEASE_OBJECTS:.o=.d) $(DEBUG_OBJECTS:.o=.d) \
 	$(RELEASE_APP_OBJECT:.o=.d) $(DEBUG_APP_OBJECT:.o=.d) \
 	$(DEBUG_TEST_OBJECT:.o=.d)
 
-.PHONY: all debug test test-sanitize dependencies cfr-release cfr-debug clean
+.PHONY: all lto debug test test-sanitize dependencies cfr-release cfr-debug clean
 
 all: $(RELEASE_BINARY)
+
+lto:
+	$(MAKE) BUILD_DIR=$(LTO_BUILD_DIR) CFR_BUILD_DIR=$(LTO_BUILD_DIR) \
+		CFLAGS='$(CFLAGS) -flto' LDFLAGS='$(LDFLAGS) -flto' all
 
 debug: $(DEBUG_BINARY) $(TEST_BINARY)
 
@@ -49,6 +55,7 @@ test: $(TEST_BINARY) $(DEBUG_BINARY)
 
 test-sanitize:
 	$(MAKE) BUILD_DIR=$(BUILD_DIR)/sanitize \
+		CFR_BUILD_DIR=$(CFR_BUILD_DIR)/sanitize \
 		CFLAGS='$(CFLAGS) -fsanitize=address,undefined -fno-sanitize-recover=all' \
 		LDFLAGS='$(LDFLAGS) -fsanitize=address,undefined' test
 
@@ -57,10 +64,12 @@ dependencies:
 	$(MAKE) -C Simulador-Mus test-release
 
 cfr-release:
-	$(MAKE) -C C-CFR build/release/libcfr.a
+	$(MAKE) -C C-CFR BUILD_DIR=$(CFR_BUILD_DIR) CFLAGS='$(CFLAGS)' \
+		LDFLAGS='$(LDFLAGS)' $(CFR_BUILD_DIR)/release/libcfr.a
 
 cfr-debug:
-	$(MAKE) -C C-CFR build/debug/libcfr.a
+	$(MAKE) -C C-CFR BUILD_DIR=$(CFR_BUILD_DIR) CFLAGS='$(CFLAGS)' \
+		LDFLAGS='$(LDFLAGS)' $(CFR_BUILD_DIR)/debug/libcfr.a
 
 $(RELEASE_LIBRARY): $(RELEASE_OBJECTS)
 	@mkdir -p $(dir $@)

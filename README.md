@@ -49,6 +49,10 @@ make test-sanitize
 make dependencies
 ```
 
+Para una compilación release con optimización entre unidades de traducción,
+use `make lto`. Sus artefactos se escriben en `build/lto/release` y los de
+`C-CFR` en `C-CFR/build/lto/release`, sin reemplazar la compilación normal.
+
 Los artefactos principales son:
 
 - `build/release/mus-solver`
