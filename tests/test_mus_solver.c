@@ -121,6 +121,25 @@ static void ordago_finish_current_draw(MusOrdagoGameState *state,
         ordago_apply(state, MUS_ACTION_TAKE_0);
 }
 
+static InfoSetKey ordago_information_key(MusOrdagoGameState *state) {
+    InfoSetKey key = -1;
+
+    CHECK(cfr_game_information_set_key(ordago_game(),
+                                       ordago_game_state(state), &key) ==
+          CFR_STATUS_SUCCESS);
+    return key;
+}
+
+static MusOrdagoInformationSet ordago_information(
+    MusOrdagoGameState *state) {
+    MusOrdagoInformationSet information = {0};
+    const InfoSetKey key = ordago_information_key(state);
+
+    CHECK(mus_ordago_game_information_set_decode(key, &information) ==
+          CFR_STATUS_SUCCESS);
+    return information;
+}
+
 typedef struct {
     size_t player_0_compositions;
     size_t joint_deals;
@@ -564,7 +583,7 @@ static void test_ordago_mus_discards_bets_and_infosets(void) {
     InfoSetKey key;
 
     CHECK(strcmp(ordago_game()->strategy_schema_id,
-                 "mus.heads-up-single-hand.ordago-with-mus/v1") == 0);
+                 "mus.heads-up-single-hand.ordago-with-mus/v2") == 0);
     CHECK(ordago_game()->max_legal_actions == MUS_GAME_MAX_LEGAL_ACTIONS);
     ordago_deal(&state, kings, knights);
     original_summary = state.hand_summaries[0];
@@ -638,18 +657,20 @@ static void test_ordago_mus_discards_bets_and_infosets(void) {
     CHECK(cfr_game_legal_actions(ordago_game(), ordago_game_state(&state),
                                  actions, MUS_GAME_MAX_LEGAL_ACTIONS,
                                  &count) == CFR_STATUS_SUCCESS);
-    CHECK(count == 6 && actions[0] == MUS_ACTION_REJECT &&
+    CHECK(count == 7 && actions[0] == MUS_ACTION_REJECT &&
           actions[1] == MUS_ACTION_ACCEPT &&
-          actions[2] == MUS_ACTION_BET_FOUR &&
-          actions[3] == MUS_ACTION_BET_SEVEN &&
-          actions[4] == MUS_ACTION_BET_TEN &&
-          actions[5] == MUS_ACTION_ORDAGO);
+          actions[2] == MUS_ACTION_BET_TWO &&
+          actions[3] == MUS_ACTION_BET_FOUR &&
+          actions[4] == MUS_ACTION_BET_SEVEN &&
+          actions[5] == MUS_ACTION_BET_TEN &&
+          actions[6] == MUS_ACTION_ORDAGO);
     ordago_apply(&state, MUS_ACTION_BET_SEVEN);
-    CHECK(state.model.current_wager == 7);
+    CHECK(state.model.current_wager == 9);
     CHECK(state.model.previous_wager == 2);
     ordago_apply(&state, MUS_ACTION_ORDAGO);
     CHECK(state.model.current_wager == MUS_ORDAGO_WAGER);
-    CHECK(state.model.previous_wager == 7);
+    CHECK(state.model.previous_wager == 9);
+    CHECK(state.model.current_wager_is_ordago);
     CHECK(cfr_game_information_set_key(ordago_game(),
                                        ordago_game_state(&state), &key) ==
           CFR_STATUS_SUCCESS);
@@ -658,11 +679,12 @@ static void test_ordago_mus_discards_bets_and_infosets(void) {
     CHECK(decoded.bet_stage == MUS_BET_RESPONSE);
     CHECK(decoded.bettor == CFR_PLAYER_0);
     CHECK(decoded.current_wager == MUS_ORDAGO_WAGER);
-    CHECK(decoded.previous_wager == 7);
+    CHECK(decoded.previous_wager == 9);
+    CHECK(decoded.current_wager_is_ordago);
     ordago_apply(&state, MUS_ACTION_REJECT);
     CHECK(state.model.outcomes[0] == MUS_LANCE_FIRST_BET_REJECTED);
     CHECK(state.model.outcome_wagers[0] == MUS_ORDAGO_WAGER);
-    CHECK(state.model.outcome_previous_wagers[0] == 7);
+    CHECK(state.model.outcome_previous_wagers[0] == 9);
     while (state.model.phase != MUS_PHASE_MUS_PLAYER_0 ||
            state.model.mus_count != 0) {
         CHECK(cfr_game_undo_action(ordago_game(), ordago_game_state(&state)) ==
@@ -676,6 +698,7 @@ static void test_ordago_no_mus_scoring_and_export(void) {
     const uint8_t kings[MUS_GAME_CLASS_COUNT] = {0, 0, 0, 0, 0, 0, 0, 4};
     const uint8_t knights[MUS_GAME_CLASS_COUNT] = {0, 0, 0, 0, 0, 0, 4, 0};
     MusOrdagoGameState state;
+    MusOrdagoGameState betting_state;
     InfoStore store = {0};
     InfoNode *node = NULL;
     Trainer trainer;
@@ -683,6 +706,8 @@ static void test_ordago_no_mus_scoring_and_export(void) {
     char line[4096];
     InfoSetKey key;
     Utility utility = 0.0;
+    bool found_mus = false;
+    bool found_additive_response = false;
 
     ordago_deal(&state, kings, knights);
     ordago_apply(&state, MUS_ACTION_NO_MUS);
@@ -709,6 +734,12 @@ static void test_ordago_no_mus_scoring_and_export(void) {
     CHECK(cfr_info_store_get_or_create(&store, key, 2, &node) ==
           CFR_STATUS_SUCCESS);
     CHECK(node != NULL);
+    ordago_deal(&betting_state, kings, knights);
+    ordago_apply(&betting_state, MUS_ACTION_NO_MUS);
+    ordago_apply(&betting_state, MUS_ACTION_BET_TWO);
+    key = ordago_information_key(&betting_state);
+    CHECK(cfr_info_store_get_or_create(&store, key, 7, &node) ==
+          CFR_STATUS_SUCCESS);
     CHECK(cfr_trainer_init_mccfr(&trainer, ordago_game(),
                                  ordago_game_state(&state), &store, 9) ==
           CFR_STATUS_SUCCESS);
@@ -719,14 +750,202 @@ static void test_ordago_no_mus_scoring_and_export(void) {
               CFR_STATUS_SUCCESS);
         rewind(text_file);
         CHECK(fgets(line, sizeof(line), text_file) != NULL);
-        CHECK(strstr(line, "ordago-with-mus/v1") != NULL);
-        CHECK(fgets(line, sizeof(line), text_file) != NULL);
-        CHECK(strstr(line, "muses=0") != NULL);
-        CHECK(strstr(line, "mus=") != NULL);
-        CHECK(strstr(line, "no_mus=") != NULL);
+        CHECK(strstr(line, "ordago-with-mus/v2") != NULL);
+        while (fgets(line, sizeof(line), text_file) != NULL) {
+            if (strstr(line, "muses=0") != NULL &&
+                strstr(line, " mus=") != NULL &&
+                strstr(line, " no_mus=") != NULL) {
+                found_mus = true;
+            }
+            if (strstr(line, "fase=grande") != NULL &&
+                strstr(line, "actual=2 cubierto=1") != NULL &&
+                strstr(line, "envidar_2=") != NULL) {
+                found_additive_response = true;
+            }
+        }
+        CHECK(found_mus);
+        CHECK(found_additive_response);
         fclose(text_file);
     }
     CHECK(cfr_info_store_destroy(&store) == CFR_STATUS_SUCCESS);
+}
+
+static void test_ordago_additive_wagers(void) {
+    const uint8_t kings[MUS_GAME_CLASS_COUNT] = {0, 0, 0, 0, 0, 0, 0, 4};
+    const uint8_t knights[MUS_GAME_CLASS_COUNT] = {0, 0, 0, 0, 0, 0, 4, 0};
+    MusOrdagoGameState state;
+    MusOrdagoInformationSet information;
+    Action actions[MUS_GAME_MAX_LEGAL_ACTIONS] = {0};
+    size_t count = 0;
+
+    ordago_deal(&state, kings, knights);
+    ordago_apply(&state, MUS_ACTION_NO_MUS);
+    ordago_apply(&state, MUS_ACTION_BET_TWO);
+    ordago_apply(&state, MUS_ACTION_BET_TWO);
+    CHECK(state.model.current_wager == 4);
+    CHECK(state.model.previous_wager == 2);
+    CHECK(!state.model.current_wager_is_ordago);
+    information = ordago_information(&state);
+    CHECK(information.current_wager == 4);
+    CHECK(information.previous_wager == 2);
+    CHECK(!information.current_wager_is_ordago);
+
+    ordago_deal(&state, kings, knights);
+    ordago_apply(&state, MUS_ACTION_NO_MUS);
+    ordago_apply(&state, MUS_ACTION_BET_TEN);
+    ordago_apply(&state, MUS_ACTION_BET_TEN);
+    ordago_apply(&state, MUS_ACTION_BET_TEN);
+    ordago_apply(&state, MUS_ACTION_BET_TEN);
+    CHECK(state.model.current_wager == MUS_ORDAGO_WAGER);
+    CHECK(state.model.previous_wager == 30);
+    CHECK(!state.model.current_wager_is_ordago);
+    CHECK(cfr_game_legal_actions(ordago_game(), ordago_game_state(&state),
+                                 actions, MUS_GAME_MAX_LEGAL_ACTIONS,
+                                 &count) == CFR_STATUS_SUCCESS);
+    CHECK(count == 3 && actions[0] == MUS_ACTION_REJECT &&
+          actions[1] == MUS_ACTION_ACCEPT &&
+          actions[2] == MUS_ACTION_ORDAGO);
+    information = ordago_information(&state);
+    CHECK(information.current_wager == MUS_ORDAGO_WAGER);
+    CHECK(!information.current_wager_is_ordago);
+
+    ordago_apply(&state, MUS_ACTION_ORDAGO);
+    CHECK(state.model.current_wager == MUS_ORDAGO_WAGER);
+    CHECK(state.model.previous_wager == MUS_ORDAGO_WAGER);
+    CHECK(state.model.current_wager_is_ordago);
+    CHECK(cfr_game_legal_actions(ordago_game(), ordago_game_state(&state),
+                                 actions, MUS_GAME_MAX_LEGAL_ACTIONS,
+                                 &count) == CFR_STATUS_SUCCESS);
+    CHECK(count == 2 && actions[0] == MUS_ACTION_REJECT &&
+          actions[1] == MUS_ACTION_ACCEPT);
+
+    ordago_deal(&state, kings, knights);
+    ordago_apply(&state, MUS_ACTION_NO_MUS);
+    while (state.model.phase != MUS_PHASE_TERMINAL) {
+        ordago_apply(&state, MUS_ACTION_BET_TWO);
+        while (state.model.current_wager < MUS_ORDAGO_WAGER)
+            ordago_apply(&state, MUS_ACTION_BET_TWO);
+        ordago_apply(&state, MUS_ACTION_ORDAGO);
+        ordago_apply(&state, MUS_ACTION_ACCEPT);
+    }
+    CHECK(state.undo_count == 103);
+    while (state.undo_count > 0) {
+        CHECK(cfr_game_undo_action(ordago_game(), ordago_game_state(&state)) ==
+              CFR_STATUS_SUCCESS);
+    }
+    CHECK(state.model.phase == MUS_PHASE_DEAL_PLAYER_0);
+}
+
+static void test_ordago_abstract_hands_and_strengths(void) {
+    const uint8_t hand_a[MUS_GAME_CLASS_COUNT] = {1, 1, 0, 0, 0, 0, 1, 1};
+    const uint8_t hand_b[MUS_GAME_CLASS_COUNT] = {0, 1, 1, 0, 0, 0, 1, 1};
+    const uint8_t hand_c[MUS_GAME_CLASS_COUNT] = {1, 1, 1, 1, 0, 0, 0, 0};
+    const uint8_t sixes[MUS_GAME_CLASS_COUNT] = {0, 0, 0, 4, 0, 0, 0, 0};
+    const uint8_t sevens[MUS_GAME_CLASS_COUNT] = {0, 0, 0, 0, 4, 0, 0, 0};
+    const uint8_t duples[MUS_GAME_CLASS_COUNT] = {2, 0, 0, 0, 0, 0, 0, 2};
+    const uint8_t rival_duples[MUS_GAME_CLASS_COUNT] = {0, 2, 2, 0, 0, 0, 0, 0};
+    const uint8_t game_31[MUS_GAME_CLASS_COUNT] = {1, 0, 0, 0, 0, 1, 1, 1};
+    const uint8_t game_32[MUS_GAME_CLASS_COUNT] = {0, 0, 1, 0, 1, 1, 1, 0};
+    const uint8_t point_17[MUS_GAME_CLASS_COUNT] = {1, 1, 1, 0, 1, 0, 0, 0};
+    MusOrdagoGameState first;
+    MusOrdagoGameState second;
+    MusOrdagoInformationSet information;
+    InfoSetKey first_key;
+    InfoSetKey second_key;
+
+    ordago_deal(&first, hand_a, sixes);
+    ordago_deal(&second, hand_b, sixes);
+    ordago_apply(&first, MUS_ACTION_NO_MUS);
+    ordago_apply(&second, MUS_ACTION_NO_MUS);
+    first_key = ordago_information_key(&first);
+    second_key = ordago_information_key(&second);
+    CHECK(first_key == second_key);
+    information = ordago_information(&first);
+    CHECK(information.hand_kind == MUS_ORDAGO_HAND_GRANDE);
+    CHECK(information.king_count == 1);
+    CHECK(information.has_highest_non_king);
+    CHECK(information.highest_non_king == MUS_CLASS_KNIGHTS);
+
+    ordago_deal(&first, hand_a, sevens);
+    ordago_deal(&second, hand_c, sevens);
+    ordago_apply(&first, MUS_ACTION_NO_MUS);
+    ordago_apply(&second, MUS_ACTION_NO_MUS);
+    ordago_apply(&first, MUS_ACTION_PASS);
+    ordago_apply(&first, MUS_ACTION_PASS);
+    ordago_apply(&second, MUS_ACTION_PASS);
+    ordago_apply(&second, MUS_ACTION_PASS);
+    CHECK(ordago_information_key(&first) ==
+          ordago_information_key(&second));
+    information = ordago_information(&first);
+    CHECK(information.hand_kind == MUS_ORDAGO_HAND_CHICA);
+    CHECK(information.pito_count == 1);
+    CHECK(information.lowest_non_pito == MUS_CLASS_FOURS);
+    CHECK(information.previous_strength_count == 1);
+    CHECK(information.previous_strengths[0] ==
+          MUS_LANCE_STRENGTH_NONE);
+
+    for (int strength = MUS_LANCE_STRENGTH_NONE;
+         strength <= MUS_LANCE_STRENGTH_BOTH; strength += 1) {
+        ordago_deal(&first, hand_a, sevens);
+        ordago_apply(&first, MUS_ACTION_NO_MUS);
+        if (strength == MUS_LANCE_STRENGTH_NONE) {
+            ordago_apply(&first, MUS_ACTION_PASS);
+            ordago_apply(&first, MUS_ACTION_PASS);
+        } else if (strength == MUS_LANCE_STRENGTH_PLAYER_0) {
+            ordago_apply(&first, MUS_ACTION_BET_TWO);
+            ordago_apply(&first, MUS_ACTION_REJECT);
+        } else if (strength == MUS_LANCE_STRENGTH_PLAYER_1) {
+            ordago_apply(&first, MUS_ACTION_PASS);
+            ordago_apply(&first, MUS_ACTION_BET_TWO);
+            ordago_apply(&first, MUS_ACTION_REJECT);
+        } else {
+            ordago_apply(&first, MUS_ACTION_BET_TWO);
+            ordago_apply(&first, MUS_ACTION_ACCEPT);
+        }
+        information = ordago_information(&first);
+        CHECK(information.phase == MUS_PHASE_CHICA);
+        CHECK(information.previous_strengths[0] ==
+              (MusLanceStrength)strength);
+    }
+
+    ordago_deal(&first, duples, rival_duples);
+    ordago_apply(&first, MUS_ACTION_NO_MUS);
+    for (int lance = 0; lance < 2; lance += 1) {
+        ordago_apply(&first, MUS_ACTION_PASS);
+        ordago_apply(&first, MUS_ACTION_PASS);
+    }
+    information = ordago_information(&first);
+    CHECK(information.phase == MUS_PHASE_PARES);
+    CHECK(information.hand_kind == MUS_ORDAGO_HAND_PARES);
+    CHECK(information.pairs_type == MUS_PAIRS_DUPLES);
+    CHECK(information.pairs_value == MUS_CLASS_KINGS);
+    CHECK(information.has_second_pairs_value);
+    CHECK(information.second_pairs_value == MUS_CLASS_PITOS);
+
+    ordago_deal(&first, game_31, game_32);
+    ordago_apply(&first, MUS_ACTION_NO_MUS);
+    for (int lance = 0; lance < 2; lance += 1) {
+        ordago_apply(&first, MUS_ACTION_PASS);
+        ordago_apply(&first, MUS_ACTION_PASS);
+    }
+    information = ordago_information(&first);
+    CHECK(information.phase == MUS_PHASE_JUEGO);
+    CHECK(information.hand_kind == MUS_ORDAGO_HAND_JUEGO);
+    CHECK(information.game_value == 31);
+    CHECK(information.previous_strength_count == 3);
+    CHECK(information.previous_strengths[2] ==
+          MUS_LANCE_STRENGTH_NONE);
+
+    ordago_deal(&first, hand_c, point_17);
+    ordago_apply(&first, MUS_ACTION_NO_MUS);
+    for (int lance = 0; lance < 2; lance += 1) {
+        ordago_apply(&first, MUS_ACTION_PASS);
+        ordago_apply(&first, MUS_ACTION_PASS);
+    }
+    information = ordago_information(&first);
+    CHECK(information.phase == MUS_PHASE_PUNTO);
+    CHECK(information.hand_kind == MUS_ORDAGO_HAND_PUNTO);
+    CHECK(information.point_value == 16);
 }
 
 static void test_information_boundaries(void) {
@@ -1134,6 +1353,8 @@ int main(void) {
     test_raises_to_eight_actions_infosets_and_undo();
     test_ordago_mus_discards_bets_and_infosets();
     test_ordago_no_mus_scoring_and_export();
+    test_ordago_additive_wagers();
+    test_ordago_abstract_hands_and_strengths();
     test_literal_scoring();
     test_raises_to_eight_scoring();
     test_streaming_evaluator_on_subgame();

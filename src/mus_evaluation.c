@@ -13,7 +13,7 @@
 #define BR_SINGLE_BET_MAX_DECISION_DEPTH (MUS_GAME_LANCE_COUNT * 2)
 #define BR_RAISES_MAX_DECISION_DEPTH (MUS_GAME_LANCE_COUNT * 3)
 #define BR_ORDAGO_MAX_DECISION_DEPTH                                      \
-    (MUS_GAME_MAX_MUSES * 2 + MUS_GAME_LANCE_COUNT * 4)
+    (MUS_GAME_MAX_MUSES * 2 + MUS_GAME_LANCE_COUNT * 12)
 #define EVALUATION_EPSILON 1e-9
 
 typedef struct {
@@ -627,9 +627,14 @@ Status mus_raises_to_eight_evaluation_metrics(
 Status mus_ordago_evaluation_metrics_from_state(
     const MusOrdagoGameState *root, const InfoStore *store,
     EvaluationMetrics *metrics_out) {
-    return evaluation_metrics_from_state(root, store,
-                                         mus_ordago_game_descriptor(),
-                                         metrics_out);
+    MusOrdagoGameState state;
+
+    if (root == NULL || store == NULL || metrics_out == NULL)
+        return CFR_STATUS_INVALID_ARGUMENT;
+    state = *root;
+    return cfr_evaluation_metrics_with_unvisited_uniform(
+        mus_ordago_game_descriptor(),
+        mus_ordago_game_state_as_game_state(&state), store, metrics_out);
 }
 
 Status mus_ordago_evaluation_metrics(const InfoStore *store,

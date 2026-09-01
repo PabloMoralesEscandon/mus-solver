@@ -11,7 +11,7 @@
 #define MUS_GAME_CLASS_COUNT 8
 #define MUS_GAME_HAND_SIZE 4
 #define MUS_GAME_LANCE_COUNT 4
-#define MUS_GAME_UNDO_CAPACITY 96
+#define MUS_GAME_UNDO_CAPACITY 160
 #define MUS_GAME_MAX_LEGAL_ACTIONS 16
 #define MUS_GAME_MAX_MUSES 2
 #define MUS_GAME_DISCARD_MASK_COUNT 16
@@ -67,6 +67,28 @@ typedef enum {
 } MusLanceOutcome;
 
 typedef enum {
+    MUS_LANCE_STRENGTH_NONE,
+    MUS_LANCE_STRENGTH_PLAYER_0,
+    MUS_LANCE_STRENGTH_PLAYER_1,
+    MUS_LANCE_STRENGTH_BOTH
+} MusLanceStrength;
+
+typedef enum {
+    MUS_PAIRS_PAIR,
+    MUS_PAIRS_MEDIAS,
+    MUS_PAIRS_DUPLES
+} MusPairsType;
+
+typedef enum {
+    MUS_ORDAGO_HAND_EXACT,
+    MUS_ORDAGO_HAND_GRANDE,
+    MUS_ORDAGO_HAND_CHICA,
+    MUS_ORDAGO_HAND_PARES,
+    MUS_ORDAGO_HAND_JUEGO,
+    MUS_ORDAGO_HAND_PUNTO
+} MusOrdagoHandKind;
+
+typedef enum {
     MUS_ACTION_TAKE_0 = 0,
     MUS_ACTION_TAKE_1,
     MUS_ACTION_TAKE_2,
@@ -103,19 +125,21 @@ typedef struct {
     uint8_t discard_counts[MUS_GAME_MAX_MUSES][MUS_GAME_PLAYER_COUNT];
     bool mus_stopped;
     Player mus_stop_player;
-    /* Offered amount awaiting a response; zero outside MUS_BET_RESPONSE. */
+    /* Total offered amount awaiting a response; zero outside a response. */
     uint8_t current_wager;
-    /* Last covered amount and the ordered wager levels in the current lance. */
+    /* Amount covered before the current offer. */
     uint8_t previous_wager;
-    uint8_t current_wager_history;
+    bool current_wager_is_ordago;
+    MusLanceStrength current_strength;
     Player current_player;
     MusBetStage bet_stage;
     Player bettor;
     MusLanceOutcome outcomes[MUS_GAME_LANCE_COUNT];
-    /* Final offered amount and the last level covered before it. */
+    /* Final offered amount and the amount covered before it. */
     uint8_t outcome_wagers[MUS_GAME_LANCE_COUNT];
     uint8_t outcome_previous_wagers[MUS_GAME_LANCE_COUNT];
-    uint8_t outcome_wager_histories[MUS_GAME_LANCE_COUNT];
+    bool outcome_wager_is_ordago[MUS_GAME_LANCE_COUNT];
+    MusLanceStrength outcome_strengths[MUS_GAME_LANCE_COUNT];
     bool pairs_revealed;
     bool pairs[MUS_GAME_PLAYER_COUNT];
     bool game_revealed;
@@ -180,7 +204,41 @@ typedef MusInformationSet MusRaisesToEightInformationSet;
 
 typedef MusGameModel MusOrdagoGameModel;
 typedef MusGameState MusOrdagoGameState;
-typedef MusInformationSet MusOrdagoInformationSet;
+
+typedef struct {
+    Player player;
+    MusGamePhase phase;
+    MusBetStage bet_stage;
+    MusOrdagoHandKind hand_kind;
+    /* Present only during mus and discard decisions. */
+    uint8_t hand[MUS_GAME_CLASS_COUNT];
+    /* Grande abstraction. */
+    uint8_t king_count;
+    MusCardClass highest_non_king;
+    bool has_highest_non_king;
+    /* Chica abstraction. */
+    uint8_t pito_count;
+    MusCardClass lowest_non_pito;
+    bool has_lowest_non_pito;
+    /* Pares abstraction. */
+    MusPairsType pairs_type;
+    MusCardClass pairs_value;
+    MusCardClass second_pairs_value;
+    bool has_second_pairs_value;
+    /* Juego or punto abstraction. */
+    uint8_t game_value;
+    uint8_t point_value;
+    uint8_t mus_count;
+    uint8_t discard_counts[MUS_GAME_MAX_MUSES][MUS_GAME_PLAYER_COUNT];
+    bool mus_stopped;
+    Player mus_stop_player;
+    MusLanceStrength previous_strengths[MUS_GAME_LANCE_COUNT - 1];
+    uint8_t previous_strength_count;
+    Player bettor;
+    uint8_t current_wager;
+    uint8_t previous_wager;
+    bool current_wager_is_ordago;
+} MusOrdagoInformationSet;
 
 Status mus_game_state_init(MusGameState *state);
 const Game *mus_game_descriptor(void);
@@ -210,7 +268,7 @@ const GameState *mus_raises_to_eight_game_state_as_game_state_const(
 Status mus_raises_to_eight_game_information_set_decode(
     InfoSetKey key, MusRaisesToEightInformationSet *information_set);
 
-/* Flexible wagers 2/4/7/10/ordago plus up to two rounds of mus. */
+/* Additive wagers 2/4/7/10/ordago plus up to two rounds of mus. */
 Status mus_ordago_game_state_init(MusOrdagoGameState *state);
 const Game *mus_ordago_game_descriptor(void);
 GameState *mus_ordago_game_state_as_game_state(MusOrdagoGameState *state);
