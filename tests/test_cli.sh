@@ -9,6 +9,7 @@ trap 'rm -rf -- "$tmp_dir"' EXIT HUP INT TERM
 grep -q -- '--iterations N' "$tmp_dir/help.txt"
 grep -q -- '--evaluate' "$tmp_dir/help.txt"
 grep -q -- '--format FORMAT' "$tmp_dir/help.txt"
+grep -q -- '--reserve-information-sets N' "$tmp_dir/help.txt"
 grep -q -- 'raises-to-eight' "$tmp_dir/help.txt"
 
 if "$solver" >"$tmp_dir/no-args.out" 2>"$tmp_dir/no-args.err"; then
@@ -19,6 +20,11 @@ if "$solver" --iterations 0 >"$tmp_dir/zero.out" 2>"$tmp_dir/zero.err"; then
     echo "--iterations 0 debio fallar" >&2
     exit 1
 fi
+if "$solver" --iterations 1 --reserve-information-sets 0 \
+    >"$tmp_dir/zero-reserve.out" 2>"$tmp_dir/zero-reserve.err"; then
+    echo "--reserve-information-sets 0 debio fallar" >&2
+    exit 1
+fi
 
 "$solver" --iterations 10 --seed 7 --save "$tmp_dir/first.cfr" \
     >"$tmp_dir/first.out"
@@ -26,8 +32,11 @@ fi
     --save "$tmp_dir/resumed.cfr" >"$tmp_dir/resumed.out"
 "$solver" --iterations 20 --seed 7 --save "$tmp_dir/continuous.cfr" \
     --export-strategy "$tmp_dir/strategy.txt" >"$tmp_dir/continuous.out"
+"$solver" --iterations 20 --seed 7 --reserve-information-sets 64 \
+    --save "$tmp_dir/reserved.cfr" >"$tmp_dir/reserved.out"
 
 cmp "$tmp_dir/resumed.cfr" "$tmp_dir/continuous.cfr"
+cmp "$tmp_dir/reserved.cfr" "$tmp_dir/continuous.cfr"
 grep -q 'report iterations=20' "$tmp_dir/continuous.out"
 grep -q 'mus-strategy version=1' "$tmp_dir/strategy.txt"
 grep -q 'posicion=' "$tmp_dir/strategy.txt"

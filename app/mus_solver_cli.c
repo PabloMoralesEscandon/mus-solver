@@ -24,6 +24,7 @@ typedef enum {
 typedef struct {
     size_t iterations;
     size_t report_every;
+    size_t reserve_information_sets;
     uint64_t seed;
     const char *load_path;
     const char *save_path;
@@ -31,6 +32,7 @@ typedef struct {
     CliFormat format;
     bool iterations_set;
     bool report_every_set;
+    bool reserve_information_sets_set;
     bool seed_set;
     bool format_set;
     bool evaluate;
@@ -42,7 +44,8 @@ static bool print_usage(FILE *stream, const char *program) {
                stream,
                "Uso:\n"
                "  %s --iterations N [--seed N] [--report-every N] "
-               "[--format FORMAT] [--save FILE]\n"
+               "[--format FORMAT] [--reserve-information-sets N] "
+               "[--save FILE]\n"
                "     [--evaluate] [--export-strategy FILE]\n"
                "  %s --load FILE --iterations N [--report-every N] "
                "[--format FORMAT] [--save FILE]\n"
@@ -59,6 +62,8 @@ static bool print_usage(FILE *stream, const char *program) {
                "defecto).\n"
                "  --format FORMAT        single-bet (por defecto) o "
                "raises-to-eight.\n"
+               "  --reserve-information-sets N\n"
+               "                          Reserva capacidad para N conjuntos.\n"
                "  --load FILE            Carga un checkpoint reanudable.\n"
                "  --save FILE            Guarda el checkpoint tras entrenar.\n"
                "  --evaluate             Evalua exactamente la estrategia media.\n"
@@ -136,6 +141,13 @@ static bool parse_options(int argc, char *argv[], CliOptions *options) {
                 return false;
             }
             options->seed_set = true;
+        } else if (strcmp(argument, "--reserve-information-sets") == 0) {
+            if (options->reserve_information_sets_set ||
+                !option_value(argc, argv, &index, &value) ||
+                !parse_size(value, &options->reserve_information_sets)) {
+                return false;
+            }
+            options->reserve_information_sets_set = true;
         } else if (strcmp(argument, "--format") == 0) {
             if (options->format_set ||
                 !option_value(argc, argv, &index, &value)) {
@@ -370,6 +382,12 @@ static int run(const CliOptions *options) {
         store_initialized = true;
         status = cfr_trainer_init_mccfr(&trainer, game, game_state, &store,
                                         options->seed);
+        if (status != CFR_STATUS_SUCCESS)
+            goto runtime_error;
+    }
+    if (options->reserve_information_sets_set) {
+        status = cfr_info_store_reserve(&store,
+                                        options->reserve_information_sets);
         if (status != CFR_STATUS_SUCCESS)
             goto runtime_error;
     }
