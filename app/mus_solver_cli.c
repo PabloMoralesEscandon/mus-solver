@@ -67,7 +67,8 @@ static bool print_usage(FILE *stream, const char *program) {
                "                          Reserva capacidad para N conjuntos.\n"
                "  --load FILE            Carga un checkpoint reanudable.\n"
                "  --save FILE            Guarda el checkpoint tras entrenar.\n"
-               "  --evaluate             Evalua exactamente la estrategia media.\n"
+               "  --evaluate             Evalua exactamente la estrategia media "
+               "(no ordago).\n"
                "  --export-strategy FILE Exporta la estrategia con etiquetas de "
                "mus.\n"
                "  --help, -h             Muestra esta ayuda.\n",
@@ -429,14 +430,20 @@ static int run(const CliOptions *options) {
         }
     }
 
+    if (options->save_path != NULL) {
+        status = save_checkpoint(options->save_path, &trainer);
+        if (status != CFR_STATUS_SUCCESS) {
+            fprintf(stderr, "error: no se pudo guardar '%s': %s\n",
+                    options->save_path, status_name(status));
+            goto cleanup;
+        }
+    }
     if (options->evaluate) {
         EvaluationMetrics metrics;
 
         if (options->format == CLI_FORMAT_RAISES_TO_EIGHT) {
             status = mus_raises_to_eight_evaluation_metrics(&store,
                                                              &metrics);
-        } else if (options->format == CLI_FORMAT_ORDAGO) {
-            status = mus_ordago_evaluation_metrics(&store, &metrics);
         } else {
             status = mus_single_bet_evaluation_metrics(&store, &metrics);
         }
@@ -445,14 +452,6 @@ static int run(const CliOptions *options) {
         if (!print_evaluation(trainer.training_iterations, &metrics)) {
             status = CFR_STATUS_IO_ERROR;
             goto runtime_error;
-        }
-    }
-    if (options->save_path != NULL) {
-        status = save_checkpoint(options->save_path, &trainer);
-        if (status != CFR_STATUS_SUCCESS) {
-            fprintf(stderr, "error: no se pudo guardar '%s': %s\n",
-                    options->save_path, status_name(status));
-            goto cleanup;
         }
     }
     if (options->export_path != NULL) {
@@ -484,6 +483,12 @@ int main(int argc, char *argv[]) {
 
     if (!parse_options(argc, argv, &options)) {
         (void)print_usage(stderr, program);
+        return EXIT_USAGE_ERROR;
+    }
+    if (options.evaluate && options.format == CLI_FORMAT_ORDAGO) {
+        fprintf(stderr,
+                "error: la evaluacion desde la raiz no esta disponible "
+                "para ordago\n");
         return EXIT_USAGE_ERROR;
     }
     if (options.help) {

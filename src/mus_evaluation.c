@@ -9,11 +9,9 @@
 #include "mus_solver/mus_game.h"
 
 #define BR_INITIAL_CAPACITY 1024
-#define BR_ACTION_CAPACITY MUS_GAME_MAX_LEGAL_ACTIONS
+#define BR_ACTION_CAPACITY 3
 #define BR_SINGLE_BET_MAX_DECISION_DEPTH (MUS_GAME_LANCE_COUNT * 2)
 #define BR_RAISES_MAX_DECISION_DEPTH (MUS_GAME_LANCE_COUNT * 3)
-#define BR_ORDAGO_MAX_DECISION_DEPTH                                      \
-    (MUS_GAME_MAX_MUSES * 2 + MUS_GAME_LANCE_COUNT * 12)
 #define EVALUATION_EPSILON 1e-9
 
 typedef struct {
@@ -533,9 +531,7 @@ static Status evaluation_metrics_from_state(
     MusGameState state;
     EvaluationMetrics metrics = {0};
     const size_t max_decision_depth =
-        game == mus_ordago_game_descriptor()
-            ? BR_ORDAGO_MAX_DECISION_DEPTH
-        : game == mus_raises_to_eight_game_descriptor()
+        game == mus_raises_to_eight_game_descriptor()
             ? BR_RAISES_MAX_DECISION_DEPTH
             : BR_SINGLE_BET_MAX_DECISION_DEPTH;
     Status status;
@@ -639,13 +635,9 @@ Status mus_ordago_evaluation_metrics_from_state(
 
 Status mus_ordago_evaluation_metrics(const InfoStore *store,
                                      EvaluationMetrics *metrics_out) {
-    MusOrdagoGameState root;
-    Status status = mus_ordago_game_state_init(&root);
-
-    if (status != CFR_STATUS_SUCCESS)
-        return status;
-    return mus_ordago_evaluation_metrics_from_state(&root, store,
-                                                     metrics_out);
+    (void)store;
+    (void)metrics_out;
+    return CFR_STATUS_INVALID_ARGUMENT;
 }
 
 Status mus_evaluation_metrics_from_state(const MusGameState *root,

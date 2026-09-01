@@ -21,19 +21,23 @@ calcula valor, mejores respuestas y explotabilidad exactos bajo demanda.
 - El formato `ordago` permite pasar o envidar 2, 4, 7, 10 u órdago en todos
   los lances. Los envites numéricos son incrementos: responder a 2 con otro 2
   deja 4 tantos en juego, y responder después con 7 deja 11. El total numérico
-  se limita a 40 para que el árbol sea finito. El órdago también equivale a 40,
-  pero sigue siendo una acción distinta.
+  se limita a 40 para que el árbol sea finito. Al llegar a 40 de forma numérica
+  solo se puede querer o no querer; ya no se puede lanzar un órdago sin aumentar
+  la apuesta. El órdago es una acción distinta disponible mientras el total sea
+  menor que 40.
 - En `ordago`, antes de grande cada jugador dice, por orden, `mus` o `no mus`.
-  Si ambos dicen mus, cada uno elige una de las 16 máscaras de cuatro bits;
-  un bit a uno cambia esa carta. Los bits recorren la mano en su orden
-  canónico, de menor a mayor valor. Las cartas descartadas quedan fuera del
-  mazo y los robos se hacen sin reposición.
+  Si ambos dicen mus, cada uno elige un subconjunto no vacío de sus cartas. Los
+  bits recorren la mano en su orden canónico, de menor a mayor valor. Las copias
+  del mismo valor son indistinguibles, por lo que sus máscaras equivalentes se
+  agrupan: hay como máximo 15 acciones y solo 4 para cuatro cartas iguales. Las
+  cartas descartadas quedan fuera del mazo y los robos se hacen sin reposición.
 - El estado conserva el número de muses, las máscaras y los recuentos de
   descarte. Tras dos muses aceptados se pasa directamente a grande.
 - En los lances posteriores, cada lance completado se resume como ninguna
   muestra de fuerza, solo jugador 0, solo jugador 1 o ambos. Envidar, subir o
   querer cuenta como mostrar fuerza. No se conservan la secuencia ni las
-  cantidades exactas de los lances anteriores.
+  cantidades exactas de los lances anteriores. Si pares no se negocia, el
+  resumen conserva además si no tenía pares nadie, solo mano o solo postre.
 - Se aplica literalmente el tanteo de `Simulador-Mus`: el envite o deje se
   suma al valor intrínseco de pares, juego y punto.
 - La utilidad del jugador 0 es sus tantos menos los del jugador 1; la utilidad
@@ -47,6 +51,9 @@ En `ordago` se aplica la misma regla general: rechazar una apertura concede una
 piedra y rechazar una subida concede el total anterior ya cubierto. Por
 ejemplo, tras envites de 2, 2 y 7 hay 11 tantos en juego; si después se lanza
 un órdago y se rechaza, se conceden los 11 tantos cubiertos.
+Si se quiere el órdago, la mano termina inmediatamente y el ganador del lance
+actual recibe exactamente 40 tantos; no se suman lances ni valores intrínsecos
+posteriores.
 
 Los conjuntos de información de `ordago` usan una abstracción específica para
 cada lance. Mus y descartes conservan la composición exacta de la mano. Grande
@@ -142,7 +149,7 @@ de esquema son independientes e incompatibles entre sí:
 
 - `single-bet`: `mus.heads-up-single-hand/v1`;
 - `raises-to-eight`: `mus.heads-up-single-hand.raises-to-eight/v1`;
-- `ordago`: `mus.heads-up-single-hand.ordago-with-mus/v2`.
+- `ordago`: `mus.heads-up-single-hand.ordago-with-mus/v3`.
 
 Al cargar un checkpoint de `raises-to-eight` hay que volver a indicar
 `--format raises-to-eight`.
@@ -160,20 +167,20 @@ También se puede evaluar la estrategia uniforme inicial:
 build/release/mus-solver --evaluate
 ```
 
-La evaluación enumera los repartos e historiales del formato seleccionado y
-trata como uniformes los conjuntos de información aún no visitados. Calcula:
+La evaluación de `single-bet` y `raises-to-eight` enumera sus repartos e
+historiales y trata como uniformes los conjuntos de información aún no
+visitados. Calcula:
 
 - valor del perfil para ambos jugadores;
 - mejor respuesta de cada jugador;
 - mejora unilateral, NashConv y explotabilidad.
 
 Los formatos históricos acumulan valores contrafactuales por profundidad sin
-materializar el árbol completo. `ordago` usa el evaluador general porque su
-abstracción agrupa historiales de distintas profundidades.
-
-El árbol de `ordago` es mucho mayor debido a las 16 decisiones de descarte por
-jugador y ronda y a los envites aditivos. Su evaluación desde la raíz puede
-requerir mucha más memoria y tiempo que la de los dos formatos históricos.
+materializar el árbol completo. La evaluación de `ordago` desde la raíz está
+deshabilitada porque su árbol de mus, descartes y envites aditivos no es viable
+con el evaluador general; la CLI rechaza `--format ordago --evaluate`. La API
+conserva la evaluación de un subestado acotado mediante
+`mus_ordago_evaluation_metrics_from_state`.
 
 ### Referencia reproducible
 
@@ -208,8 +215,10 @@ Los encabezados públicos bajo `include/mus_solver/` exponen:
 - el formato original mediante el prefijo `mus_single_bet_`;
 - el formato con subidas mediante el prefijo `mus_raises_to_eight_`;
 - el formato con mus y órdago mediante el prefijo `mus_ordago_`;
-- el adaptador `Game`, el estado reversible, el evaluador exacto incremental y
-  el exportador etiquetado para cada formato.
+- el adaptador `Game`, el estado reversible y el exportador etiquetado para
+  cada formato;
+- el evaluador exacto incremental para los formatos históricos y la evaluación
+  de subestados acotados de `ordago`.
 
 Las funciones históricas `mus_game_*`, `mus_evaluation_*` y
 `mus_strategy_write_text` siguen apuntando a `single-bet` para mantener la
@@ -222,5 +231,5 @@ lectura en orden de clave utilizada por el exportador.
 
 Estos formatos no incluyen partidas completas a 40 tantos, rotación de la
 mano, parejas, señas, consulta de una jugada aislada ni una interfaz para jugar
-contra la estrategia. `ordago` representa el órdago como un envite de 40
-tantos dentro de la mano aislada; no modela el marcador previo de una partida.
+contra la estrategia. `ordago` representa el órdago aceptado como el final de
+la mano por 40 tantos; no modela el marcador previo de una partida.

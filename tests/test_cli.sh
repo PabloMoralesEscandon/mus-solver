@@ -59,6 +59,14 @@ grep -Eq 'subir_a_(4|8)=' "$tmp_dir/raises-strategy.txt"
     >"$tmp_dir/ordago.out"
 grep -q 'report iterations=1' "$tmp_dir/ordago.out"
 
+if "$solver" --format ordago --evaluate \
+    >"$tmp_dir/ordago-evaluate.out" 2>"$tmp_dir/ordago-evaluate.err"; then
+    echo "evaluar ordago desde la raiz debio fallar" >&2
+    exit 1
+fi
+grep -q 'evaluacion desde la raiz no esta disponible' \
+    "$tmp_dir/ordago-evaluate.err"
+
 if "$solver" --load "$tmp_dir/raises.cfr" --iterations 1 \
     >"$tmp_dir/wrong-format.out" 2>"$tmp_dir/wrong-format.err"; then
     echo "cargar raises-to-eight como single-bet debio fallar" >&2

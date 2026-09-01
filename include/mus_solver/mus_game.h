@@ -70,7 +70,10 @@ typedef enum {
     MUS_LANCE_STRENGTH_NONE,
     MUS_LANCE_STRENGTH_PLAYER_0,
     MUS_LANCE_STRENGTH_PLAYER_1,
-    MUS_LANCE_STRENGTH_BOTH
+    MUS_LANCE_STRENGTH_BOTH,
+    MUS_LANCE_STRENGTH_PARES_SKIPPED_NONE,
+    MUS_LANCE_STRENGTH_PARES_SKIPPED_PLAYER_0,
+    MUS_LANCE_STRENGTH_PARES_SKIPPED_PLAYER_1
 } MusLanceStrength;
 
 typedef enum {
@@ -276,6 +279,8 @@ const GameState *mus_ordago_game_state_as_game_state_const(
     const MusOrdagoGameState *state);
 Status mus_ordago_game_information_set_decode(
     InfoSetKey key, MusOrdagoInformationSet *information_set);
+bool mus_ordago_game_discard_mask_is_canonical(
+    const uint8_t hand[MUS_GAME_CLASS_COUNT], unsigned int mask);
 
 const char *mus_game_class_name(MusCardClass card_class);
 const char *mus_game_phase_name(MusGamePhase phase);

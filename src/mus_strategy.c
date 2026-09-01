@@ -31,13 +31,23 @@ static size_t ordago_expected_action_count(
         information->phase == MUS_PHASE_MUS_PLAYER_1)
         return 2;
     if (information->phase == MUS_PHASE_DISCARD_PLAYER_0 ||
-        information->phase == MUS_PHASE_DISCARD_PLAYER_1)
-        return MUS_GAME_DISCARD_MASK_COUNT;
+        information->phase == MUS_PHASE_DISCARD_PLAYER_1) {
+        size_t count = 0;
+
+        for (unsigned int mask = 1; mask < MUS_GAME_DISCARD_MASK_COUNT;
+             mask += 1) {
+            if (mus_ordago_game_discard_mask_is_canonical(
+                    information->hand, mask)) {
+                count += 1;
+            }
+        }
+        return count;
+    }
     if (information->bet_stage != MUS_BET_RESPONSE)
         return 6;
     if (information->current_wager_is_ordago)
         return 2;
-    size_t count = 3;
+    size_t count = 2;
     static const uint8_t increments[4] = {2, 4, 7, 10};
 
     for (int index = 0; index < 4; index += 1) {
@@ -46,6 +56,8 @@ static size_t ordago_expected_action_count(
             count += 1;
         }
     }
+    if (information->current_wager < MUS_ORDAGO_WAGER)
+        count += 1;
     return count;
 }
 
@@ -59,6 +71,12 @@ static const char *ordago_strength_name(MusLanceStrength strength) {
         return "postre";
     case MUS_LANCE_STRENGTH_BOTH:
         return "ambos";
+    case MUS_LANCE_STRENGTH_PARES_SKIPPED_NONE:
+        return "pares_sin_jugadores";
+    case MUS_LANCE_STRENGTH_PARES_SKIPPED_PLAYER_0:
+        return "pares_solo_mano";
+    case MUS_LANCE_STRENGTH_PARES_SKIPPED_PLAYER_1:
+        return "pares_solo_postre";
     }
     return "desconocido";
 }
@@ -124,6 +142,39 @@ static Status write_ordago_hand(FILE *stream,
                    ? CFR_STATUS_IO_ERROR
                    : CFR_STATUS_SUCCESS;
     return fprintf(stream, "punto:%u", information->point_value) < 0
+               ? CFR_STATUS_IO_ERROR
+               : CFR_STATUS_SUCCESS;
+}
+
+static Status write_ordago_discard_action(
+    FILE *stream, const MusOrdagoInformationSet *information,
+    unsigned int mask, Probability probability) {
+    unsigned int position = 0;
+    bool first = true;
+
+    if (fputs(" cambiar_", stream) == EOF)
+        return CFR_STATUS_IO_ERROR;
+    for (int card_class = 0; card_class < MUS_GAME_CLASS_COUNT;
+         card_class += 1) {
+        const unsigned int count = information->hand[card_class];
+        unsigned int selected = 0;
+
+        for (unsigned int copy = 0; copy < count; copy += 1) {
+            selected += (mask >> (position + copy)) & 1U;
+        }
+        position += count;
+        if (selected == 0)
+            continue;
+        if (!first && fputc('+', stream) == EOF)
+            return CFR_STATUS_IO_ERROR;
+        if (fprintf(stream, "%s:%u",
+                    mus_game_class_name((MusCardClass)card_class),
+                    selected) < 0) {
+            return CFR_STATUS_IO_ERROR;
+        }
+        first = false;
+    }
+    return fprintf(stream, "=%.17g", probability) < 0
                ? CFR_STATUS_IO_ERROR
                : CFR_STATUS_SUCCESS;
 }
@@ -197,11 +248,20 @@ static Status write_ordago_node(const InfoNode *node,
     }
     if (information.phase == MUS_PHASE_DISCARD_PLAYER_0 ||
         information.phase == MUS_PHASE_DISCARD_PLAYER_1) {
-        for (int mask = 0; mask < MUS_GAME_DISCARD_MASK_COUNT; mask += 1) {
-            if (fprintf(writer->stream, " cambiar_%d%d%d%d=%.17g",
-                        (mask >> 3) & 1, (mask >> 2) & 1,
-                        (mask >> 1) & 1, mask & 1, strategy[mask]) < 0)
+        size_t strategy_index = 0;
+
+        for (unsigned int mask = 1; mask < MUS_GAME_DISCARD_MASK_COUNT;
+             mask += 1) {
+            if (!mus_ordago_game_discard_mask_is_canonical(
+                    information.hand, mask)) {
+                continue;
+            }
+            if (write_ordago_discard_action(
+                    writer->stream, &information, mask,
+                    strategy[strategy_index]) != CFR_STATUS_SUCCESS) {
                 return CFR_STATUS_IO_ERROR;
+            }
+            strategy_index += 1;
         }
         return fputc('\n', writer->stream) == EOF ? CFR_STATUS_IO_ERROR
                                                    : CFR_STATUS_SUCCESS;
@@ -250,6 +310,7 @@ static Status write_ordago_node(const InfoNode *node,
             strategy_index += 1;
         }
         if (!information.current_wager_is_ordago &&
+            information.current_wager < MUS_ORDAGO_WAGER &&
             fprintf(writer->stream, " ordago=%.17g",
                     strategy[strategy_index]) < 0) {
             return CFR_STATUS_IO_ERROR;

@@ -17,9 +17,8 @@
 #define MUS_ORDAGO_PAIRS_HAND_RADIX 52
 #define MUS_ORDAGO_GAME_HAND_RADIX 8
 #define MUS_ORDAGO_POINT_HAND_RADIX 27
-#define MUS_ORDAGO_DISCARD_COUNT_RADIX (MUS_GAME_HAND_SIZE + 1)
-#define MUS_ORDAGO_PUBLIC_MUS_RADIX 677
-#define MUS_ORDAGO_STRENGTH_RADIX 4
+#define MUS_ORDAGO_DISCARD_COUNT_RADIX MUS_GAME_HAND_SIZE
+#define MUS_ORDAGO_PUBLIC_MUS_RADIX 290
 #define MUS_ORDAGO_WAGER_RADIX (MUS_ORDAGO_WAGER + 1)
 #define MUS_ORDAGO_SITUATION_COUNT 28
 
@@ -256,7 +255,7 @@ static const Game MUS_ORDAGO_GAME = {
     .context = &MUS_ORDAGO_FORMAT,
     .strategic_player_count = MUS_GAME_PLAYER_COUNT,
     .max_legal_actions = MUS_GAME_MAX_LEGAL_ACTIONS,
-    .strategy_schema_id = "mus.heads-up-single-hand.ordago-with-mus/v2",
+    .strategy_schema_id = "mus.heads-up-single-hand.ordago-with-mus/v3",
     .trusted_operations = &MUS_ORDAGO_TRUSTED_OPERATIONS,
 };
 
@@ -316,6 +315,30 @@ static size_t hand_total(const uint8_t hand[MUS_GAME_CLASS_COUNT]) {
     for (size_t index = 0; index < MUS_GAME_CLASS_COUNT; index += 1)
         total += hand[index];
     return total;
+}
+
+bool mus_ordago_game_discard_mask_is_canonical(
+    const uint8_t hand[MUS_GAME_CLASS_COUNT], unsigned int mask) {
+    unsigned int position = 0;
+
+    if (hand == NULL || hand_total(hand) != MUS_GAME_HAND_SIZE || mask == 0 ||
+        mask >= MUS_GAME_DISCARD_MASK_COUNT) {
+        return false;
+    }
+    for (int card_class = 0; card_class < MUS_GAME_CLASS_COUNT;
+         card_class += 1) {
+        const unsigned int count = hand[card_class];
+
+        if (count > 0) {
+            const unsigned int class_mask = (1U << count) - 1U;
+            const unsigned int selected = (mask >> position) & class_mask;
+
+            if ((selected & (selected + 1U)) != 0)
+                return false;
+        }
+        position += count;
+    }
+    return true;
 }
 
 static int game_key(int point_value) {
@@ -515,6 +538,7 @@ static void prepare_final_lance(
 
 static void advance_lance(
     MusGameModel *model, MusLanceOutcome outcome,
+    const MusGameFormat *format,
     const MusHandSummary summaries[MUS_GAME_PLAYER_COUNT]) {
     const MusGamePhase completed_phase = model->phase;
     const int lance = phase_lance_index(completed_phase);
@@ -537,6 +561,14 @@ static void advance_lance(
             start_betting(model, MUS_PHASE_PARES);
         } else {
             model->outcomes[2] = MUS_LANCE_SKIPPED;
+            if (format->ordago_with_mus) {
+                model->outcome_strengths[2] =
+                    model->pairs[0]
+                        ? MUS_LANCE_STRENGTH_PARES_SKIPPED_PLAYER_0
+                    : model->pairs[1]
+                        ? MUS_LANCE_STRENGTH_PARES_SKIPPED_PLAYER_1
+                        : MUS_LANCE_STRENGTH_PARES_SKIPPED_NONE;
+            }
             prepare_final_lance(model, summaries);
         }
     } else if (completed_phase == MUS_PHASE_PARES) {
@@ -661,7 +693,7 @@ static bool ordago_offer_is_valid(uint8_t wager, uint8_t previous_wager,
                                   bool is_ordago) {
     if (is_ordago) {
         return wager == MUS_ORDAGO_WAGER && previous_wager >= 1 &&
-               previous_wager <= MUS_ORDAGO_WAGER;
+               previous_wager < MUS_ORDAGO_WAGER;
     }
     if (previous_wager == 1)
         return ordago_increment_is_valid(wager);
@@ -688,8 +720,14 @@ static bool outcome_wager_is_valid(const MusGameFormat *format,
             : 1;
 
     if (!has_bet) {
+        const bool skipped_pairs_summary =
+            format->ordago_with_mus && outcome == MUS_LANCE_SKIPPED &&
+            strength >= MUS_LANCE_STRENGTH_PARES_SKIPPED_NONE &&
+            strength <= MUS_LANCE_STRENGTH_PARES_SKIPPED_PLAYER_1;
+
         return wager == 0 && previous_wager == 0 && !is_ordago &&
-               strength == MUS_LANCE_STRENGTH_NONE;
+               (strength == MUS_LANCE_STRENGTH_NONE ||
+                skipped_pairs_summary);
     }
     if (!format->ordago_with_mus) {
         return wager_is_valid(format, wager) && previous_wager == 0 &&
@@ -703,8 +741,6 @@ static bool outcome_wager_is_valid(const MusGameFormat *format,
     }
     if (accepted)
         return strength == MUS_LANCE_STRENGTH_BOTH;
-    if (!has_bet)
-        return false;
     return true;
 }
 
@@ -731,8 +767,15 @@ static Status validate_model(const MusGameModel *model,
         out_of_play_total += model->out_of_play[card_class];
     }
     for (int lance = 0; lance < MUS_GAME_LANCE_COUNT; lance += 1) {
+        const bool skipped_pairs_strength =
+            model->outcome_strengths[lance] >=
+                MUS_LANCE_STRENGTH_PARES_SKIPPED_NONE &&
+            model->outcome_strengths[lance] <=
+                MUS_LANCE_STRENGTH_PARES_SKIPPED_PLAYER_1;
+
         if (model->outcomes[lance] < MUS_LANCE_UNRESOLVED ||
             model->outcomes[lance] > MUS_LANCE_SKIPPED ||
+            (skipped_pairs_strength && lance != 2) ||
             !outcome_wager_is_valid(
                 format, model->outcomes[lance],
                 model->outcome_wagers[lance],
@@ -747,6 +790,12 @@ static Status validate_model(const MusGameModel *model,
     for (int round = 0; round < MUS_GAME_MAX_MUSES; round += 1) {
         for (int player = 0; player < MUS_GAME_PLAYER_COUNT; player += 1) {
             const uint8_t mask = model->discard_masks[round][player];
+            const bool completed_entry = round < model->mus_count;
+            const bool current_player_0_entry =
+                model->phase == MUS_PHASE_DISCARD_PLAYER_1 &&
+                round == model->mus_count && player == 0;
+            const bool entry_is_present =
+                completed_entry || current_player_0_entry;
             unsigned int count = 0;
 
             if (mask >= MUS_GAME_DISCARD_MASK_COUNT ||
@@ -755,8 +804,11 @@ static Status validate_model(const MusGameModel *model,
             }
             for (int bit = 0; bit < MUS_GAME_HAND_SIZE; bit += 1)
                 count += (mask >> bit) & 1U;
-            if (count != model->discard_counts[round][player])
+            if (count != model->discard_counts[round][player] ||
+                (entry_is_present && mask == 0) ||
+                (!entry_is_present && mask != 0)) {
                 return CFR_STATUS_INVALID_ARGUMENT;
+            }
             discard_total += model->discard_counts[round][player];
         }
     }
@@ -1076,6 +1128,20 @@ static int outcome_stake(const MusGameModel *model,
     return 0;
 }
 
+static int ordago_showdown_winner(
+    const MusGameModel *model,
+    const MusHandSummary summaries[MUS_GAME_PLAYER_COUNT], int lance) {
+    if (lance == 0)
+        return summaries[1].grande_key > summaries[0].grande_key ? 1 : 0;
+    if (lance == 1)
+        return summaries[1].chica_key > summaries[0].chica_key ? 1 : 0;
+    if (lance == 2)
+        return summaries[1].pairs_key > summaries[0].pairs_key ? 1 : 0;
+    if (model->game[0] && model->game[1])
+        return summaries[1].game_key > summaries[0].game_key ? 1 : 0;
+    return summaries[1].point_value > summaries[0].point_value ? 1 : 0;
+}
+
 static Status score_terminal(const MusGameState *mus,
                              const MusGameFormat *format, int scores[2]) {
     const MusGameModel *model;
@@ -1091,6 +1157,17 @@ static Status score_terminal(const MusGameState *mus,
     summaries = mus->hand_summaries;
     scores[0] = 0;
     scores[1] = 0;
+
+    if (format->ordago_with_mus) {
+        for (int lance = 0; lance < MUS_GAME_LANCE_COUNT; lance += 1) {
+            if (model->outcome_wager_is_ordago[lance] &&
+                outcome_is_accepted(model->outcomes[lance])) {
+                winner = ordago_showdown_winner(model, summaries, lance);
+                scores[winner] = MUS_ORDAGO_WAGER;
+                return CFR_STATUS_SUCCESS;
+            }
+        }
+    }
 
     outcome = model->outcomes[0];
     if (outcome_is_rejected(outcome)) {
@@ -1370,11 +1447,20 @@ static Status mus_trusted_legal_actions(const void *context,
     }
     if (format != NULL && format->ordago_with_mus &&
         phase_is_discard(mus->model.phase)) {
-        *required_count = MUS_GAME_DISCARD_MASK_COUNT;
-        if (capacity < MUS_GAME_DISCARD_MASK_COUNT)
+        Action temporary[MUS_GAME_DISCARD_MASK_COUNT - 1];
+        const uint8_t *hand =
+            mus->model.hands[mus->model.current_player];
+        size_t count = 0;
+
+        for (unsigned int mask = 1; mask < MUS_GAME_DISCARD_MASK_COUNT;
+             mask += 1) {
+            if (mus_ordago_game_discard_mask_is_canonical(hand, mask))
+                temporary[count++] = MUS_ACTION_DISCARD_MASK(mask);
+        }
+        *required_count = count;
+        if (capacity < count)
             return CFR_STATUS_BUFFER_TOO_SMALL;
-        for (int mask = 0; mask < MUS_GAME_DISCARD_MASK_COUNT; mask += 1)
-            actions[mask] = MUS_ACTION_DISCARD_MASK(mask);
+        memcpy(actions, temporary, count * sizeof(*actions));
         return CFR_STATUS_SUCCESS;
     }
     if (!phase_is_betting(mus->model.phase))
@@ -1399,7 +1485,8 @@ static Status mus_trusted_legal_actions(const void *context,
                         temporary[count++] = wager_actions[index];
                     }
                 }
-                temporary[count++] = MUS_ACTION_ORDAGO;
+                if (mus->model.current_wager < MUS_ORDAGO_WAGER)
+                    temporary[count++] = MUS_ACTION_ORDAGO;
             }
         } else {
             static const Action opening_actions[6] = {
@@ -1465,7 +1552,8 @@ static bool player_action_is_legal(const MusGameModel *model,
             return action == MUS_ACTION_REJECT ||
                    action == MUS_ACTION_ACCEPT ||
                    (!model->current_wager_is_ordago &&
-                    ((action == MUS_ACTION_ORDAGO) ||
+                    ((action == MUS_ACTION_ORDAGO &&
+                      model->current_wager < MUS_ORDAGO_WAGER) ||
                      (ordago_increment_is_valid(amount) &&
                       (int)model->current_wager + amount <=
                           MUS_ORDAGO_WAGER)));
@@ -1619,6 +1707,10 @@ static Status apply_to_model(
                           MUS_GAME_DISCARD_MASK_COUNT)
             return CFR_STATUS_ILLEGAL_ACTION;
         raw_mask = action - MUS_ACTION_DISCARD_MASK_0;
+        if (!mus_ordago_game_discard_mask_is_canonical(
+                model->hands[player], (unsigned int)raw_mask)) {
+            return CFR_STATUS_ILLEGAL_ACTION;
+        }
         discarded = discard_from_canonical_hand(
             model, player, (unsigned int)raw_mask);
         model->discard_masks[model->mus_count][player] =
@@ -1662,7 +1754,7 @@ static Status apply_to_model(
         }
     } else if (model->bet_stage == MUS_BET_SECOND_AFTER_PASS) {
         if (action == MUS_ACTION_PASS) {
-            advance_lance(model, MUS_LANCE_ALL_PASS, summaries);
+            advance_lance(model, MUS_LANCE_ALL_PASS, format, summaries);
         } else {
             const uint8_t wager = format->ordago_with_mus
                                       ? ordago_wager_for_action(action)
@@ -1682,6 +1774,8 @@ static Status apply_to_model(
         }
     } else {
         MusLanceOutcome outcome;
+        bool accepted_ordago;
+        int completed_lance;
 
         if (action == MUS_ACTION_RAISE_DOUBLE ||
             (format->ordago_with_mus &&
@@ -1712,6 +1806,11 @@ static Status apply_to_model(
         if (format->ordago_with_mus && action == MUS_ACTION_ACCEPT)
             model->current_strength = MUS_LANCE_STRENGTH_BOTH;
 
+        accepted_ordago = format->ordago_with_mus &&
+                           model->current_wager_is_ordago &&
+                           action == MUS_ACTION_ACCEPT;
+        completed_lance = phase_lance_index(model->phase);
+
         if (model->bettor == CFR_PLAYER_0) {
             outcome = action == MUS_ACTION_ACCEPT
                           ? MUS_LANCE_FIRST_BET_ACCEPTED
@@ -1721,7 +1820,19 @@ static Status apply_to_model(
                           ? MUS_LANCE_SECOND_BET_ACCEPTED
                           : MUS_LANCE_SECOND_BET_REJECTED;
         }
-        advance_lance(model, outcome, summaries);
+        advance_lance(model, outcome, format, summaries);
+        if (accepted_ordago) {
+            for (int lance = completed_lance + 1;
+                 lance < MUS_GAME_LANCE_COUNT; lance += 1) {
+                model->outcomes[lance] = MUS_LANCE_SKIPPED;
+                model->outcome_wagers[lance] = 0;
+                model->outcome_previous_wagers[lance] = 0;
+                model->outcome_wager_is_ordago[lance] = false;
+                model->outcome_strengths[lance] =
+                    MUS_LANCE_STRENGTH_NONE;
+            }
+            model->phase = MUS_PHASE_TERMINAL;
+        }
     }
     return CFR_STATUS_SUCCESS;
 }
@@ -2174,11 +2285,18 @@ static int ordago_public_mus_code(const MusGameModel *model) {
         if (model->mus_count == 0)
             return model->mus_stop_player;
         if (model->mus_count == 1) {
+            const int player_0_count = model->discard_counts[0][0];
+            const int player_1_count = model->discard_counts[0][1];
+
+            if (player_0_count < 1 || player_1_count < 1 ||
+                player_0_count > MUS_GAME_HAND_SIZE ||
+                player_1_count > MUS_GAME_HAND_SIZE) {
+                return -1;
+            }
             discard_code =
-                model->discard_counts[0][0] *
-                    MUS_ORDAGO_DISCARD_COUNT_RADIX +
-                model->discard_counts[0][1];
-            return 2 + (int)model->mus_stop_player * 25 + discard_code;
+                (player_0_count - 1) * MUS_ORDAGO_DISCARD_COUNT_RADIX +
+                player_1_count - 1;
+            return 2 + (int)model->mus_stop_player * 16 + discard_code;
         }
         return -1;
     }
@@ -2187,12 +2305,16 @@ static int ordago_public_mus_code(const MusGameModel *model) {
     discard_code = 0;
     for (int round = 0; round < MUS_GAME_MAX_MUSES; round += 1) {
         for (int player = 0; player < MUS_GAME_PLAYER_COUNT; player += 1) {
+            const int count = model->discard_counts[round][player];
+
+            if (count < 1 || count > MUS_GAME_HAND_SIZE)
+                return -1;
             discard_code =
                 discard_code * MUS_ORDAGO_DISCARD_COUNT_RADIX +
-                model->discard_counts[round][player];
+                count - 1;
         }
     }
-    return 52 + discard_code;
+    return 34 + discard_code;
 }
 
 static int ordago_hand_radix(MusGamePhase phase) {
@@ -2214,6 +2336,10 @@ static int ordago_hand_radix(MusGamePhase phase) {
     }
 }
 
+static int ordago_strength_radix(int lance) {
+    return lance == 2 ? 7 : 4;
+}
+
 static Status ordago_information_set_key(const MusGameModel *model,
                                          InfoSetKey *result) {
     const int situation = ordago_situation_code(model);
@@ -2228,14 +2354,19 @@ static Status ordago_information_set_key(const MusGameModel *model,
     if (phase_is_mus_decision(model->phase) ||
         phase_is_discard(model->phase)) {
         if (model->mus_count == 1) {
+            if (model->discard_counts[0][0] < 1 ||
+                model->discard_counts[0][1] < 1)
+                return CFR_STATUS_INVALID_ARGUMENT;
             key = key * MUS_ORDAGO_DISCARD_COUNT_RADIX +
-                  model->discard_counts[0][0];
+                  model->discard_counts[0][0] - 1;
             key = key * MUS_ORDAGO_DISCARD_COUNT_RADIX +
-                  model->discard_counts[0][1];
+                  model->discard_counts[0][1] - 1;
         }
         if (model->phase == MUS_PHASE_DISCARD_PLAYER_1) {
+            if (model->discard_counts[model->mus_count][0] < 1)
+                return CFR_STATUS_INVALID_ARGUMENT;
             key = key * MUS_ORDAGO_DISCARD_COUNT_RADIX +
-                  model->discard_counts[model->mus_count][0];
+                  model->discard_counts[model->mus_count][0] - 1;
         }
     } else {
         const int mus = ordago_public_mus_code(model);
@@ -2247,13 +2378,13 @@ static Status ordago_information_set_key(const MusGameModel *model,
             return CFR_STATUS_INVALID_ARGUMENT;
         key = key * MUS_ORDAGO_PUBLIC_MUS_RADIX + mus;
         for (int lance = 0; lance < strength_count; lance += 1) {
-            if (model->outcome_strengths[lance] <
-                    MUS_LANCE_STRENGTH_NONE ||
-                model->outcome_strengths[lance] >
-                    MUS_LANCE_STRENGTH_BOTH) {
+            const int strength_radix = ordago_strength_radix(lance);
+
+            if ((int)model->outcome_strengths[lance] < 0 ||
+                (int)model->outcome_strengths[lance] >= strength_radix) {
                 return CFR_STATUS_INVALID_ARGUMENT;
             }
-            key = key * MUS_ORDAGO_STRENGTH_RADIX +
+            key = key * strength_radix +
                   model->outcome_strengths[lance];
         }
         if (model->bet_stage == MUS_BET_RESPONSE) {
@@ -2641,20 +2772,20 @@ static bool decode_ordago_public_mus(
         information->mus_stop_player = (Player)code;
         return true;
     }
-    if (code < 52) {
+    if (code < 34) {
         const int stopped_code = code - 2;
-        const int discard_code = stopped_code % 25;
+        const int discard_code = stopped_code % 16;
 
         information->mus_count = 1;
         information->mus_stopped = true;
-        information->mus_stop_player = (Player)(stopped_code / 25);
+        information->mus_stop_player = (Player)(stopped_code / 16);
         information->discard_counts[0][0] =
-            (uint8_t)(discard_code / MUS_ORDAGO_DISCARD_COUNT_RADIX);
+            (uint8_t)(discard_code / MUS_ORDAGO_DISCARD_COUNT_RADIX + 1);
         information->discard_counts[0][1] =
-            (uint8_t)(discard_code % MUS_ORDAGO_DISCARD_COUNT_RADIX);
+            (uint8_t)(discard_code % MUS_ORDAGO_DISCARD_COUNT_RADIX + 1);
         return true;
     }
-    code -= 52;
+    code -= 34;
     information->mus_count = MUS_GAME_MAX_MUSES;
     information->mus_stopped = false;
     information->mus_stop_player = CFR_PLAYER_0;
@@ -2662,7 +2793,7 @@ static bool decode_ordago_public_mus(
         for (int player = MUS_GAME_PLAYER_COUNT - 1; player >= 0;
              player -= 1) {
             information->discard_counts[round][player] =
-                (uint8_t)(code % MUS_ORDAGO_DISCARD_COUNT_RADIX);
+                (uint8_t)(code % MUS_ORDAGO_DISCARD_COUNT_RADIX + 1);
             code /= MUS_ORDAGO_DISCARD_COUNT_RADIX;
         }
     }
@@ -2748,15 +2879,15 @@ Status mus_ordago_game_information_set_decode(
     if (round >= 0) {
         if (information_set->phase == MUS_PHASE_DISCARD_PLAYER_1) {
             information_set->discard_counts[round][0] =
-                (uint8_t)(key % MUS_ORDAGO_DISCARD_COUNT_RADIX);
+                (uint8_t)(key % MUS_ORDAGO_DISCARD_COUNT_RADIX + 1);
             key /= MUS_ORDAGO_DISCARD_COUNT_RADIX;
         }
         if (round == 1) {
             information_set->discard_counts[0][1] =
-                (uint8_t)(key % MUS_ORDAGO_DISCARD_COUNT_RADIX);
+                (uint8_t)(key % MUS_ORDAGO_DISCARD_COUNT_RADIX + 1);
             key /= MUS_ORDAGO_DISCARD_COUNT_RADIX;
             information_set->discard_counts[0][0] =
-                (uint8_t)(key % MUS_ORDAGO_DISCARD_COUNT_RADIX);
+                (uint8_t)(key % MUS_ORDAGO_DISCARD_COUNT_RADIX + 1);
             key /= MUS_ORDAGO_DISCARD_COUNT_RADIX;
         }
     } else {
@@ -2778,9 +2909,11 @@ Status mus_ordago_game_information_set_decode(
         }
         for (int lance = information_set->previous_strength_count - 1;
              lance >= 0; lance -= 1) {
+            const int strength_radix = ordago_strength_radix(lance);
+
             information_set->previous_strengths[lance] =
-                (MusLanceStrength)(key % MUS_ORDAGO_STRENGTH_RADIX);
-            key /= MUS_ORDAGO_STRENGTH_RADIX;
+                (MusLanceStrength)(key % strength_radix);
+            key /= strength_radix;
         }
         const int mus_code = (int)(key % MUS_ORDAGO_PUBLIC_MUS_RADIX);
 
