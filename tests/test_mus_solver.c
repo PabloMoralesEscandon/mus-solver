@@ -137,6 +137,105 @@ static void check_hand_summaries(const MusGameState *state) {
     }
 }
 
+static uint64_t reference_combinations(int n, int k) {
+    uint64_t result = 1;
+
+    if (k < 0 || k > n)
+        return 0;
+    if (k > n - k)
+        k = n - k;
+    for (int index = 1; index <= k; index += 1) {
+        result = result * (uint64_t)(n - k + index) / (uint64_t)index;
+    }
+    return result;
+}
+
+static int reference_available_in_class(const MusGameModel *model, int player,
+                                        int card_class) {
+    static const int capacities[MUS_GAME_CLASS_COUNT] = {
+        8, 4, 4, 4, 4, 4, 4, 8,
+    };
+    int available = capacities[card_class];
+
+    if (player == 1)
+        available -= model->hands[0][card_class];
+    return available;
+}
+
+static int reference_available_after_class(const MusGameModel *model,
+                                           int player) {
+    int available = 0;
+
+    for (int card_class = model->deal_class + 1;
+         card_class < MUS_GAME_CLASS_COUNT; card_class += 1) {
+        available +=
+            reference_available_in_class(model, player, card_class);
+    }
+    return available;
+}
+
+static bool reference_deal_count_is_legal(const MusGameModel *model,
+                                          int count) {
+    const int player =
+        model->phase == MUS_PHASE_DEAL_PLAYER_0 ? 0 : 1;
+    const int current_available =
+        reference_available_in_class(model, player, model->deal_class);
+    const int later_available =
+        reference_available_after_class(model, player);
+
+    return count >= 0 && count <= model->deal_remaining &&
+           count <= current_available &&
+           model->deal_remaining - count <= later_available;
+}
+
+static Probability reference_deal_count_probability(
+    const MusGameModel *model, int count) {
+    const int player =
+        model->phase == MUS_PHASE_DEAL_PLAYER_0 ? 0 : 1;
+    const int current_available =
+        reference_available_in_class(model, player, model->deal_class);
+    const int later_available =
+        reference_available_after_class(model, player);
+    const int remaining = model->deal_remaining;
+    const uint64_t denominator =
+        reference_combinations(current_available + later_available, remaining);
+    const uint64_t numerator =
+        reference_combinations(current_available, count) *
+        reference_combinations(later_available, remaining - count);
+
+    if (denominator == 0)
+        return 0.0;
+    return (Probability)numerator / (Probability)denominator;
+}
+
+static void check_deal_outcomes(
+    MusGameState *state, const Action actions[MUS_GAME_MAX_LEGAL_ACTIONS],
+    const Probability probabilities[MUS_GAME_MAX_LEGAL_ACTIONS],
+    size_t action_count) {
+    size_t expected_count = 0;
+
+    for (int candidate = 0; candidate <= MUS_GAME_HAND_SIZE; candidate += 1) {
+        Probability expected;
+        Probability individual = 0.0;
+
+        if (!reference_deal_count_is_legal(&state->model, candidate))
+            continue;
+        CHECK(expected_count < action_count);
+        if (expected_count >= action_count)
+            continue;
+        CHECK(actions[expected_count] == candidate);
+        expected =
+            reference_deal_count_probability(&state->model, candidate);
+        CHECK(memcmp(&probabilities[expected_count], &expected,
+                     sizeof(expected)) == 0);
+        CHECK(cfr_game_chance_probability(game(), game_state(state), candidate,
+                                          &individual) == CFR_STATUS_SUCCESS);
+        CHECK(memcmp(&individual, &expected, sizeof(expected)) == 0);
+        expected_count += 1;
+    }
+    CHECK(action_count == expected_count);
+}
+
 static void enumerate_deals(MusGameState *state, double reach,
                             DealStats *stats) {
     Actor actor;
@@ -160,6 +259,7 @@ static void enumerate_deals(MusGameState *state, double reach,
                                    probabilities,
                                    MUS_GAME_MAX_LEGAL_ACTIONS,
                                    &action_count) == CFR_STATUS_SUCCESS);
+    check_deal_outcomes(state, actions, probabilities, action_count);
     CHECK(action_count >= 1 && action_count <= MUS_GAME_MAX_LEGAL_ACTIONS);
     for (size_t index = 0; index < action_count; index += 1)
         local_sum += probabilities[index];
@@ -200,6 +300,10 @@ static void test_apply_undo_and_contract(void) {
     root = state.model;
     CHECK(cfr_game_validate_state(game(), game_state(&state)) ==
           CFR_STATUS_SUCCESS);
+    state.model.deal_later_available += 1;
+    CHECK(cfr_game_validate_state(game(), game_state(&state)) ==
+          CFR_STATUS_INVALID_ARGUMENT);
+    state.model = root;
     CHECK(cfr_game_is_terminal(game(), game_state(&state), &terminal) ==
           CFR_STATUS_SUCCESS);
     CHECK(!terminal);

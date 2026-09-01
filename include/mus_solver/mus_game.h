@@ -69,6 +69,7 @@ typedef struct {
     uint8_t hands[MUS_GAME_PLAYER_COUNT][MUS_GAME_CLASS_COUNT];
     uint8_t deal_class;
     uint8_t deal_remaining;
+    uint8_t deal_later_available;
     Player current_player;
     MusBetStage bet_stage;
     Player bettor;

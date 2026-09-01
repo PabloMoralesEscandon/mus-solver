@@ -8,9 +8,55 @@
 #define MUS_INFORMATION_PHASE_COUNT 5
 #define MUS_OUTCOME_RADIX 7
 #define MUS_CURRENT_HISTORY_RADIX 4
+#define MUS_DECK_SIZE 40
 
 static const uint8_t CLASS_CAPACITIES[MUS_GAME_CLASS_COUNT] = {
     8, 4, 4, 4, 4, 4, 4, 8,
+};
+
+static const uint32_t BINOMIAL_COEFFICIENTS[MUS_DECK_SIZE + 1]
+                                                   [MUS_GAME_HAND_SIZE + 1] = {
+    {1, 0, 0, 0, 0},
+    {1, 1, 0, 0, 0},
+    {1, 2, 1, 0, 0},
+    {1, 3, 3, 1, 0},
+    {1, 4, 6, 4, 1},
+    {1, 5, 10, 10, 5},
+    {1, 6, 15, 20, 15},
+    {1, 7, 21, 35, 35},
+    {1, 8, 28, 56, 70},
+    {1, 9, 36, 84, 126},
+    {1, 10, 45, 120, 210},
+    {1, 11, 55, 165, 330},
+    {1, 12, 66, 220, 495},
+    {1, 13, 78, 286, 715},
+    {1, 14, 91, 364, 1001},
+    {1, 15, 105, 455, 1365},
+    {1, 16, 120, 560, 1820},
+    {1, 17, 136, 680, 2380},
+    {1, 18, 153, 816, 3060},
+    {1, 19, 171, 969, 3876},
+    {1, 20, 190, 1140, 4845},
+    {1, 21, 210, 1330, 5985},
+    {1, 22, 231, 1540, 7315},
+    {1, 23, 253, 1771, 8855},
+    {1, 24, 276, 2024, 10626},
+    {1, 25, 300, 2300, 12650},
+    {1, 26, 325, 2600, 14950},
+    {1, 27, 351, 2925, 17550},
+    {1, 28, 378, 3276, 20475},
+    {1, 29, 406, 3654, 23751},
+    {1, 30, 435, 4060, 27405},
+    {1, 31, 465, 4495, 31465},
+    {1, 32, 496, 4960, 35960},
+    {1, 33, 528, 5456, 40920},
+    {1, 34, 561, 5984, 46376},
+    {1, 35, 595, 6545, 52360},
+    {1, 36, 630, 7140, 58905},
+    {1, 37, 666, 7770, 66045},
+    {1, 38, 703, 8436, 73815},
+    {1, 39, 741, 9139, 82251},
+    {1, 40, 780, 9880, 91390},
 };
 
 static const int GRANDE_WEIGHTS[MUS_GAME_CLASS_COUNT] = {
@@ -302,15 +348,11 @@ static void advance_lance(
 }
 
 static uint64_t combinations(int n, int k) {
-    uint64_t result = 1;
-
-    if (k < 0 || k > n)
+    if (n < 0 || n > MUS_DECK_SIZE || k < 0 || k > MUS_GAME_HAND_SIZE ||
+        k > n) {
         return 0;
-    if (k > n - k)
-        k = n - k;
-    for (int index = 1; index <= k; index += 1)
-        result = result * (uint64_t)(n - k + index) / (uint64_t)index;
-    return result;
+    }
+    return BINOMIAL_COEFFICIENTS[n][k];
 }
 
 static int available_in_class(const MusGameModel *model, int player,
@@ -322,37 +364,36 @@ static int available_in_class(const MusGameModel *model, int player,
     return available;
 }
 
-static int available_after_class(const MusGameModel *model, int player,
-                                 int card_class) {
+static int expected_later_available(const MusGameModel *model) {
+    const int player = deal_player(model);
     int available = 0;
 
-    for (int index = card_class + 1; index < MUS_GAME_CLASS_COUNT;
+    for (int index = model->deal_class + 1; index < MUS_GAME_CLASS_COUNT;
          index += 1) {
         available += available_in_class(model, player, index);
     }
     return available;
 }
 
-static bool deal_count_is_legal(const MusGameModel *model, int count) {
-    const int player = deal_player(model);
-    const int current_available =
-        available_in_class(model, player, model->deal_class);
-    const int later_available =
-        available_after_class(model, player, model->deal_class);
-
-    return count >= 0 && count <= model->deal_remaining &&
+static bool deal_count_is_legal_for_counts(int count, int remaining,
+                                           int current_available,
+                                           int later_available) {
+    return count >= 0 && count <= remaining &&
            count <= current_available &&
-           model->deal_remaining - count <= later_available;
+           remaining - count <= later_available;
 }
 
-static Probability deal_count_probability(const MusGameModel *model,
-                                           int count) {
+static bool deal_count_is_legal(const MusGameModel *model, int count) {
     const int player = deal_player(model);
-    const int current_available =
-        available_in_class(model, player, model->deal_class);
-    const int later_available =
-        available_after_class(model, player, model->deal_class);
-    const int remaining = model->deal_remaining;
+
+    return deal_count_is_legal_for_counts(
+        count, model->deal_remaining,
+        available_in_class(model, player, model->deal_class),
+        model->deal_later_available);
+}
+
+static Probability deal_count_probability_for_counts(
+    int count, int remaining, int current_available, int later_available) {
     const uint64_t denominator =
         combinations(current_available + later_available, remaining);
     const uint64_t numerator = combinations(current_available, count) *
@@ -364,19 +405,39 @@ static Probability deal_count_probability(const MusGameModel *model,
     return (Probability)numerator / (Probability)denominator;
 }
 
+static Probability deal_count_probability(const MusGameModel *model,
+                                           int count) {
+    const int player = deal_player(model);
+
+    return deal_count_probability_for_counts(
+        count, model->deal_remaining,
+        available_in_class(model, player, model->deal_class),
+        model->deal_later_available);
+}
+
 static Status collect_deal_actions(const MusGameModel *model, Action *actions,
                                    Probability *probabilities,
                                    size_t capacity, size_t *count_out) {
+    const int player = deal_player(model);
+    const int remaining = model->deal_remaining;
+    const int current_available =
+        available_in_class(model, player, model->deal_class);
+    const int later_available = model->deal_later_available;
     size_t count = 0;
 
     for (int candidate = 0; candidate <= MUS_GAME_HAND_SIZE; candidate += 1) {
-        if (!deal_count_is_legal(model, candidate))
+        if (!deal_count_is_legal_for_counts(candidate, remaining,
+                                            current_available,
+                                            later_available)) {
             continue;
+        }
         if (count == capacity)
             return CFR_STATUS_BUFFER_TOO_SMALL;
         actions[count] = candidate;
-        if (probabilities != NULL)
-            probabilities[count] = deal_count_probability(model, candidate);
+        if (probabilities != NULL) {
+            probabilities[count] = deal_count_probability_for_counts(
+                candidate, remaining, current_available, later_available);
+        }
         count += 1;
     }
     *count_out = count;
@@ -406,6 +467,7 @@ static Status validate_model(const MusGameModel *model) {
         if (model->deal_class >= MUS_GAME_CLASS_COUNT - 1 ||
             model->deal_remaining > MUS_GAME_HAND_SIZE ||
             total + model->deal_remaining != MUS_GAME_HAND_SIZE ||
+            model->deal_later_available != expected_later_available(model) ||
             (player == 1 && hand_total(model->hands[0]) !=
                                 MUS_GAME_HAND_SIZE)) {
             return CFR_STATUS_INVALID_ARGUMENT;
@@ -480,6 +542,8 @@ Status mus_game_state_init(MusGameState *state) {
     state->model.phase = MUS_PHASE_DEAL_PLAYER_0;
     state->model.deal_class = 0;
     state->model.deal_remaining = MUS_GAME_HAND_SIZE;
+    state->model.deal_later_available =
+        MUS_DECK_SIZE - CLASS_CAPACITIES[0];
     state->model.current_player = CFR_PLAYER_0;
     state->model.bettor = CFR_PLAYER_0;
     return CFR_STATUS_SUCCESS;
@@ -759,10 +823,19 @@ static Status apply_to_model(
             model->deal_class = 0;
             if (player == 0) {
                 model->phase = MUS_PHASE_DEAL_PLAYER_1;
+                model->deal_later_available =
+                    (uint8_t)(MUS_DECK_SIZE - MUS_GAME_HAND_SIZE -
+                              available_in_class(model, 1, 0));
             } else {
                 model->deal_remaining = 0;
+                model->deal_later_available = 0;
                 start_betting(model, MUS_PHASE_GRANDE);
             }
+        } else {
+            model->deal_later_available =
+                (uint8_t)(model->deal_later_available -
+                          available_in_class(model, player,
+                                             model->deal_class));
         }
         return CFR_STATUS_SUCCESS;
     }
