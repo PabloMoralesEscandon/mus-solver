@@ -53,6 +53,35 @@ static void deal(MusGameState *state,
     CHECK(memcmp(state->model.hands[1], player_1, MUS_GAME_CLASS_COUNT) == 0);
 }
 
+static const Game *raises_game(void) {
+    return mus_raises_to_eight_game_descriptor();
+}
+
+static GameState *raises_game_state(MusRaisesToEightGameState *state) {
+    return mus_raises_to_eight_game_state_as_game_state(state);
+}
+
+static void raises_apply(MusRaisesToEightGameState *state, Action action) {
+    CHECK(cfr_game_apply_action(raises_game(), raises_game_state(state),
+                                action) == CFR_STATUS_SUCCESS);
+}
+
+static void raises_deal(
+    MusRaisesToEightGameState *state,
+    const uint8_t player_0[MUS_GAME_CLASS_COUNT],
+    const uint8_t player_1[MUS_GAME_CLASS_COUNT]) {
+    CHECK(mus_raises_to_eight_game_state_init(state) == CFR_STATUS_SUCCESS);
+    for (int card_class = 0; card_class < MUS_GAME_CLASS_COUNT - 1;
+         card_class += 1)
+        raises_apply(state, player_0[card_class]);
+    for (int card_class = 0; card_class < MUS_GAME_CLASS_COUNT - 1;
+         card_class += 1)
+        raises_apply(state, player_1[card_class]);
+    CHECK(state->model.phase == MUS_PHASE_GRANDE);
+    CHECK(memcmp(state->model.hands[0], player_0, MUS_GAME_CLASS_COUNT) == 0);
+    CHECK(memcmp(state->model.hands[1], player_1, MUS_GAME_CLASS_COUNT) == 0);
+}
+
 typedef struct {
     size_t player_0_compositions;
     size_t joint_deals;
@@ -138,6 +167,150 @@ static void test_apply_undo_and_contract(void) {
           CFR_STATUS_INVALID_ARGUMENT);
 }
 
+static void test_explicit_format_apis_preserve_single_bet(void) {
+    const uint8_t low_a[MUS_GAME_CLASS_COUNT] = {1, 1, 1, 1, 0, 0, 0, 0};
+    const uint8_t low_b[MUS_GAME_CLASS_COUNT] = {1, 1, 1, 0, 1, 0, 0, 0};
+    MusSingleBetGameState state;
+    MusGameModel before;
+    Action actions[MUS_GAME_MAX_LEGAL_ACTIONS] = {0};
+    size_t count = 0;
+
+    CHECK(mus_single_bet_game_descriptor() == mus_game_descriptor());
+    CHECK(strcmp(mus_single_bet_game_descriptor()->strategy_schema_id,
+                 "mus.heads-up-single-hand/v1") == 0);
+    deal(&state, low_a, low_b);
+    apply(&state, MUS_ACTION_BET_TWO);
+    CHECK(cfr_game_legal_actions(
+              mus_single_bet_game_descriptor(),
+              mus_single_bet_game_state_as_game_state(&state), actions,
+              MUS_GAME_MAX_LEGAL_ACTIONS, &count) == CFR_STATUS_SUCCESS);
+    CHECK(count == 2);
+    CHECK(actions[0] == MUS_ACTION_REJECT);
+    CHECK(actions[1] == MUS_ACTION_ACCEPT);
+    before = state.model;
+    CHECK(cfr_game_apply_action(
+              mus_single_bet_game_descriptor(),
+              mus_single_bet_game_state_as_game_state(&state),
+              MUS_ACTION_RAISE_DOUBLE) == CFR_STATUS_ILLEGAL_ACTION);
+    CHECK(memcmp(&state.model, &before, sizeof(before)) == 0);
+}
+
+static void test_raises_to_eight_actions_infosets_and_undo(void) {
+    const uint8_t kings[MUS_GAME_CLASS_COUNT] = {0, 0, 0, 0, 0, 0, 0, 4};
+    const uint8_t knights[MUS_GAME_CLASS_COUNT] = {0, 0, 0, 0, 0, 0, 4, 0};
+    MusRaisesToEightGameState state;
+    MusRaisesToEightGameState accepted_four;
+    MusRaisesToEightGameState initial;
+    MusRaisesToEightInformationSet decoded;
+    MusGameModel before;
+    Action actions[MUS_GAME_MAX_LEGAL_ACTIONS] = {0};
+    size_t count = 0;
+    InfoSetKey wager_2_key;
+    InfoSetKey wager_4_key;
+    InfoSetKey wager_8_key;
+    InfoSetKey accepted_4_history_key;
+    InfoSetKey accepted_8_history_key;
+
+    CHECK(strcmp(raises_game()->strategy_schema_id,
+                 "mus.heads-up-single-hand.raises-to-eight/v1") == 0);
+    raises_deal(&state, kings, knights);
+    CHECK(cfr_game_legal_actions(raises_game(), raises_game_state(&state),
+                                 actions, MUS_GAME_MAX_LEGAL_ACTIONS,
+                                 &count) == CFR_STATUS_SUCCESS);
+    CHECK(count == 2 && actions[0] == MUS_ACTION_PASS &&
+          actions[1] == MUS_ACTION_BET_TWO);
+    raises_apply(&state, MUS_ACTION_BET_TWO);
+    CHECK(state.model.current_wager == 2);
+    CHECK(cfr_game_information_set_key(raises_game(), raises_game_state(&state),
+                                       &wager_2_key) == CFR_STATUS_SUCCESS);
+    CHECK(cfr_game_legal_actions(raises_game(), raises_game_state(&state),
+                                 actions, MUS_GAME_MAX_LEGAL_ACTIONS,
+                                 &count) == CFR_STATUS_SUCCESS);
+    CHECK(count == 3 && actions[0] == MUS_ACTION_REJECT &&
+          actions[1] == MUS_ACTION_ACCEPT &&
+          actions[2] == MUS_ACTION_RAISE_DOUBLE);
+
+    raises_apply(&state, MUS_ACTION_RAISE_DOUBLE);
+    CHECK(state.model.current_wager == 4);
+    CHECK(state.model.bettor == CFR_PLAYER_1);
+    CHECK(state.model.current_player == CFR_PLAYER_0);
+    CHECK(cfr_game_information_set_key(raises_game(), raises_game_state(&state),
+                                       &wager_4_key) == CFR_STATUS_SUCCESS);
+    CHECK(wager_4_key != wager_2_key);
+    CHECK(mus_raises_to_eight_game_information_set_decode(wager_4_key,
+                                                          &decoded) ==
+          CFR_STATUS_SUCCESS);
+    CHECK(decoded.bet_stage == MUS_BET_RESPONSE);
+    CHECK(decoded.bettor == CFR_PLAYER_1);
+    CHECK(decoded.current_wager == 4);
+
+    raises_apply(&state, MUS_ACTION_RAISE_DOUBLE);
+    CHECK(state.model.current_wager == 8);
+    CHECK(state.model.bettor == CFR_PLAYER_0);
+    CHECK(state.model.current_player == CFR_PLAYER_1);
+    CHECK(cfr_game_information_set_key(raises_game(), raises_game_state(&state),
+                                       &wager_8_key) == CFR_STATUS_SUCCESS);
+    CHECK(wager_8_key != wager_4_key);
+    CHECK(cfr_game_legal_actions(raises_game(), raises_game_state(&state),
+                                 actions, MUS_GAME_MAX_LEGAL_ACTIONS,
+                                 &count) == CFR_STATUS_SUCCESS);
+    CHECK(count == 2 && actions[0] == MUS_ACTION_REJECT &&
+          actions[1] == MUS_ACTION_ACCEPT);
+    before = state.model;
+    CHECK(cfr_game_apply_action(raises_game(), raises_game_state(&state),
+                                MUS_ACTION_RAISE_DOUBLE) ==
+          CFR_STATUS_ILLEGAL_ACTION);
+    CHECK(memcmp(&state.model, &before, sizeof(before)) == 0);
+    raises_apply(&state, MUS_ACTION_ACCEPT);
+    CHECK(state.model.outcomes[0] == MUS_LANCE_FIRST_BET_ACCEPTED);
+    CHECK(state.model.outcome_wagers[0] == 8);
+    CHECK(cfr_game_information_set_key(raises_game(), raises_game_state(&state),
+                                       &accepted_8_history_key) ==
+          CFR_STATUS_SUCCESS);
+
+    raises_deal(&accepted_four, kings, knights);
+    raises_apply(&accepted_four, MUS_ACTION_PASS);
+    raises_apply(&accepted_four, MUS_ACTION_BET_TWO);
+    raises_apply(&accepted_four, MUS_ACTION_RAISE_DOUBLE);
+    raises_apply(&accepted_four, MUS_ACTION_ACCEPT);
+    CHECK(accepted_four.model.outcomes[0] ==
+          MUS_LANCE_FIRST_BET_ACCEPTED);
+    CHECK(accepted_four.model.outcome_wagers[0] == 4);
+    CHECK(cfr_game_information_set_key(
+              raises_game(), raises_game_state(&accepted_four),
+              &accepted_4_history_key) == CFR_STATUS_SUCCESS);
+    CHECK(accepted_4_history_key != accepted_8_history_key);
+    CHECK(mus_raises_to_eight_game_information_set_decode(
+              accepted_8_history_key, &decoded) == CFR_STATUS_SUCCESS);
+    CHECK(decoded.phase == MUS_PHASE_CHICA);
+    CHECK(decoded.outcomes[0] == MUS_LANCE_FIRST_BET_ACCEPTED);
+    CHECK(decoded.outcome_wagers[0] == 8);
+
+    CHECK(mus_raises_to_eight_game_state_init(&state) == CFR_STATUS_SUCCESS);
+    initial = state;
+    for (int card_class = 0; card_class < MUS_GAME_CLASS_COUNT - 1;
+         card_class += 1)
+        raises_apply(&state, kings[card_class]);
+    for (int card_class = 0; card_class < MUS_GAME_CLASS_COUNT - 1;
+         card_class += 1)
+        raises_apply(&state, knights[card_class]);
+    for (int lance = 0; lance < MUS_GAME_LANCE_COUNT; lance += 1) {
+        raises_apply(&state, MUS_ACTION_PASS);
+        raises_apply(&state, MUS_ACTION_BET_TWO);
+        raises_apply(&state, MUS_ACTION_RAISE_DOUBLE);
+        raises_apply(&state, MUS_ACTION_RAISE_DOUBLE);
+        raises_apply(&state, MUS_ACTION_ACCEPT);
+    }
+    CHECK(state.model.phase == MUS_PHASE_TERMINAL);
+    CHECK(state.undo_count == 34);
+    while (state.undo_count > 0) {
+        CHECK(cfr_game_undo_action(raises_game(), raises_game_state(&state)) ==
+              CFR_STATUS_SUCCESS);
+    }
+    CHECK(state.undo_count == initial.undo_count);
+    CHECK(memcmp(&state.model, &initial.model, sizeof(state.model)) == 0);
+}
+
 static void test_information_boundaries(void) {
     const uint8_t own_hand[MUS_GAME_CLASS_COUNT] = {1, 1, 1, 1, 0, 0, 0, 0};
     const uint8_t rival_a[MUS_GAME_CLASS_COUNT] = {1, 1, 1, 0, 1, 0, 0, 0};
@@ -182,6 +355,22 @@ static Utility terminal_utility(MusGameState *state, Player player) {
     return utility;
 }
 
+static Utility raises_terminal_utility(MusRaisesToEightGameState *state,
+                                       Player player) {
+    Utility utility = 999.0;
+
+    CHECK(cfr_game_terminal_utility(raises_game(), raises_game_state(state),
+                                    player, &utility) == CFR_STATUS_SUCCESS);
+    return utility;
+}
+
+static void raises_pass_remaining_lances(MusRaisesToEightGameState *state) {
+    while (state->model.phase != MUS_PHASE_TERMINAL) {
+        raises_apply(state, MUS_ACTION_PASS);
+        raises_apply(state, MUS_ACTION_PASS);
+    }
+}
+
 static void test_literal_scoring(void) {
     const uint8_t kings[MUS_GAME_CLASS_COUNT] = {0, 0, 0, 0, 0, 0, 0, 4};
     const uint8_t knights[MUS_GAME_CLASS_COUNT] = {0, 0, 0, 0, 0, 0, 4, 0};
@@ -222,6 +411,56 @@ static void test_literal_scoring(void) {
     CHECK(terminal_utility(&state, CFR_PLAYER_0) == -3.0);
 }
 
+static void test_raises_to_eight_scoring(void) {
+    const uint8_t kings[MUS_GAME_CLASS_COUNT] = {0, 0, 0, 0, 0, 0, 0, 4};
+    const uint8_t knights[MUS_GAME_CLASS_COUNT] = {0, 0, 0, 0, 0, 0, 4, 0};
+    MusRaisesToEightGameState state;
+
+    raises_deal(&state, kings, knights);
+    raises_pass_remaining_lances(&state);
+    CHECK(raises_terminal_utility(&state, CFR_PLAYER_0) == 5.0);
+
+    raises_deal(&state, kings, knights);
+    raises_apply(&state, MUS_ACTION_BET_TWO);
+    raises_apply(&state, MUS_ACTION_RAISE_DOUBLE);
+    raises_apply(&state, MUS_ACTION_RAISE_DOUBLE);
+    raises_apply(&state, MUS_ACTION_ACCEPT);
+    raises_pass_remaining_lances(&state);
+    CHECK(state.model.outcomes[0] == MUS_LANCE_FIRST_BET_ACCEPTED);
+    CHECK(state.model.outcome_wagers[0] == 8);
+    CHECK(raises_terminal_utility(&state, CFR_PLAYER_0) == 12.0);
+
+    raises_deal(&state, kings, knights);
+    raises_apply(&state, MUS_ACTION_BET_TWO);
+    raises_apply(&state, MUS_ACTION_RAISE_DOUBLE);
+    raises_apply(&state, MUS_ACTION_REJECT);
+    raises_pass_remaining_lances(&state);
+    CHECK(state.model.outcomes[0] == MUS_LANCE_SECOND_BET_REJECTED);
+    CHECK(state.model.outcome_wagers[0] == 4);
+    CHECK(raises_terminal_utility(&state, CFR_PLAYER_0) == 2.0);
+
+    raises_deal(&state, kings, knights);
+    raises_apply(&state, MUS_ACTION_BET_TWO);
+    raises_apply(&state, MUS_ACTION_RAISE_DOUBLE);
+    raises_apply(&state, MUS_ACTION_RAISE_DOUBLE);
+    raises_apply(&state, MUS_ACTION_REJECT);
+    raises_pass_remaining_lances(&state);
+    CHECK(state.model.outcomes[0] == MUS_LANCE_FIRST_BET_REJECTED);
+    CHECK(state.model.outcome_wagers[0] == 8);
+    CHECK(raises_terminal_utility(&state, CFR_PLAYER_0) == 8.0);
+
+    raises_deal(&state, kings, knights);
+    raises_apply(&state, MUS_ACTION_PASS);
+    raises_apply(&state, MUS_ACTION_BET_TWO);
+    raises_apply(&state, MUS_ACTION_RAISE_DOUBLE);
+    raises_apply(&state, MUS_ACTION_RAISE_DOUBLE);
+    raises_apply(&state, MUS_ACTION_ACCEPT);
+    raises_pass_remaining_lances(&state);
+    CHECK(state.model.outcomes[0] == MUS_LANCE_SECOND_BET_ACCEPTED);
+    CHECK(state.model.outcome_wagers[0] == 8);
+    CHECK(raises_terminal_utility(&state, CFR_PLAYER_0) == 12.0);
+}
+
 static void compare_metric(double left, double right) {
     CHECK(fabs(left - right) < 1e-11);
 }
@@ -248,6 +487,38 @@ static void test_streaming_evaluator_on_subgame(void) {
     CHECK(cfr_evaluation_metrics_with_unvisited_uniform(
               game(), game_state(&generic_state), &store, &generic) ==
           CFR_STATUS_SUCCESS);
+    compare_metric(streaming.profile_value_player_0,
+                   generic.profile_value_player_0);
+    compare_metric(streaming.best_response_value_player_0,
+                   generic.best_response_value_player_0);
+    compare_metric(streaming.best_response_value_player_1,
+                   generic.best_response_value_player_1);
+    compare_metric(streaming.exploitability, generic.exploitability);
+    CHECK(cfr_info_store_destroy(&store) == CFR_STATUS_SUCCESS);
+}
+
+static void test_raises_to_eight_evaluator_on_subgame(void) {
+    const uint8_t low_a[MUS_GAME_CLASS_COUNT] = {1, 1, 1, 1, 0, 0, 0, 0};
+    const uint8_t low_b[MUS_GAME_CLASS_COUNT] = {1, 1, 1, 0, 1, 0, 0, 0};
+    MusRaisesToEightGameState state;
+    MusRaisesToEightGameState generic_state;
+    InfoStore store = {0};
+    EvaluationMetrics streaming;
+    EvaluationMetrics generic;
+
+    raises_deal(&state, low_a, low_b);
+    for (int lance = 0; lance < 2; lance += 1) {
+        raises_apply(&state, MUS_ACTION_PASS);
+        raises_apply(&state, MUS_ACTION_PASS);
+    }
+    CHECK(state.model.phase == MUS_PHASE_PUNTO);
+    generic_state = state;
+    CHECK(cfr_info_store_init(&store) == CFR_STATUS_SUCCESS);
+    CHECK(mus_raises_to_eight_evaluation_metrics_from_state(
+              &state, &store, &streaming) == CFR_STATUS_SUCCESS);
+    CHECK(cfr_evaluation_metrics_with_unvisited_uniform(
+              raises_game(), raises_game_state(&generic_state), &store,
+              &generic) == CFR_STATUS_SUCCESS);
     compare_metric(streaming.profile_value_player_0,
                    generic.profile_value_player_0);
     compare_metric(streaming.best_response_value_player_0,
@@ -365,13 +636,55 @@ static void test_training_resume_and_export(void) {
     CHECK(cfr_info_store_destroy(&split_store) == CFR_STATUS_SUCCESS);
 }
 
+static void test_raises_to_eight_training_and_export(void) {
+    MusRaisesToEightGameState state;
+    InfoStore store = {0};
+    Trainer trainer;
+    FILE *text_file;
+    char line[2048];
+    bool found_raise = false;
+
+    CHECK(mus_raises_to_eight_game_state_init(&state) == CFR_STATUS_SUCCESS);
+    CHECK(cfr_info_store_init(&store) == CFR_STATUS_SUCCESS);
+    CHECK(cfr_trainer_init_mccfr(&trainer, raises_game(),
+                                 raises_game_state(&state), &store, 23) ==
+          CFR_STATUS_SUCCESS);
+    CHECK(cfr_trainer_run(&trainer, 50) == CFR_STATUS_SUCCESS);
+    text_file = tmpfile();
+    CHECK(text_file != NULL);
+    if (text_file != NULL) {
+        CHECK(mus_strategy_write_text(text_file, &trainer) ==
+              CFR_STATUS_INVALID_ARGUMENT);
+        CHECK(mus_raises_to_eight_strategy_write_text(text_file, &trainer) ==
+              CFR_STATUS_SUCCESS);
+        rewind(text_file);
+        CHECK(fgets(line, sizeof(line), text_file) != NULL);
+        CHECK(strstr(line, "mus.heads-up-single-hand.raises-to-eight/v1") !=
+              NULL);
+        while (fgets(line, sizeof(line), text_file) != NULL) {
+            if (strstr(line, "subir_a_4=") != NULL ||
+                strstr(line, "subir_a_8=") != NULL) {
+                found_raise = true;
+            }
+        }
+        CHECK(found_raise);
+        fclose(text_file);
+    }
+    CHECK(cfr_info_store_destroy(&store) == CFR_STATUS_SUCCESS);
+}
+
 int main(void) {
     test_apply_undo_and_contract();
+    test_explicit_format_apis_preserve_single_bet();
     test_exact_deal_distribution();
     test_information_boundaries();
+    test_raises_to_eight_actions_infosets_and_undo();
     test_literal_scoring();
+    test_raises_to_eight_scoring();
     test_streaming_evaluator_on_subgame();
+    test_raises_to_eight_evaluator_on_subgame();
     test_training_resume_and_export();
+    test_raises_to_eight_training_and_export();
 
     if (failures != 0) {
         fprintf(stderr, "%d pruebas fallaron.\n", failures);

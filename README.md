@@ -4,21 +4,29 @@ Solver en C17 de una única mano de mus para dos jugadores. Entrena una
 estrategia mediante external-sampling MCCFR, guarda checkpoints reanudables y
 calcula valor, mejores respuestas y explotabilidad exactos bajo demanda.
 
-## Reglas de esta versión
+## Formatos de reglas
 
 - El jugador 0 siempre es mano y el jugador 1 es postre.
 - Se usa la baraja española de 40 cartas, con ochos reyes y ocho ases según las
   equivalencias del mus: tres = rey y dos = as.
 - Se juegan en orden grande, chica, pares y juego o punto.
 - No hay fase de mus ni descartes.
-- En cada lance se puede pasar o envidar 2. Ante el envite solo se puede querer
-  o no querer. No hay subidas ni órdago.
+- El formato `single-bet` conserva la primera versión: en cada lance se puede
+  pasar o envidar 2 y, ante el envite, solo se puede querer o no querer.
+- El formato `raises-to-eight` añade respuestas y subidas en todos los lances.
+  Quien abre puede pasar o envidar 2. Si pasa, postre también puede pasar o
+  envidar 2. Ante un envite se puede no querer, querer o subir duplicando la
+  cantidad: 2 → 4 → 8. Ante 8 ya no se puede volver a subir.
 - Los jugadores observan todo el historial de apuestas anterior. Las
   declaraciones de pares y juego se hacen públicas al llegar a esos lances.
 - Se aplica literalmente el tanteo de `Simulador-Mus`: el envite o deje se
   suma al valor intrínseco de pares, juego y punto.
 - La utilidad del jugador 0 es sus tantos menos los del jugador 1; la utilidad
   contraria es su opuesto.
+
+Al no querer el envite inicial se concede una piedra. Si se rechaza una subida
+a 4 u 8, se concede el último envite ya cubierto: 2 o 4 piedras. Si se quiere,
+el lance se resuelve por la cantidad final aceptada.
 
 Los palos no afectan a ninguna decisión. El reparto agrupa las cartas en ocho
 clases de valor, pero conserva exactamente sus multiplicidades y el muestreo
@@ -61,6 +69,17 @@ build/release/mus-solver \
     --save mus-1m.cfr
 ```
 
+`single-bet` es el formato predeterminado, por lo que los comandos y
+checkpoints existentes conservan su comportamiento. Para entrenar con subidas:
+
+```sh
+build/release/mus-solver \
+    --format raises-to-eight \
+    --iterations 1000000 \
+    --seed 0 \
+    --save mus-raises-1m.cfr
+```
+
 Un informe normal no recorre el árbol completo:
 
 ```text
@@ -77,8 +96,14 @@ build/release/mus-solver \
 ```
 
 El checkpoint binario contiene la estrategia acumulada, los regrets, las
-estadísticas, la semilla interna y el número de iteraciones. El identificador
-de esquema es `mus.heads-up-single-hand/v1`.
+estadísticas, la semilla interna y el número de iteraciones. Los identificadores
+de esquema son independientes e incompatibles entre sí:
+
+- `single-bet`: `mus.heads-up-single-hand/v1`;
+- `raises-to-eight`: `mus.heads-up-single-hand.raises-to-eight/v1`.
+
+Al cargar un checkpoint de `raises-to-eight` hay que volver a indicar
+`--format raises-to-eight`.
 
 ## Evaluación exacta
 
@@ -133,15 +158,20 @@ ruta nueva.
 
 Los encabezados públicos bajo `include/mus_solver/` exponen:
 
-- el adaptador `Game` y su estado reversible;
-- el evaluador exacto incremental;
-- el exportador etiquetado de la estrategia media.
+- el formato original mediante el prefijo `mus_single_bet_`;
+- el formato con subidas mediante el prefijo `mus_raises_to_eight_`;
+- el adaptador `Game`, el estado reversible, el evaluador exacto incremental y
+  el exportador etiquetado para cada formato.
+
+Las funciones históricas `mus_game_*`, `mus_evaluation_*` y
+`mus_strategy_write_text` siguen apuntando a `single-bet` para mantener la
+compatibilidad de la primera versión.
 
 `C-CFR` incorpora además `cfr_info_store_visit_sorted`, una visita de solo
 lectura en orden de clave utilizada por el exportador.
 
 ## Fuera de alcance
 
-Esta primera versión no incluye partidas a 40 tantos, rotación de la mano,
-mus, descartes, cantidades variables, órdago, parejas, señas, consulta de una
-jugada aislada ni una interfaz para jugar contra la estrategia.
+Estos formatos no incluyen partidas a 40 tantos, rotación de la mano, mus,
+descartes, cantidades distintas de 2/4/8, órdago, parejas, señas, consulta de
+una jugada aislada ni una interfaz para jugar contra la estrategia.

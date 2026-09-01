@@ -16,6 +16,11 @@
 
 enum { EXIT_RUNTIME_ERROR = 1, EXIT_USAGE_ERROR = 2 };
 
+typedef enum {
+    CLI_FORMAT_SINGLE_BET,
+    CLI_FORMAT_RAISES_TO_EIGHT
+} CliFormat;
+
 typedef struct {
     size_t iterations;
     size_t report_every;
@@ -23,9 +28,11 @@ typedef struct {
     const char *load_path;
     const char *save_path;
     const char *export_path;
+    CliFormat format;
     bool iterations_set;
     bool report_every_set;
     bool seed_set;
+    bool format_set;
     bool evaluate;
     bool help;
 } CliOptions;
@@ -35,25 +42,30 @@ static bool print_usage(FILE *stream, const char *program) {
                stream,
                "Uso:\n"
                "  %s --iterations N [--seed N] [--report-every N] "
-               "[--save FILE]\n"
+               "[--format FORMAT] [--save FILE]\n"
                "     [--evaluate] [--export-strategy FILE]\n"
                "  %s --load FILE --iterations N [--report-every N] "
-               "[--save FILE]\n"
+               "[--format FORMAT] [--save FILE]\n"
                "     [--evaluate] [--export-strategy FILE]\n"
-               "  %s [--load FILE] --evaluate [--export-strategy FILE]\n"
+               "  %s [--format FORMAT] [--load FILE] --evaluate "
+               "[--export-strategy FILE]\n"
+               "  %s [--format FORMAT] --load FILE "
+               "--export-strategy FILE\n"
                "\n"
                "Opciones:\n"
                "  --iterations N         Iteraciones MCCFR nuevas.\n"
                "  --report-every N       Frecuencia de informes de entrenamiento.\n"
                "  --seed N               Semilla de un entrenamiento nuevo (0 por "
                "defecto).\n"
+               "  --format FORMAT        single-bet (por defecto) o "
+               "raises-to-eight.\n"
                "  --load FILE            Carga un checkpoint reanudable.\n"
                "  --save FILE            Guarda el checkpoint tras entrenar.\n"
                "  --evaluate             Evalua exactamente la estrategia media.\n"
                "  --export-strategy FILE Exporta la estrategia con etiquetas de "
                "mus.\n"
                "  --help, -h             Muestra esta ayuda.\n",
-               program, program, program) >= 0;
+               program, program, program, program) >= 0;
 }
 
 static bool parse_size(const char *text, size_t *value_out) {
@@ -124,6 +136,19 @@ static bool parse_options(int argc, char *argv[], CliOptions *options) {
                 return false;
             }
             options->seed_set = true;
+        } else if (strcmp(argument, "--format") == 0) {
+            if (options->format_set ||
+                !option_value(argc, argv, &index, &value)) {
+                return false;
+            }
+            if (strcmp(value, "single-bet") == 0) {
+                options->format = CLI_FORMAT_SINGLE_BET;
+            } else if (strcmp(value, "raises-to-eight") == 0) {
+                options->format = CLI_FORMAT_RAISES_TO_EIGHT;
+            } else {
+                return false;
+            }
+            options->format_set = true;
         } else if (strcmp(argument, "--load") == 0) {
             if (options->load_path != NULL ||
                 !option_value(argc, argv, &index, &options->load_path)) {
@@ -149,7 +174,8 @@ static bool parse_options(int argc, char *argv[], CliOptions *options) {
     }
     if (options->help)
         return argc == 2;
-    if (!options->iterations_set && !options->evaluate)
+    if (!options->iterations_set && !options->evaluate &&
+        !(options->load_path != NULL && options->export_path != NULL))
         return false;
     if (options->report_every_set && !options->iterations_set)
         return false;
@@ -256,13 +282,16 @@ static Status save_checkpoint(const char *path, const Trainer *trainer) {
     return status;
 }
 
-static Status export_strategy(const char *path, const Trainer *trainer) {
+static Status export_strategy(const char *path, const Trainer *trainer,
+                              CliFormat format) {
     FILE *stream = fopen(path, "wx");
     Status status;
 
     if (stream == NULL)
         return CFR_STATUS_IO_ERROR;
-    status = mus_strategy_write_text(stream, trainer);
+    status = format == CLI_FORMAT_RAISES_TO_EIGHT
+                 ? mus_raises_to_eight_strategy_write_text(stream, trainer)
+                 : mus_single_bet_strategy_write_text(stream, trainer);
     if (fclose(stream) != 0 && status == CFR_STATUS_SUCCESS)
         status = CFR_STATUS_IO_ERROR;
     if (status != CFR_STATUS_SUCCESS)
@@ -312,11 +341,15 @@ static int run(const CliOptions *options) {
     MusGameState state;
     InfoStore store = {0};
     Trainer trainer = {0};
-    const Game *game = mus_game_descriptor();
+    const Game *game = options->format == CLI_FORMAT_RAISES_TO_EIGHT
+                           ? mus_raises_to_eight_game_descriptor()
+                           : mus_single_bet_game_descriptor();
     GameState *game_state;
     bool store_initialized = false;
     int result = EXIT_RUNTIME_ERROR;
-    Status status = mus_game_state_init(&state);
+    Status status = options->format == CLI_FORMAT_RAISES_TO_EIGHT
+                        ? mus_raises_to_eight_game_state_init(&state)
+                        : mus_single_bet_game_state_init(&state);
 
     if (status != CFR_STATUS_SUCCESS)
         goto cleanup;
@@ -367,7 +400,10 @@ static int run(const CliOptions *options) {
     if (options->evaluate) {
         EvaluationMetrics metrics;
 
-        status = mus_evaluation_metrics(&store, &metrics);
+        status = options->format == CLI_FORMAT_RAISES_TO_EIGHT
+                     ? mus_raises_to_eight_evaluation_metrics(&store,
+                                                              &metrics)
+                     : mus_single_bet_evaluation_metrics(&store, &metrics);
         if (status != CFR_STATUS_SUCCESS)
             goto runtime_error;
         if (!print_evaluation(trainer.training_iterations, &metrics)) {
@@ -384,7 +420,8 @@ static int run(const CliOptions *options) {
         }
     }
     if (options->export_path != NULL) {
-        status = export_strategy(options->export_path, &trainer);
+        status = export_strategy(options->export_path, &trainer,
+                                 options->format);
         if (status != CFR_STATUS_SUCCESS) {
             fprintf(stderr, "error: no se pudo exportar '%s': %s\n",
                     options->export_path, status_name(status));

@@ -17,4 +17,16 @@ Status mus_evaluation_metrics_from_state(const MusGameState *root,
                                          const InfoStore *store,
                                          EvaluationMetrics *metrics_out);
 
+Status mus_single_bet_evaluation_metrics(const InfoStore *store,
+                                         EvaluationMetrics *metrics_out);
+Status mus_single_bet_evaluation_metrics_from_state(
+    const MusSingleBetGameState *root, const InfoStore *store,
+    EvaluationMetrics *metrics_out);
+
+Status mus_raises_to_eight_evaluation_metrics(
+    const InfoStore *store, EvaluationMetrics *metrics_out);
+Status mus_raises_to_eight_evaluation_metrics_from_state(
+    const MusRaisesToEightGameState *root, const InfoStore *store,
+    EvaluationMetrics *metrics_out);
+
 #endif
