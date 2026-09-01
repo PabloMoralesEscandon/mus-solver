@@ -319,6 +319,7 @@ static void test_exact_deal_distribution(void) {
 static void test_apply_undo_and_contract(void) {
     MusGameState state;
     MusGameModel root;
+    MusHandSummary root_summaries[MUS_GAME_PLAYER_COUNT];
     Action actions[MUS_GAME_MAX_LEGAL_ACTIONS] = {99, 99, 99, 99, 99};
     size_t count = 99;
     bool terminal = true;
@@ -327,6 +328,14 @@ static void test_apply_undo_and_contract(void) {
     CHECK(mus_game_state_init(&state) == CFR_STATUS_SUCCESS);
     CHECK(game()->trusted_operations != NULL);
     root = state.model;
+    memcpy(root_summaries, state.hand_summaries, sizeof(root_summaries));
+    CHECK(game()->trusted_operations->apply_action(
+              game()->context, game_state(&state), MUS_ACTION_PASS) ==
+          CFR_STATUS_ILLEGAL_ACTION);
+    CHECK(state.undo_count == 0);
+    CHECK(memcmp(&state.model, &root, sizeof(root)) == 0);
+    CHECK(memcmp(state.hand_summaries, root_summaries,
+                 sizeof(root_summaries)) == 0);
     CHECK(cfr_game_validate_state(game(), game_state(&state)) ==
           CFR_STATUS_SUCCESS);
     state.model.deal_later_available += 1;

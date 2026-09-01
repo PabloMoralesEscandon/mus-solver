@@ -1205,8 +1205,7 @@ static Status apply_to_model(
 }
 
 static Status apply_action_to_state(MusGameState *mus, Action action,
-                                    const MusGameFormat *format,
-                                    bool validate_result) {
+                                    const MusGameFormat *format) {
     MusGameModel temporary;
     MusHandSummary completed_summaries[MUS_GAME_PLAYER_COUNT];
     const MusHandSummary *active_summaries;
@@ -1231,14 +1230,12 @@ static Status apply_action_to_state(MusGameState *mus, Action action,
             return status;
         active_summaries = completed_summaries;
     }
-    if (validate_result) {
-        status = validate_model(&temporary, format);
-        if (status == CFR_STATUS_SUCCESS && !phase_is_deal(temporary.phase)) {
-            status = validate_hand_summaries(&temporary, active_summaries);
-        }
-        if (status != CFR_STATUS_SUCCESS)
-            return CFR_STATUS_INVALID_ARGUMENT;
+    status = validate_model(&temporary, format);
+    if (status == CFR_STATUS_SUCCESS && !phase_is_deal(temporary.phase)) {
+        status = validate_hand_summaries(&temporary, active_summaries);
     }
+    if (status != CFR_STATUS_SUCCESS)
+        return CFR_STATUS_INVALID_ARGUMENT;
     mus->undo_history[mus->undo_count] = mus->model;
     mus->undo_count += 1;
     mus->model = temporary;
@@ -1249,6 +1246,41 @@ static Status apply_action_to_state(MusGameState *mus, Action action,
     return CFR_STATUS_SUCCESS;
 }
 
+static Status apply_trusted_action_to_state(MusGameState *mus, Action action,
+                                            const MusGameFormat *format) {
+    MusHandSummary completed_summaries[MUS_GAME_PLAYER_COUNT];
+    MusGameModel *undo_model;
+    bool completed_deal;
+    Status status;
+
+    if (mus == NULL)
+        return CFR_STATUS_INVALID_ARGUMENT;
+    if (mus->undo_count >= MUS_GAME_UNDO_CAPACITY)
+        return CFR_STATUS_BUFFER_TOO_SMALL;
+
+    undo_model = &mus->undo_history[mus->undo_count];
+    *undo_model = mus->model;
+    status =
+        apply_to_model(&mus->model, format, action, mus->hand_summaries);
+    if (status != CFR_STATUS_SUCCESS) {
+        mus->model = *undo_model;
+        return status;
+    }
+    completed_deal = phase_is_deal(undo_model->phase) &&
+                     !phase_is_deal(mus->model.phase);
+    if (completed_deal) {
+        status = summarize_hands(&mus->model, completed_summaries);
+        if (status != CFR_STATUS_SUCCESS) {
+            mus->model = *undo_model;
+            return status;
+        }
+        memcpy(mus->hand_summaries, completed_summaries,
+               sizeof(completed_summaries));
+    }
+    mus->undo_count += 1;
+    return CFR_STATUS_SUCCESS;
+}
+
 static Status mus_apply_action(const void *context, GameState *state,
                                Action action) {
     MusGameState *mus = as_mus(state);
@@ -1256,23 +1288,23 @@ static Status mus_apply_action(const void *context, GameState *state,
 
     if (validate_state_data(mus, format) != CFR_STATUS_SUCCESS)
         return CFR_STATUS_INVALID_ARGUMENT;
-    return apply_action_to_state(mus, action, format, true);
+    return apply_action_to_state(mus, action, format);
 }
 
 static Status mus_single_bet_trusted_apply_action(const void *context,
                                                   GameState *state,
                                                   Action action) {
     (void)context;
-    return apply_action_to_state(as_mus(state), action,
-                                 &MUS_SINGLE_BET_FORMAT, false);
+    return apply_trusted_action_to_state(as_mus(state), action,
+                                         &MUS_SINGLE_BET_FORMAT);
 }
 
 static Status mus_raises_to_eight_trusted_apply_action(const void *context,
                                                        GameState *state,
                                                        Action action) {
     (void)context;
-    return apply_action_to_state(as_mus(state), action,
-                                 &MUS_RAISES_TO_EIGHT_FORMAT, false);
+    return apply_trusted_action_to_state(as_mus(state), action,
+                                         &MUS_RAISES_TO_EIGHT_FORMAT);
 }
 
 static Status mus_undo_action(const void *context, GameState *state) {
