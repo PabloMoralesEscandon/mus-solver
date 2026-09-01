@@ -42,6 +42,30 @@ static Status mus_validate_state(const void *context, const GameState *state);
 static Status mus_chance_outcomes(const void *context, const GameState *state,
                                   Action *actions, Probability *probabilities,
                                   size_t capacity, size_t *required_count);
+static Status mus_trusted_is_terminal(const void *context,
+                                      const GameState *state, bool *result);
+static Status mus_trusted_terminal_utility(const void *context,
+                                           const GameState *state,
+                                           Player player, Utility *result);
+static Status mus_trusted_current_actor(const void *context,
+                                        const GameState *state, Actor *result);
+static Status mus_trusted_legal_actions(const void *context,
+                                        const GameState *state,
+                                        Action *actions, size_t capacity,
+                                        size_t *required_count);
+static Status mus_trusted_apply_action(const void *context, GameState *state,
+                                       Action action);
+static Status mus_trusted_undo_action(const void *context, GameState *state);
+static Status mus_trusted_chance_probability(const void *context,
+                                             const GameState *state,
+                                             Action action,
+                                             Probability *result);
+static Status mus_trusted_information_set_key(const void *context,
+                                              const GameState *state,
+                                              InfoSetKey *result);
+static Status mus_trusted_chance_outcomes(
+    const void *context, const GameState *state, Action *actions,
+    Probability *probabilities, size_t capacity, size_t *required_count);
 
 static const GameOperations MUS_OPERATIONS = {
     .is_terminal = mus_is_terminal,
@@ -56,13 +80,25 @@ static const GameOperations MUS_OPERATIONS = {
     .chance_outcomes = mus_chance_outcomes,
 };
 
+static const GameOperations MUS_TRUSTED_OPERATIONS = {
+    .is_terminal = mus_trusted_is_terminal,
+    .terminal_utility = mus_trusted_terminal_utility,
+    .current_actor = mus_trusted_current_actor,
+    .legal_actions = mus_trusted_legal_actions,
+    .apply_action = mus_trusted_apply_action,
+    .undo_action = mus_trusted_undo_action,
+    .chance_probability = mus_trusted_chance_probability,
+    .information_set_key = mus_trusted_information_set_key,
+    .chance_outcomes = mus_trusted_chance_outcomes,
+};
+
 static const Game MUS_GAME = {
     .operations = &MUS_OPERATIONS,
     .context = NULL,
     .strategic_player_count = MUS_GAME_PLAYER_COUNT,
     .max_legal_actions = MUS_GAME_MAX_LEGAL_ACTIONS,
     .strategy_schema_id = "mus.heads-up-single-hand/v1",
-    .trusted_operations = NULL,
+    .trusted_operations = &MUS_TRUSTED_OPERATIONS,
 };
 
 static MusGameState *as_mus(GameState *state) {
@@ -361,11 +397,20 @@ static Status mus_is_terminal(const void *context, const GameState *state,
                               bool *result) {
     const MusGameState *mus = as_mus_const(state);
 
-    (void)context;
     if (result == NULL || mus == NULL ||
         validate_model(&mus->model) != CFR_STATUS_SUCCESS) {
         return CFR_STATUS_INVALID_ARGUMENT;
     }
+    return mus_trusted_is_terminal(context, state, result);
+}
+
+static Status mus_trusted_is_terminal(const void *context,
+                                      const GameState *state, bool *result) {
+    const MusGameState *mus = as_mus_const(state);
+
+    (void)context;
+    if (result == NULL || mus == NULL)
+        return CFR_STATUS_INVALID_ARGUMENT;
     *result = mus->model.phase == MUS_PHASE_TERMINAL;
     return CFR_STATUS_SUCCESS;
 }
@@ -482,12 +527,23 @@ static Status mus_terminal_utility(const void *context,
                                    const GameState *state, Player player,
                                    Utility *result) {
     const MusGameState *mus = as_mus_const(state);
+
+    if (mus == NULL || result == NULL || !player_is_valid(player) ||
+        validate_model(&mus->model) != CFR_STATUS_SUCCESS) {
+        return CFR_STATUS_INVALID_ARGUMENT;
+    }
+    return mus_trusted_terminal_utility(context, state, player, result);
+}
+
+static Status mus_trusted_terminal_utility(const void *context,
+                                           const GameState *state,
+                                           Player player, Utility *result) {
+    const MusGameState *mus = as_mus_const(state);
     int scores[2];
     Status status;
 
     (void)context;
     if (mus == NULL || result == NULL || !player_is_valid(player) ||
-        validate_model(&mus->model) != CFR_STATUS_SUCCESS ||
         mus->model.phase != MUS_PHASE_TERMINAL) {
         return CFR_STATUS_INVALID_ARGUMENT;
     }
@@ -503,17 +559,30 @@ static Status mus_current_actor(const void *context, const GameState *state,
                                 Actor *result) {
     const MusGameState *mus = as_mus_const(state);
 
+    if (mus == NULL || result == NULL ||
+        validate_model(&mus->model) != CFR_STATUS_SUCCESS) {
+        return CFR_STATUS_INVALID_ARGUMENT;
+    }
+    return mus_trusted_current_actor(context, state, result);
+}
+
+static Status mus_trusted_current_actor(const void *context,
+                                        const GameState *state,
+                                        Actor *result) {
+    const MusGameState *mus = as_mus_const(state);
+
     (void)context;
     if (mus == NULL || result == NULL ||
-        validate_model(&mus->model) != CFR_STATUS_SUCCESS ||
         mus->model.phase == MUS_PHASE_TERMINAL) {
         return CFR_STATUS_INVALID_ARGUMENT;
     }
     if (phase_is_deal(mus->model.phase)) {
         *result = (Actor){.kind = CFR_ACTOR_CHANCE, .player = CFR_PLAYER_0};
-    } else {
+    } else if (phase_is_betting(mus->model.phase)) {
         *result = (Actor){.kind = CFR_ACTOR_PLAYER,
                           .player = mus->model.current_player};
+    } else {
+        return CFR_STATUS_INVALID_ARGUMENT;
     }
     return CFR_STATUS_SUCCESS;
 }
@@ -523,9 +592,22 @@ static Status mus_legal_actions(const void *context, const GameState *state,
                                 size_t *required_count) {
     const MusGameState *mus = as_mus_const(state);
 
+    if (mus == NULL || actions == NULL || required_count == NULL ||
+        validate_model(&mus->model) != CFR_STATUS_SUCCESS) {
+        return CFR_STATUS_INVALID_ARGUMENT;
+    }
+    return mus_trusted_legal_actions(context, state, actions, capacity,
+                                     required_count);
+}
+
+static Status mus_trusted_legal_actions(const void *context,
+                                        const GameState *state,
+                                        Action *actions, size_t capacity,
+                                        size_t *required_count) {
+    const MusGameState *mus = as_mus_const(state);
+
     (void)context;
     if (mus == NULL || actions == NULL || required_count == NULL ||
-        validate_model(&mus->model) != CFR_STATUS_SUCCESS ||
         mus->model.phase == MUS_PHASE_TERMINAL) {
         return CFR_STATUS_INVALID_ARGUMENT;
     }
@@ -543,6 +625,8 @@ static Status mus_legal_actions(const void *context, const GameState *state,
         memcpy(actions, temporary, count * sizeof(*actions));
         return CFR_STATUS_SUCCESS;
     }
+    if (!phase_is_betting(mus->model.phase))
+        return CFR_STATUS_INVALID_ARGUMENT;
     *required_count = 2;
     if (capacity < 2)
         return CFR_STATUS_BUFFER_TOO_SMALL;
@@ -630,14 +714,12 @@ static Status apply_to_model(MusGameModel *model, Action action) {
     return CFR_STATUS_SUCCESS;
 }
 
-static Status mus_apply_action(const void *context, GameState *state,
-                               Action action) {
-    MusGameState *mus = as_mus(state);
+static Status apply_action_to_state(MusGameState *mus, Action action,
+                                    bool validate_result) {
     MusGameModel temporary;
     Status status;
 
-    (void)context;
-    if (mus == NULL || validate_model(&mus->model) != CFR_STATUS_SUCCESS)
+    if (mus == NULL)
         return CFR_STATUS_INVALID_ARGUMENT;
     if (mus->undo_count >= MUS_GAME_UNDO_CAPACITY)
         return CFR_STATUS_BUFFER_TOO_SMALL;
@@ -645,20 +727,47 @@ static Status mus_apply_action(const void *context, GameState *state,
     status = apply_to_model(&temporary, action);
     if (status != CFR_STATUS_SUCCESS)
         return status;
-    if (validate_model(&temporary) != CFR_STATUS_SUCCESS)
+    if (validate_result &&
+        validate_model(&temporary) != CFR_STATUS_SUCCESS) {
         return CFR_STATUS_INVALID_ARGUMENT;
+    }
     mus->undo_history[mus->undo_count] = mus->model;
     mus->undo_count += 1;
     mus->model = temporary;
     return CFR_STATUS_SUCCESS;
 }
 
+static Status mus_apply_action(const void *context, GameState *state,
+                               Action action) {
+    MusGameState *mus = as_mus(state);
+
+    (void)context;
+    if (mus == NULL || validate_model(&mus->model) != CFR_STATUS_SUCCESS)
+        return CFR_STATUS_INVALID_ARGUMENT;
+    return apply_action_to_state(mus, action, true);
+}
+
+static Status mus_trusted_apply_action(const void *context, GameState *state,
+                                       Action action) {
+    (void)context;
+    return apply_action_to_state(as_mus(state), action, false);
+}
+
 static Status mus_undo_action(const void *context, GameState *state) {
+    MusGameState *mus = as_mus(state);
+
+    if (mus == NULL || validate_model(&mus->model) != CFR_STATUS_SUCCESS) {
+        return CFR_STATUS_INVALID_ARGUMENT;
+    }
+    return mus_trusted_undo_action(context, state);
+}
+
+static Status mus_trusted_undo_action(const void *context, GameState *state) {
     MusGameState *mus = as_mus(state);
 
     (void)context;
     if (mus == NULL || mus->undo_count == 0 ||
-        validate_model(&mus->model) != CFR_STATUS_SUCCESS) {
+        mus->undo_count > MUS_GAME_UNDO_CAPACITY) {
         return CFR_STATUS_INVALID_ARGUMENT;
     }
     mus->undo_count -= 1;
@@ -671,12 +780,22 @@ static Status mus_chance_probability(const void *context,
                                      Probability *result) {
     const MusGameState *mus = as_mus_const(state);
 
-    (void)context;
     if (mus == NULL || result == NULL ||
-        validate_model(&mus->model) != CFR_STATUS_SUCCESS ||
-        !phase_is_deal(mus->model.phase)) {
+        validate_model(&mus->model) != CFR_STATUS_SUCCESS) {
         return CFR_STATUS_INVALID_ARGUMENT;
     }
+    return mus_trusted_chance_probability(context, state, action, result);
+}
+
+static Status mus_trusted_chance_probability(const void *context,
+                                             const GameState *state,
+                                             Action action,
+                                             Probability *result) {
+    const MusGameState *mus = as_mus_const(state);
+
+    (void)context;
+    if (mus == NULL || result == NULL || !phase_is_deal(mus->model.phase))
+        return CFR_STATUS_INVALID_ARGUMENT;
     if (!deal_count_is_legal(&mus->model, action))
         return CFR_STATUS_ILLEGAL_ACTION;
     *result = deal_count_probability(&mus->model, action);
@@ -723,13 +842,24 @@ static Status mus_information_set_key(const void *context,
                                       const GameState *state,
                                       InfoSetKey *result) {
     const MusGameState *mus = as_mus_const(state);
+
+    if (mus == NULL || result == NULL ||
+        validate_model(&mus->model) != CFR_STATUS_SUCCESS) {
+        return CFR_STATUS_INVALID_ARGUMENT;
+    }
+    return mus_trusted_information_set_key(context, state, result);
+}
+
+static Status mus_trusted_information_set_key(const void *context,
+                                              const GameState *state,
+                                              InfoSetKey *result) {
+    const MusGameState *mus = as_mus_const(state);
     const MusGameModel *model;
     InfoSetKey key;
     int phase_code;
 
     (void)context;
     if (mus == NULL || result == NULL ||
-        validate_model(&mus->model) != CFR_STATUS_SUCCESS ||
         !phase_is_betting(mus->model.phase)) {
         return CFR_STATUS_INVALID_ARGUMENT;
     }
@@ -768,6 +898,20 @@ static Status mus_chance_outcomes(const void *context, const GameState *state,
                                   Action *actions, Probability *probabilities,
                                   size_t capacity, size_t *required_count) {
     const MusGameState *mus = as_mus_const(state);
+
+    if (mus == NULL || actions == NULL || probabilities == NULL ||
+        required_count == NULL ||
+        validate_model(&mus->model) != CFR_STATUS_SUCCESS) {
+        return CFR_STATUS_INVALID_ARGUMENT;
+    }
+    return mus_trusted_chance_outcomes(
+        context, state, actions, probabilities, capacity, required_count);
+}
+
+static Status mus_trusted_chance_outcomes(
+    const void *context, const GameState *state, Action *actions,
+    Probability *probabilities, size_t capacity, size_t *required_count) {
+    const MusGameState *mus = as_mus_const(state);
     Action temporary_actions[MUS_GAME_MAX_LEGAL_ACTIONS];
     Probability temporary_probabilities[MUS_GAME_MAX_LEGAL_ACTIONS];
     size_t count = 0;
@@ -776,7 +920,6 @@ static Status mus_chance_outcomes(const void *context, const GameState *state,
     (void)context;
     if (mus == NULL || actions == NULL || probabilities == NULL ||
         required_count == NULL ||
-        validate_model(&mus->model) != CFR_STATUS_SUCCESS ||
         !phase_is_deal(mus->model.phase)) {
         return CFR_STATUS_INVALID_ARGUMENT;
     }

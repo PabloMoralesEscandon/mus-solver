@@ -117,6 +117,7 @@ static void test_apply_undo_and_contract(void) {
 
     CHECK(mus_game_state_init(NULL) == CFR_STATUS_INVALID_ARGUMENT);
     CHECK(mus_game_state_init(&state) == CFR_STATUS_SUCCESS);
+    CHECK(game()->trusted_operations != NULL);
     root = state.model;
     CHECK(cfr_game_validate_state(game(), game_state(&state)) ==
           CFR_STATUS_SUCCESS);
