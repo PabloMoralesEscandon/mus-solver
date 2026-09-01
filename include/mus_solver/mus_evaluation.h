@@ -29,4 +29,10 @@ Status mus_raises_to_eight_evaluation_metrics_from_state(
     const MusRaisesToEightGameState *root, const InfoStore *store,
     EvaluationMetrics *metrics_out);
 
+Status mus_ordago_evaluation_metrics(const InfoStore *store,
+                                     EvaluationMetrics *metrics_out);
+Status mus_ordago_evaluation_metrics_from_state(
+    const MusOrdagoGameState *root, const InfoStore *store,
+    EvaluationMetrics *metrics_out);
+
 #endif

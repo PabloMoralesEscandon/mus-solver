@@ -16,4 +16,7 @@ Status mus_single_bet_strategy_write_text(FILE *stream,
 Status mus_raises_to_eight_strategy_write_text(FILE *stream,
                                                const Trainer *trainer);
 
+/* Writer for the format with mus, flexible wagers, and ordago. */
+Status mus_ordago_strategy_write_text(FILE *stream, const Trainer *trainer);
+
 #endif

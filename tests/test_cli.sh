@@ -11,6 +11,7 @@ grep -q -- '--evaluate' "$tmp_dir/help.txt"
 grep -q -- '--format FORMAT' "$tmp_dir/help.txt"
 grep -q -- '--reserve-information-sets N' "$tmp_dir/help.txt"
 grep -q -- 'raises-to-eight' "$tmp_dir/help.txt"
+grep -q -- 'ordago' "$tmp_dir/help.txt"
 
 if "$solver" >"$tmp_dir/no-args.out" 2>"$tmp_dir/no-args.err"; then
     echo "el solver sin argumentos debio fallar" >&2
@@ -53,6 +54,10 @@ cmp "$tmp_dir/strategy.txt" "$tmp_dir/loaded-strategy.txt"
 grep -q 'schema=mus.heads-up-single-hand.raises-to-eight/v1' \
     "$tmp_dir/raises-strategy.txt"
 grep -Eq 'subir_a_(4|8)=' "$tmp_dir/raises-strategy.txt"
+
+"$solver" --format ordago --iterations 1 --seed 13 \
+    >"$tmp_dir/ordago.out"
+grep -q 'report iterations=1' "$tmp_dir/ordago.out"
 
 if "$solver" --load "$tmp_dir/raises.cfr" --iterations 1 \
     >"$tmp_dir/wrong-format.out" 2>"$tmp_dir/wrong-format.err"; then

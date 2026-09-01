@@ -10,13 +10,24 @@ calcula valor, mejores respuestas y explotabilidad exactos bajo demanda.
 - Se usa la baraja española de 40 cartas, con ochos reyes y ocho ases según las
   equivalencias del mus: tres = rey y dos = as.
 - Se juegan en orden grande, chica, pares y juego o punto.
-- No hay fase de mus ni descartes.
+- Los formatos históricos no tienen fase de mus ni descartes. El formato
+  `ordago` descrito más abajo sí los incorpora.
 - El formato `single-bet` conserva la primera versión: en cada lance se puede
   pasar o envidar 2 y, ante el envite, solo se puede querer o no querer.
 - El formato `raises-to-eight` añade respuestas y subidas en todos los lances.
   Quien abre puede pasar o envidar 2. Si pasa, postre también puede pasar o
   envidar 2. Ante un envite se puede no querer, querer o subir duplicando la
   cantidad: 2 → 4 → 8. Ante 8 ya no se puede volver a subir.
+- El formato `ordago` permite pasar o abrir por 2, 4, 7, 10 u órdago en todos
+  los lances. Ante un envite se puede no querer, querer o subir a cualquiera
+  de los niveles superiores. El órdago equivale a 40 tantos.
+- En `ordago`, antes de grande cada jugador dice, por orden, `mus` o `no mus`.
+  Si ambos dicen mus, cada uno elige una de las 16 máscaras de cuatro bits;
+  un bit a uno cambia esa carta. Los bits recorren la mano en su orden
+  canónico, de menor a mayor valor. Las cartas descartadas quedan fuera del
+  mazo y los robos se hacen sin reposición.
+- El estado conserva el número de muses, las máscaras y los recuentos de
+  descarte. Tras dos muses aceptados se pasa directamente a grande.
 - Los jugadores observan todo el historial de apuestas anterior. Las
   declaraciones de pares y juego se hacen públicas al llegar a esos lances.
 - Se aplica literalmente el tanteo de `Simulador-Mus`: el envite o deje se
@@ -27,6 +38,10 @@ calcula valor, mejores respuestas y explotabilidad exactos bajo demanda.
 Al no querer el envite inicial se concede una piedra. Si se rechaza una subida
 a 4 u 8, se concede el último envite ya cubierto: 2 o 4 piedras. Si se quiere,
 el lance se resuelve por la cantidad final aceptada.
+
+En `ordago` se aplica la misma regla general: rechazar una apertura concede una
+piedra y rechazar una subida concede el último nivel cubierto. Por ejemplo,
+si se sube de 7 a órdago y se rechaza, se conceden 7 tantos.
 
 Los palos no afectan a ninguna decisión. El reparto agrupa las cartas en ocho
 clases de valor, pero conserva exactamente sus multiplicidades y el muestreo
@@ -84,6 +99,16 @@ build/release/mus-solver \
     --save mus-raises-1m.cfr
 ```
 
+Para entrenar con mus, descartes y órdago:
+
+```sh
+build/release/mus-solver \
+    --format ordago \
+    --iterations 1000000 \
+    --seed 0 \
+    --save mus-ordago-1m.cfr
+```
+
 Un informe normal no recorre el árbol completo:
 
 ```text
@@ -104,10 +129,12 @@ estadísticas, la semilla interna y el número de iteraciones. Los identificador
 de esquema son independientes e incompatibles entre sí:
 
 - `single-bet`: `mus.heads-up-single-hand/v1`;
-- `raises-to-eight`: `mus.heads-up-single-hand.raises-to-eight/v1`.
+- `raises-to-eight`: `mus.heads-up-single-hand.raises-to-eight/v1`;
+- `ordago`: `mus.heads-up-single-hand.ordago-with-mus/v1`.
 
 Al cargar un checkpoint de `raises-to-eight` hay que volver a indicar
 `--format raises-to-eight`.
+Lo mismo se aplica a `ordago`: hay que indicar `--format ordago`.
 
 ## Evaluación exacta
 
@@ -131,6 +158,10 @@ como uniformes los conjuntos de información aún no visitados. Calcula:
 El evaluador acumula valores contrafactuales por profundidad y no materializa
 el árbol completo en memoria. Aun así, la evaluación completa es una operación
 costosa y por eso solo se ejecuta al indicar `--evaluate`.
+
+El árbol exacto de `ordago` es mucho mayor debido a las 16 decisiones de
+descarte por jugador y ronda. Su evaluación desde la raíz puede ser
+considerablemente más costosa que la de los dos formatos históricos.
 
 ### Referencia reproducible
 
@@ -164,6 +195,7 @@ Los encabezados públicos bajo `include/mus_solver/` exponen:
 
 - el formato original mediante el prefijo `mus_single_bet_`;
 - el formato con subidas mediante el prefijo `mus_raises_to_eight_`;
+- el formato con mus y órdago mediante el prefijo `mus_ordago_`;
 - el adaptador `Game`, el estado reversible, el evaluador exacto incremental y
   el exportador etiquetado para cada formato.
 
@@ -176,6 +208,7 @@ lectura en orden de clave utilizada por el exportador.
 
 ## Fuera de alcance
 
-Estos formatos no incluyen partidas a 40 tantos, rotación de la mano, mus,
-descartes, cantidades distintas de 2/4/8, órdago, parejas, señas, consulta de
-una jugada aislada ni una interfaz para jugar contra la estrategia.
+Estos formatos no incluyen partidas completas a 40 tantos, rotación de la
+mano, parejas, señas, consulta de una jugada aislada ni una interfaz para jugar
+contra la estrategia. `ordago` representa el órdago como un envite de 40
+tantos dentro de la mano aislada; no modela el marcador previo de una partida.

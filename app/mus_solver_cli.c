@@ -18,7 +18,8 @@ enum { EXIT_RUNTIME_ERROR = 1, EXIT_USAGE_ERROR = 2 };
 
 typedef enum {
     CLI_FORMAT_SINGLE_BET,
-    CLI_FORMAT_RAISES_TO_EIGHT
+    CLI_FORMAT_RAISES_TO_EIGHT,
+    CLI_FORMAT_ORDAGO
 } CliFormat;
 
 typedef struct {
@@ -61,7 +62,7 @@ static bool print_usage(FILE *stream, const char *program) {
                "  --seed N               Semilla de un entrenamiento nuevo (0 por "
                "defecto).\n"
                "  --format FORMAT        single-bet (por defecto) o "
-               "raises-to-eight.\n"
+               "raises-to-eight u ordago.\n"
                "  --reserve-information-sets N\n"
                "                          Reserva capacidad para N conjuntos.\n"
                "  --load FILE            Carga un checkpoint reanudable.\n"
@@ -157,6 +158,8 @@ static bool parse_options(int argc, char *argv[], CliOptions *options) {
                 options->format = CLI_FORMAT_SINGLE_BET;
             } else if (strcmp(value, "raises-to-eight") == 0) {
                 options->format = CLI_FORMAT_RAISES_TO_EIGHT;
+            } else if (strcmp(value, "ordago") == 0) {
+                options->format = CLI_FORMAT_ORDAGO;
             } else {
                 return false;
             }
@@ -301,9 +304,13 @@ static Status export_strategy(const char *path, const Trainer *trainer,
 
     if (stream == NULL)
         return CFR_STATUS_IO_ERROR;
-    status = format == CLI_FORMAT_RAISES_TO_EIGHT
-                 ? mus_raises_to_eight_strategy_write_text(stream, trainer)
-                 : mus_single_bet_strategy_write_text(stream, trainer);
+    if (format == CLI_FORMAT_RAISES_TO_EIGHT) {
+        status = mus_raises_to_eight_strategy_write_text(stream, trainer);
+    } else if (format == CLI_FORMAT_ORDAGO) {
+        status = mus_ordago_strategy_write_text(stream, trainer);
+    } else {
+        status = mus_single_bet_strategy_write_text(stream, trainer);
+    }
     if (fclose(stream) != 0 && status == CFR_STATUS_SUCCESS)
         status = CFR_STATUS_IO_ERROR;
     if (status != CFR_STATUS_SUCCESS)
@@ -353,15 +360,22 @@ static int run(const CliOptions *options) {
     MusGameState state;
     InfoStore store = {0};
     Trainer trainer = {0};
-    const Game *game = options->format == CLI_FORMAT_RAISES_TO_EIGHT
-                           ? mus_raises_to_eight_game_descriptor()
-                           : mus_single_bet_game_descriptor();
+    const Game *game;
     GameState *game_state;
     bool store_initialized = false;
     int result = EXIT_RUNTIME_ERROR;
-    Status status = options->format == CLI_FORMAT_RAISES_TO_EIGHT
-                        ? mus_raises_to_eight_game_state_init(&state)
-                        : mus_single_bet_game_state_init(&state);
+    Status status;
+
+    if (options->format == CLI_FORMAT_RAISES_TO_EIGHT) {
+        game = mus_raises_to_eight_game_descriptor();
+        status = mus_raises_to_eight_game_state_init(&state);
+    } else if (options->format == CLI_FORMAT_ORDAGO) {
+        game = mus_ordago_game_descriptor();
+        status = mus_ordago_game_state_init(&state);
+    } else {
+        game = mus_single_bet_game_descriptor();
+        status = mus_single_bet_game_state_init(&state);
+    }
 
     if (status != CFR_STATUS_SUCCESS)
         goto cleanup;
@@ -418,10 +432,14 @@ static int run(const CliOptions *options) {
     if (options->evaluate) {
         EvaluationMetrics metrics;
 
-        status = options->format == CLI_FORMAT_RAISES_TO_EIGHT
-                     ? mus_raises_to_eight_evaluation_metrics(&store,
-                                                              &metrics)
-                     : mus_single_bet_evaluation_metrics(&store, &metrics);
+        if (options->format == CLI_FORMAT_RAISES_TO_EIGHT) {
+            status = mus_raises_to_eight_evaluation_metrics(&store,
+                                                             &metrics);
+        } else if (options->format == CLI_FORMAT_ORDAGO) {
+            status = mus_ordago_evaluation_metrics(&store, &metrics);
+        } else {
+            status = mus_single_bet_evaluation_metrics(&store, &metrics);
+        }
         if (status != CFR_STATUS_SUCCESS)
             goto runtime_error;
         if (!print_evaluation(trainer.training_iterations, &metrics)) {

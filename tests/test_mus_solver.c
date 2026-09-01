@@ -84,6 +84,43 @@ static void raises_deal(
     CHECK(memcmp(state->model.hands[1], player_1, MUS_GAME_CLASS_COUNT) == 0);
 }
 
+static const Game *ordago_game(void) {
+    return mus_ordago_game_descriptor();
+}
+
+static GameState *ordago_game_state(MusOrdagoGameState *state) {
+    return mus_ordago_game_state_as_game_state(state);
+}
+
+static void ordago_apply(MusOrdagoGameState *state, Action action) {
+    CHECK(cfr_game_apply_action(ordago_game(), ordago_game_state(state),
+                                action) == CFR_STATUS_SUCCESS);
+}
+
+static void ordago_deal(
+    MusOrdagoGameState *state,
+    const uint8_t player_0[MUS_GAME_CLASS_COUNT],
+    const uint8_t player_1[MUS_GAME_CLASS_COUNT]) {
+    CHECK(mus_ordago_game_state_init(state) == CFR_STATUS_SUCCESS);
+    for (int card_class = 0; card_class < MUS_GAME_CLASS_COUNT - 1;
+         card_class += 1)
+        ordago_apply(state, player_0[card_class]);
+    for (int card_class = 0; card_class < MUS_GAME_CLASS_COUNT - 1;
+         card_class += 1)
+        ordago_apply(state, player_1[card_class]);
+    CHECK(state->model.phase == MUS_PHASE_MUS_PLAYER_0);
+    CHECK(memcmp(state->model.hands[0], player_0, MUS_GAME_CLASS_COUNT) == 0);
+    CHECK(memcmp(state->model.hands[1], player_1, MUS_GAME_CLASS_COUNT) == 0);
+}
+
+static void ordago_finish_current_draw(MusOrdagoGameState *state,
+                                        Action first_class_count) {
+    ordago_apply(state, first_class_count);
+    for (int card_class = 1; card_class < MUS_GAME_CLASS_COUNT - 1;
+         card_class += 1)
+        ordago_apply(state, MUS_ACTION_TAKE_0);
+}
+
 typedef struct {
     size_t player_0_compositions;
     size_t joint_deals;
@@ -516,6 +553,182 @@ static void test_raises_to_eight_actions_infosets_and_undo(void) {
     CHECK(memcmp(&state.model, &initial.model, sizeof(state.model)) == 0);
 }
 
+static void test_ordago_mus_discards_bets_and_infosets(void) {
+    const uint8_t kings[MUS_GAME_CLASS_COUNT] = {0, 0, 0, 0, 0, 0, 0, 4};
+    const uint8_t knights[MUS_GAME_CLASS_COUNT] = {0, 0, 0, 0, 0, 0, 4, 0};
+    MusOrdagoGameState state;
+    MusOrdagoInformationSet decoded;
+    MusHandSummary original_summary;
+    Action actions[MUS_GAME_MAX_LEGAL_ACTIONS] = {0};
+    size_t count = 0;
+    InfoSetKey key;
+
+    CHECK(strcmp(ordago_game()->strategy_schema_id,
+                 "mus.heads-up-single-hand.ordago-with-mus/v1") == 0);
+    CHECK(ordago_game()->max_legal_actions == MUS_GAME_MAX_LEGAL_ACTIONS);
+    ordago_deal(&state, kings, knights);
+    original_summary = state.hand_summaries[0];
+    CHECK(cfr_game_legal_actions(ordago_game(), ordago_game_state(&state),
+                                 actions, MUS_GAME_MAX_LEGAL_ACTIONS,
+                                 &count) == CFR_STATUS_SUCCESS);
+    CHECK(count == 2 && actions[0] == MUS_ACTION_MUS &&
+          actions[1] == MUS_ACTION_NO_MUS);
+    CHECK(cfr_game_information_set_key(ordago_game(),
+                                       ordago_game_state(&state), &key) ==
+          CFR_STATUS_SUCCESS);
+    CHECK(mus_ordago_game_information_set_decode(key, &decoded) ==
+          CFR_STATUS_SUCCESS);
+    CHECK(decoded.phase == MUS_PHASE_MUS_PLAYER_0);
+    CHECK(decoded.mus_count == 0);
+    CHECK(memcmp(decoded.hand, kings, MUS_GAME_CLASS_COUNT) == 0);
+
+    ordago_apply(&state, MUS_ACTION_MUS);
+    CHECK(state.model.phase == MUS_PHASE_MUS_PLAYER_1);
+    ordago_apply(&state, MUS_ACTION_MUS);
+    CHECK(state.model.phase == MUS_PHASE_DISCARD_PLAYER_0);
+    CHECK(cfr_game_legal_actions(ordago_game(), ordago_game_state(&state),
+                                 actions, MUS_GAME_MAX_LEGAL_ACTIONS,
+                                 &count) == CFR_STATUS_SUCCESS);
+    CHECK(count == MUS_GAME_DISCARD_MASK_COUNT);
+    for (int mask = 0; mask < MUS_GAME_DISCARD_MASK_COUNT; mask += 1)
+        CHECK(actions[mask] == MUS_ACTION_DISCARD_MASK(mask));
+
+    ordago_apply(&state, MUS_ACTION_DISCARD_MASK(3));
+    CHECK(state.model.phase == MUS_PHASE_DISCARD_PLAYER_1);
+    CHECK(state.model.hands[0][MUS_CLASS_KINGS] == 2);
+    CHECK(state.model.out_of_play[MUS_CLASS_KINGS] == 2);
+    CHECK(state.model.discard_counts[0][0] == 2);
+    ordago_apply(&state, MUS_ACTION_DISCARD_MASK(0));
+    CHECK(state.model.mus_count == 1);
+    CHECK(state.model.phase == MUS_PHASE_REDRAW_PLAYER_0);
+    ordago_finish_current_draw(&state, MUS_ACTION_TAKE_2);
+    CHECK(state.model.phase == MUS_PHASE_MUS_PLAYER_0);
+    CHECK(state.model.hands[0][MUS_CLASS_PITOS] == 2);
+    CHECK(state.model.hands[0][MUS_CLASS_KINGS] == 2);
+    CHECK(state.model.out_of_play[MUS_CLASS_KINGS] == 2);
+    CHECK(cfr_game_validate_state(ordago_game(), ordago_game_state(&state)) ==
+          CFR_STATUS_SUCCESS);
+
+    ordago_apply(&state, MUS_ACTION_MUS);
+    ordago_apply(&state, MUS_ACTION_MUS);
+    ordago_apply(&state, MUS_ACTION_DISCARD_MASK(0));
+    ordago_apply(&state, MUS_ACTION_DISCARD_MASK(0));
+    CHECK(state.model.mus_count == MUS_GAME_MAX_MUSES);
+    CHECK(state.model.phase == MUS_PHASE_GRANDE);
+    CHECK(!state.model.mus_stopped);
+    CHECK(cfr_game_information_set_key(ordago_game(),
+                                       ordago_game_state(&state), &key) ==
+          CFR_STATUS_SUCCESS);
+    CHECK(mus_ordago_game_information_set_decode(key, &decoded) ==
+          CFR_STATUS_SUCCESS);
+    CHECK(decoded.phase == MUS_PHASE_GRANDE);
+    CHECK(decoded.mus_count == MUS_GAME_MAX_MUSES);
+    CHECK(decoded.discard_counts[0][0] == 2);
+
+    CHECK(cfr_game_legal_actions(ordago_game(), ordago_game_state(&state),
+                                 actions, MUS_GAME_MAX_LEGAL_ACTIONS,
+                                 &count) == CFR_STATUS_SUCCESS);
+    CHECK(count == 6 && actions[0] == MUS_ACTION_PASS &&
+          actions[1] == MUS_ACTION_BET_TWO &&
+          actions[2] == MUS_ACTION_BET_FOUR &&
+          actions[3] == MUS_ACTION_BET_SEVEN &&
+          actions[4] == MUS_ACTION_BET_TEN &&
+          actions[5] == MUS_ACTION_ORDAGO);
+    ordago_apply(&state, MUS_ACTION_BET_TWO);
+    CHECK(cfr_game_legal_actions(ordago_game(), ordago_game_state(&state),
+                                 actions, MUS_GAME_MAX_LEGAL_ACTIONS,
+                                 &count) == CFR_STATUS_SUCCESS);
+    CHECK(count == 6 && actions[0] == MUS_ACTION_REJECT &&
+          actions[1] == MUS_ACTION_ACCEPT &&
+          actions[2] == MUS_ACTION_BET_FOUR &&
+          actions[3] == MUS_ACTION_BET_SEVEN &&
+          actions[4] == MUS_ACTION_BET_TEN &&
+          actions[5] == MUS_ACTION_ORDAGO);
+    ordago_apply(&state, MUS_ACTION_BET_SEVEN);
+    CHECK(state.model.current_wager == 7);
+    CHECK(state.model.previous_wager == 2);
+    ordago_apply(&state, MUS_ACTION_ORDAGO);
+    CHECK(state.model.current_wager == MUS_ORDAGO_WAGER);
+    CHECK(state.model.previous_wager == 7);
+    CHECK(cfr_game_information_set_key(ordago_game(),
+                                       ordago_game_state(&state), &key) ==
+          CFR_STATUS_SUCCESS);
+    CHECK(mus_ordago_game_information_set_decode(key, &decoded) ==
+          CFR_STATUS_SUCCESS);
+    CHECK(decoded.bet_stage == MUS_BET_RESPONSE);
+    CHECK(decoded.bettor == CFR_PLAYER_0);
+    CHECK(decoded.current_wager == MUS_ORDAGO_WAGER);
+    CHECK(decoded.previous_wager == 7);
+    ordago_apply(&state, MUS_ACTION_REJECT);
+    CHECK(state.model.outcomes[0] == MUS_LANCE_FIRST_BET_REJECTED);
+    CHECK(state.model.outcome_wagers[0] == MUS_ORDAGO_WAGER);
+    CHECK(state.model.outcome_previous_wagers[0] == 7);
+    while (state.model.phase != MUS_PHASE_MUS_PLAYER_0 ||
+           state.model.mus_count != 0) {
+        CHECK(cfr_game_undo_action(ordago_game(), ordago_game_state(&state)) ==
+              CFR_STATUS_SUCCESS);
+    }
+    CHECK(state.hand_summaries[0].grande_key == original_summary.grande_key);
+    CHECK(memcmp(state.model.hands[0], kings, MUS_GAME_CLASS_COUNT) == 0);
+}
+
+static void test_ordago_no_mus_scoring_and_export(void) {
+    const uint8_t kings[MUS_GAME_CLASS_COUNT] = {0, 0, 0, 0, 0, 0, 0, 4};
+    const uint8_t knights[MUS_GAME_CLASS_COUNT] = {0, 0, 0, 0, 0, 0, 4, 0};
+    MusOrdagoGameState state;
+    InfoStore store = {0};
+    InfoNode *node = NULL;
+    Trainer trainer;
+    FILE *text_file;
+    char line[4096];
+    InfoSetKey key;
+    Utility utility = 0.0;
+
+    ordago_deal(&state, kings, knights);
+    ordago_apply(&state, MUS_ACTION_NO_MUS);
+    CHECK(state.model.phase == MUS_PHASE_GRANDE);
+    CHECK(state.model.mus_count == 0);
+    CHECK(state.model.mus_stopped);
+    CHECK(state.model.mus_stop_player == CFR_PLAYER_0);
+    ordago_apply(&state, MUS_ACTION_ORDAGO);
+    ordago_apply(&state, MUS_ACTION_ACCEPT);
+    while (state.model.phase != MUS_PHASE_TERMINAL) {
+        ordago_apply(&state, MUS_ACTION_PASS);
+        ordago_apply(&state, MUS_ACTION_PASS);
+    }
+    CHECK(cfr_game_terminal_utility(ordago_game(), ordago_game_state(&state),
+                                    CFR_PLAYER_0, &utility) ==
+          CFR_STATUS_SUCCESS);
+    CHECK(utility == 44.0);
+
+    ordago_deal(&state, kings, knights);
+    CHECK(cfr_game_information_set_key(ordago_game(),
+                                       ordago_game_state(&state), &key) ==
+          CFR_STATUS_SUCCESS);
+    CHECK(cfr_info_store_init(&store) == CFR_STATUS_SUCCESS);
+    CHECK(cfr_info_store_get_or_create(&store, key, 2, &node) ==
+          CFR_STATUS_SUCCESS);
+    CHECK(node != NULL);
+    CHECK(cfr_trainer_init_mccfr(&trainer, ordago_game(),
+                                 ordago_game_state(&state), &store, 9) ==
+          CFR_STATUS_SUCCESS);
+    text_file = tmpfile();
+    CHECK(text_file != NULL);
+    if (text_file != NULL) {
+        CHECK(mus_ordago_strategy_write_text(text_file, &trainer) ==
+              CFR_STATUS_SUCCESS);
+        rewind(text_file);
+        CHECK(fgets(line, sizeof(line), text_file) != NULL);
+        CHECK(strstr(line, "ordago-with-mus/v1") != NULL);
+        CHECK(fgets(line, sizeof(line), text_file) != NULL);
+        CHECK(strstr(line, "muses=0") != NULL);
+        CHECK(strstr(line, "mus=") != NULL);
+        CHECK(strstr(line, "no_mus=") != NULL);
+        fclose(text_file);
+    }
+    CHECK(cfr_info_store_destroy(&store) == CFR_STATUS_SUCCESS);
+}
+
 static void test_information_boundaries(void) {
     const uint8_t own_hand[MUS_GAME_CLASS_COUNT] = {1, 1, 1, 1, 0, 0, 0, 0};
     const uint8_t rival_a[MUS_GAME_CLASS_COUNT] = {1, 1, 1, 0, 1, 0, 0, 0};
@@ -734,6 +947,40 @@ static void test_raises_to_eight_evaluator_on_subgame(void) {
     CHECK(cfr_info_store_destroy(&store) == CFR_STATUS_SUCCESS);
 }
 
+static void test_ordago_evaluator_on_subgame(void) {
+    const uint8_t low_a[MUS_GAME_CLASS_COUNT] = {1, 1, 1, 1, 0, 0, 0, 0};
+    const uint8_t low_b[MUS_GAME_CLASS_COUNT] = {1, 1, 1, 0, 1, 0, 0, 0};
+    MusOrdagoGameState state;
+    MusOrdagoGameState generic_state;
+    InfoStore store = {0};
+    EvaluationMetrics streaming;
+    EvaluationMetrics generic;
+
+    ordago_deal(&state, low_a, low_b);
+    ordago_apply(&state, MUS_ACTION_NO_MUS);
+    for (int lance = 0; lance < 2; lance += 1) {
+        ordago_apply(&state, MUS_ACTION_PASS);
+        ordago_apply(&state, MUS_ACTION_PASS);
+    }
+    CHECK(state.model.phase == MUS_PHASE_PUNTO);
+    generic_state = state;
+    CHECK(cfr_info_store_init(&store) == CFR_STATUS_SUCCESS);
+    CHECK(mus_ordago_evaluation_metrics_from_state(&state, &store,
+                                                    &streaming) ==
+          CFR_STATUS_SUCCESS);
+    CHECK(cfr_evaluation_metrics_with_unvisited_uniform(
+              ordago_game(), ordago_game_state(&generic_state), &store,
+              &generic) == CFR_STATUS_SUCCESS);
+    compare_metric(streaming.profile_value_player_0,
+                   generic.profile_value_player_0);
+    compare_metric(streaming.best_response_value_player_0,
+                   generic.best_response_value_player_0);
+    compare_metric(streaming.best_response_value_player_1,
+                   generic.best_response_value_player_1);
+    compare_metric(streaming.exploitability, generic.exploitability);
+    CHECK(cfr_info_store_destroy(&store) == CFR_STATUS_SUCCESS);
+}
+
 static bool streams_equal(FILE *left, FILE *right) {
     int left_byte;
     int right_byte;
@@ -885,10 +1132,13 @@ int main(void) {
     test_exact_deal_distribution();
     test_information_boundaries();
     test_raises_to_eight_actions_infosets_and_undo();
+    test_ordago_mus_discards_bets_and_infosets();
+    test_ordago_no_mus_scoring_and_export();
     test_literal_scoring();
     test_raises_to_eight_scoring();
     test_streaming_evaluator_on_subgame();
     test_raises_to_eight_evaluator_on_subgame();
+    test_ordago_evaluator_on_subgame();
     test_training_resume_and_export();
     test_raises_to_eight_training_and_export();
 

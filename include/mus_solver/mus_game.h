@@ -11,12 +11,16 @@
 #define MUS_GAME_CLASS_COUNT 8
 #define MUS_GAME_HAND_SIZE 4
 #define MUS_GAME_LANCE_COUNT 4
-#define MUS_GAME_UNDO_CAPACITY 40
-#define MUS_GAME_MAX_LEGAL_ACTIONS 5
+#define MUS_GAME_UNDO_CAPACITY 96
+#define MUS_GAME_MAX_LEGAL_ACTIONS 16
+#define MUS_GAME_MAX_MUSES 2
+#define MUS_GAME_DISCARD_MASK_COUNT 16
 
 #define MUS_SINGLE_BET_WAGER 2
 #define MUS_RAISES_TO_EIGHT_MIN_WAGER 2
 #define MUS_RAISES_TO_EIGHT_MAX_WAGER 8
+#define MUS_ORDAGO_MIN_WAGER 2
+#define MUS_ORDAGO_WAGER 40
 
 typedef enum {
     MUS_CLASS_PITOS,
@@ -37,7 +41,13 @@ typedef enum {
     MUS_PHASE_PARES,
     MUS_PHASE_JUEGO,
     MUS_PHASE_PUNTO,
-    MUS_PHASE_TERMINAL
+    MUS_PHASE_TERMINAL,
+    MUS_PHASE_MUS_PLAYER_0,
+    MUS_PHASE_MUS_PLAYER_1,
+    MUS_PHASE_DISCARD_PLAYER_0,
+    MUS_PHASE_DISCARD_PLAYER_1,
+    MUS_PHASE_REDRAW_PLAYER_0,
+    MUS_PHASE_REDRAW_PLAYER_1
 } MusGamePhase;
 
 typedef enum {
@@ -66,8 +76,20 @@ typedef enum {
     MUS_ACTION_BET_TWO,
     MUS_ACTION_REJECT,
     MUS_ACTION_ACCEPT,
-    MUS_ACTION_RAISE_DOUBLE
+    MUS_ACTION_RAISE_DOUBLE,
+    MUS_ACTION_MUS,
+    MUS_ACTION_NO_MUS,
+    MUS_ACTION_BET_FOUR,
+    MUS_ACTION_BET_SEVEN,
+    MUS_ACTION_BET_TEN,
+    MUS_ACTION_ORDAGO,
+    MUS_ACTION_DISCARD_MASK_0
 } MusGameAction;
+
+#define MUS_ACTION_DISCARD_MASK(mask)                                         \
+    ((Action)(MUS_ACTION_DISCARD_MASK_0 + (mask)))
+#define MUS_ACTION_DISCARD_MASK_VALUE(action)                                 \
+    ((unsigned int)((action) - MUS_ACTION_DISCARD_MASK_0))
 
 typedef struct {
     MusGamePhase phase;
@@ -75,14 +97,25 @@ typedef struct {
     uint8_t deal_class;
     uint8_t deal_remaining;
     uint8_t deal_later_available;
+    uint8_t out_of_play[MUS_GAME_CLASS_COUNT];
+    uint8_t mus_count;
+    uint8_t discard_masks[MUS_GAME_MAX_MUSES][MUS_GAME_PLAYER_COUNT];
+    uint8_t discard_counts[MUS_GAME_MAX_MUSES][MUS_GAME_PLAYER_COUNT];
+    bool mus_stopped;
+    Player mus_stop_player;
     /* Offered amount awaiting a response; zero outside MUS_BET_RESPONSE. */
     uint8_t current_wager;
+    /* Last covered amount and the ordered wager levels in the current lance. */
+    uint8_t previous_wager;
+    uint8_t current_wager_history;
     Player current_player;
     MusBetStage bet_stage;
     Player bettor;
     MusLanceOutcome outcomes[MUS_GAME_LANCE_COUNT];
-    /* Final offered amount; a rejected raise awards half of this amount. */
+    /* Final offered amount and the last level covered before it. */
     uint8_t outcome_wagers[MUS_GAME_LANCE_COUNT];
+    uint8_t outcome_previous_wagers[MUS_GAME_LANCE_COUNT];
+    uint8_t outcome_wager_histories[MUS_GAME_LANCE_COUNT];
     bool pairs_revealed;
     bool pairs[MUS_GAME_PLAYER_COUNT];
     bool game_revealed;
@@ -103,6 +136,8 @@ typedef struct {
     MusGameModel model;
     MusHandSummary hand_summaries[MUS_GAME_PLAYER_COUNT];
     MusGameModel undo_history[MUS_GAME_UNDO_CAPACITY];
+    MusHandSummary undo_hand_summaries[MUS_GAME_UNDO_CAPACITY]
+                                           [MUS_GAME_PLAYER_COUNT];
     size_t undo_count;
 } MusGameState;
 
@@ -110,15 +145,23 @@ typedef struct {
     Player player;
     uint8_t hand[MUS_GAME_CLASS_COUNT];
     MusGamePhase phase;
+    uint8_t mus_count;
+    uint8_t discard_counts[MUS_GAME_MAX_MUSES][MUS_GAME_PLAYER_COUNT];
+    bool mus_stopped;
+    Player mus_stop_player;
     bool pairs_revealed;
     bool pairs[MUS_GAME_PLAYER_COUNT];
     bool game_revealed;
     bool game[MUS_GAME_PLAYER_COUNT];
     MusLanceOutcome outcomes[MUS_GAME_LANCE_COUNT];
     uint8_t outcome_wagers[MUS_GAME_LANCE_COUNT];
+    uint8_t outcome_previous_wagers[MUS_GAME_LANCE_COUNT];
+    uint8_t outcome_wager_histories[MUS_GAME_LANCE_COUNT];
     MusBetStage bet_stage;
     Player bettor;
     uint8_t current_wager;
+    uint8_t previous_wager;
+    uint8_t current_wager_history;
 } MusInformationSet;
 
 /*
@@ -134,6 +177,10 @@ typedef MusInformationSet MusSingleBetInformationSet;
 typedef MusGameModel MusRaisesToEightGameModel;
 typedef MusGameState MusRaisesToEightGameState;
 typedef MusInformationSet MusRaisesToEightInformationSet;
+
+typedef MusGameModel MusOrdagoGameModel;
+typedef MusGameState MusOrdagoGameState;
+typedef MusInformationSet MusOrdagoInformationSet;
 
 Status mus_game_state_init(MusGameState *state);
 const Game *mus_game_descriptor(void);
@@ -163,11 +210,22 @@ const GameState *mus_raises_to_eight_game_state_as_game_state_const(
 Status mus_raises_to_eight_game_information_set_decode(
     InfoSetKey key, MusRaisesToEightInformationSet *information_set);
 
+/* Flexible wagers 2/4/7/10/ordago plus up to two rounds of mus. */
+Status mus_ordago_game_state_init(MusOrdagoGameState *state);
+const Game *mus_ordago_game_descriptor(void);
+GameState *mus_ordago_game_state_as_game_state(MusOrdagoGameState *state);
+const GameState *mus_ordago_game_state_as_game_state_const(
+    const MusOrdagoGameState *state);
+Status mus_ordago_game_information_set_decode(
+    InfoSetKey key, MusOrdagoInformationSet *information_set);
+
 const char *mus_game_class_name(MusCardClass card_class);
 const char *mus_game_phase_name(MusGamePhase phase);
 const char *mus_game_outcome_name(MusLanceOutcome outcome);
 const char *mus_single_bet_game_outcome_name(MusLanceOutcome outcome);
 const char *mus_raises_to_eight_game_outcome_name(MusLanceOutcome outcome,
                                                   uint8_t wager);
+const char *mus_ordago_game_outcome_name(MusLanceOutcome outcome,
+                                         uint8_t wager);
 
 #endif
