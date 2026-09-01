@@ -8,6 +8,8 @@ trap 'rm -rf -- "$tmp_dir"' EXIT HUP INT TERM
 "$solver" --help >"$tmp_dir/help.txt"
 grep -q -- '--iterations N' "$tmp_dir/help.txt"
 grep -q -- '--evaluate' "$tmp_dir/help.txt"
+grep -q -- '--format FORMAT' "$tmp_dir/help.txt"
+grep -q -- 'raises-to-eight' "$tmp_dir/help.txt"
 
 if "$solver" >"$tmp_dir/no-args.out" 2>"$tmp_dir/no-args.err"; then
     echo "el solver sin argumentos debio fallar" >&2
@@ -30,6 +32,24 @@ grep -q 'report iterations=20' "$tmp_dir/continuous.out"
 grep -q 'mus-strategy version=1' "$tmp_dir/strategy.txt"
 grep -q 'posicion=' "$tmp_dir/strategy.txt"
 grep -q 'pasar=' "$tmp_dir/strategy.txt"
+
+"$solver" --load "$tmp_dir/continuous.cfr" \
+    --export-strategy "$tmp_dir/loaded-strategy.txt"
+cmp "$tmp_dir/strategy.txt" "$tmp_dir/loaded-strategy.txt"
+
+"$solver" --format raises-to-eight --iterations 20 --seed 11 \
+    --save "$tmp_dir/raises.cfr" \
+    --export-strategy "$tmp_dir/raises-strategy.txt" \
+    >"$tmp_dir/raises.out"
+grep -q 'schema=mus.heads-up-single-hand.raises-to-eight/v1' \
+    "$tmp_dir/raises-strategy.txt"
+grep -Eq 'subir_a_(4|8)=' "$tmp_dir/raises-strategy.txt"
+
+if "$solver" --load "$tmp_dir/raises.cfr" --iterations 1 \
+    >"$tmp_dir/wrong-format.out" 2>"$tmp_dir/wrong-format.err"; then
+    echo "cargar raises-to-eight como single-bet debio fallar" >&2
+    exit 1
+fi
 
 if "$solver" --load "$tmp_dir/continuous.cfr" --iterations 1 \
     --export-strategy "$tmp_dir/strategy.txt" \

@@ -9,8 +9,9 @@
 #include "mus_solver/mus_game.h"
 
 #define BR_INITIAL_CAPACITY 1024
-#define BR_ACTION_CAPACITY 2
-#define BR_MAX_DECISION_DEPTH (MUS_GAME_LANCE_COUNT * 2)
+#define BR_ACTION_CAPACITY 3
+#define BR_SINGLE_BET_MAX_DECISION_DEPTH (MUS_GAME_LANCE_COUNT * 2)
+#define BR_RAISES_MAX_DECISION_DEPTH (MUS_GAME_LANCE_COUNT * 3)
 #define EVALUATION_EPSILON 1e-9
 
 typedef struct {
@@ -494,16 +495,16 @@ static Status collect_counterfactual_values(
 }
 
 static Status exact_best_response(const MusGameState *root,
-                                  const InfoStore *store, Player responder,
+                                  const InfoStore *store, const Game *game,
+                                  Player responder, size_t max_decision_depth,
                                   Utility *value_out) {
-    const Game *game = mus_game_descriptor();
     MusGameState state;
     BestResponseStore best = {0};
     Status status = best_store_init(&best);
 
     if (status != CFR_STATUS_SUCCESS)
         return status;
-    for (size_t reverse_depth = BR_MAX_DECISION_DEPTH; reverse_depth > 0;
+    for (size_t reverse_depth = max_decision_depth; reverse_depth > 0;
          reverse_depth -= 1) {
         const size_t depth = reverse_depth - 1;
 
@@ -524,12 +525,15 @@ cleanup:
     return status;
 }
 
-Status mus_evaluation_metrics_from_state(const MusGameState *root,
-                                         const InfoStore *store,
-                                         EvaluationMetrics *metrics_out) {
-    const Game *game = mus_game_descriptor();
+static Status evaluation_metrics_from_state(
+    const MusGameState *root, const InfoStore *store, const Game *game,
+    EvaluationMetrics *metrics_out) {
     MusGameState state;
     EvaluationMetrics metrics = {0};
+    const size_t max_decision_depth =
+        game == mus_raises_to_eight_game_descriptor()
+            ? BR_RAISES_MAX_DECISION_DEPTH
+            : BR_SINGLE_BET_MAX_DECISION_DEPTH;
     Status status;
 
     if (root == NULL || store == NULL || metrics_out == NULL)
@@ -544,11 +548,13 @@ Status mus_evaluation_metrics_from_state(const MusGameState *root,
     if (status != CFR_STATUS_SUCCESS)
         return status;
     metrics.profile_value_player_1 = -metrics.profile_value_player_0;
-    status = exact_best_response(root, store, CFR_PLAYER_0,
+    status = exact_best_response(root, store, game, CFR_PLAYER_0,
+                                 max_decision_depth,
                                  &metrics.best_response_value_player_0);
     if (status != CFR_STATUS_SUCCESS)
         return status;
-    status = exact_best_response(root, store, CFR_PLAYER_1,
+    status = exact_best_response(root, store, game, CFR_PLAYER_1,
+                                 max_decision_depth,
                                  &metrics.best_response_value_player_1);
     if (status != CFR_STATUS_SUCCESS)
         return status;
@@ -578,12 +584,50 @@ Status mus_evaluation_metrics_from_state(const MusGameState *root,
     return CFR_STATUS_SUCCESS;
 }
 
-Status mus_evaluation_metrics(const InfoStore *store,
-                              EvaluationMetrics *metrics_out) {
-    MusGameState root;
-    Status status = mus_game_state_init(&root);
+Status mus_single_bet_evaluation_metrics_from_state(
+    const MusSingleBetGameState *root, const InfoStore *store,
+    EvaluationMetrics *metrics_out) {
+    return evaluation_metrics_from_state(
+        root, store, mus_single_bet_game_descriptor(), metrics_out);
+}
+
+Status mus_raises_to_eight_evaluation_metrics_from_state(
+    const MusRaisesToEightGameState *root, const InfoStore *store,
+    EvaluationMetrics *metrics_out) {
+    return evaluation_metrics_from_state(
+        root, store, mus_raises_to_eight_game_descriptor(), metrics_out);
+}
+
+Status mus_single_bet_evaluation_metrics(const InfoStore *store,
+                                         EvaluationMetrics *metrics_out) {
+    MusSingleBetGameState root;
+    Status status = mus_single_bet_game_state_init(&root);
 
     if (status != CFR_STATUS_SUCCESS)
         return status;
-    return mus_evaluation_metrics_from_state(&root, store, metrics_out);
+    return mus_single_bet_evaluation_metrics_from_state(&root, store,
+                                                        metrics_out);
+}
+
+Status mus_raises_to_eight_evaluation_metrics(
+    const InfoStore *store, EvaluationMetrics *metrics_out) {
+    MusRaisesToEightGameState root;
+    Status status = mus_raises_to_eight_game_state_init(&root);
+
+    if (status != CFR_STATUS_SUCCESS)
+        return status;
+    return mus_raises_to_eight_evaluation_metrics_from_state(
+        &root, store, metrics_out);
+}
+
+Status mus_evaluation_metrics_from_state(const MusGameState *root,
+                                         const InfoStore *store,
+                                         EvaluationMetrics *metrics_out) {
+    return mus_single_bet_evaluation_metrics_from_state(root, store,
+                                                        metrics_out);
+}
+
+Status mus_evaluation_metrics(const InfoStore *store,
+                              EvaluationMetrics *metrics_out) {
+    return mus_single_bet_evaluation_metrics(store, metrics_out);
 }
