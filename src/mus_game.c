@@ -553,6 +553,25 @@ static void advance_lance(
         model->outcome_wager_is_ordago[lance] =
             model->current_wager_is_ordago;
         model->outcome_strengths[lance] = model->current_strength;
+        if (format->ordago_with_mus) {
+            int contribution;
+
+            if (outcome == MUS_LANCE_FIRST_BET_REJECTED ||
+                outcome == MUS_LANCE_SECOND_BET_REJECTED) {
+                contribution = model->previous_wager;
+            } else if (model->current_wager_is_ordago) {
+                contribution = model->previous_wager == 1
+                                   ? 0
+                                   : model->previous_wager;
+            } else {
+                contribution = model->current_wager;
+            }
+            const int total = model->prior_wager_total + contribution;
+
+            model->prior_wager_total =
+                (uint8_t)(total < MUS_ORDAGO_WAGER ? total
+                                                   : MUS_ORDAGO_WAGER);
+        }
     }
     if (completed_phase == MUS_PHASE_GRANDE) {
         start_betting(model, MUS_PHASE_CHICA);
@@ -701,7 +720,7 @@ static uint8_t ordago_minimum_response_increment(uint8_t current_wager,
     return 0;
 }
 
-static int ordago_prior_wager_total(const MusGameModel *model) {
+static int recompute_ordago_prior_wager_total(const MusGameModel *model) {
     int total = 0;
 
     for (int lance = 0; lance < MUS_GAME_LANCE_COUNT; lance += 1) {
@@ -727,6 +746,10 @@ static int ordago_prior_wager_total(const MusGameModel *model) {
             return MUS_ORDAGO_WAGER;
     }
     return total;
+}
+
+static int ordago_prior_wager_total(const MusGameModel *model) {
+    return model->prior_wager_total;
 }
 
 static int ordago_active_numeric_wager(uint8_t current_wager,
@@ -908,9 +931,10 @@ static Status validate_model(const MusGameModel *model,
         }
     }
     if (format->ordago_with_mus &&
-        ordago_prior_wager_total(model) > MUS_ORDAGO_WAGER) {
+        (ordago_prior_wager_total(model) > MUS_ORDAGO_WAGER ||
+         ordago_prior_wager_total(model) !=
+             recompute_ordago_prior_wager_total(model)))
         return CFR_STATUS_INVALID_ARGUMENT;
-    }
     if (model->mus_count > MUS_GAME_MAX_MUSES)
         return CFR_STATUS_INVALID_ARGUMENT;
     for (int round = 0; round < MUS_GAME_MAX_MUSES; round += 1) {

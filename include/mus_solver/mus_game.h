@@ -147,6 +147,8 @@ typedef struct {
     uint8_t current_wager;
     /* Amount covered before the current offer. */
     uint8_t previous_wager;
+    /* Settled numeric wager total from completed lances, capped at ordago. */
+    uint8_t prior_wager_total;
     bool current_wager_is_ordago;
     MusLanceStrength current_strength;
     Player current_player;
