@@ -132,7 +132,7 @@ typedef enum {
     ((unsigned int)((action) - MUS_ACTION_DISCARD_MASK_0))
 
 typedef struct {
-    MusGamePhase phase;
+    uint8_t phase;
     uint8_t hands[MUS_GAME_PLAYER_COUNT][MUS_GAME_CLASS_COUNT];
     uint8_t deal_class;
     uint8_t deal_remaining;
@@ -142,7 +142,7 @@ typedef struct {
     uint8_t discard_masks[MUS_GAME_MAX_MUSES][MUS_GAME_PLAYER_COUNT];
     uint8_t discard_counts[MUS_GAME_MAX_MUSES][MUS_GAME_PLAYER_COUNT];
     bool mus_stopped;
-    Player mus_stop_player;
+    uint8_t mus_stop_player;
     /* Total offered amount awaiting a response; zero outside a response. */
     uint8_t current_wager;
     /* Amount covered before the current offer. */
@@ -150,16 +150,16 @@ typedef struct {
     /* Settled numeric wager total from completed lances, capped at ordago. */
     uint8_t prior_wager_total;
     bool current_wager_is_ordago;
-    MusLanceStrength current_strength;
-    Player current_player;
-    MusBetStage bet_stage;
-    Player bettor;
-    MusLanceOutcome outcomes[MUS_GAME_LANCE_COUNT];
+    uint8_t current_strength;
+    uint8_t current_player;
+    uint8_t bet_stage;
+    uint8_t bettor;
+    uint8_t outcomes[MUS_GAME_LANCE_COUNT];
     /* Final offered amount and the amount covered before it. */
     uint8_t outcome_wagers[MUS_GAME_LANCE_COUNT];
     uint8_t outcome_previous_wagers[MUS_GAME_LANCE_COUNT];
     bool outcome_wager_is_ordago[MUS_GAME_LANCE_COUNT];
-    MusLanceStrength outcome_strengths[MUS_GAME_LANCE_COUNT];
+    uint8_t outcome_strengths[MUS_GAME_LANCE_COUNT];
     bool pairs_revealed;
     bool pairs[MUS_GAME_PLAYER_COUNT];
     bool game_revealed;

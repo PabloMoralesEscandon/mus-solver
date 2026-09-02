@@ -895,7 +895,6 @@ static Status validate_model(const MusGameModel *model,
     size_t discard_total = 0;
 
     if (model == NULL || format == NULL ||
-        model->phase < MUS_PHASE_DEAL_PLAYER_0 ||
         model->phase > MUS_PHASE_REDRAW_PLAYER_1 ||
         !player_is_valid(model->current_player) ||
         !player_is_valid(model->bettor)) {
@@ -918,8 +917,7 @@ static Status validate_model(const MusGameModel *model,
             model->outcome_strengths[lance] <=
                 MUS_LANCE_STRENGTH_PARES_SKIPPED_PLAYER_1;
 
-        if (model->outcomes[lance] < MUS_LANCE_UNRESOLVED ||
-            model->outcomes[lance] > MUS_LANCE_SKIPPED ||
+        if (model->outcomes[lance] > MUS_LANCE_SKIPPED ||
             (skipped_pairs_strength && lance != 2) ||
             !outcome_wager_is_valid(
                 format, model->outcomes[lance],
@@ -1097,8 +1095,7 @@ static Status validate_model(const MusGameModel *model,
              model->current_strength != MUS_LANCE_STRENGTH_NONE)) {
             return CFR_STATUS_INVALID_ARGUMENT;
         }
-        if (model->bet_stage < MUS_BET_FIRST_TO_ACT ||
-            model->bet_stage > MUS_BET_RESPONSE) {
+        if (model->bet_stage > MUS_BET_RESPONSE) {
             return CFR_STATUS_INVALID_ARGUMENT;
         }
     }
@@ -2533,8 +2530,7 @@ static Status ordago_information_set_key(const MusGameModel *model,
         for (int lance = 0; lance < strength_count; lance += 1) {
             const int strength_radix = ordago_strength_radix(lance);
 
-            if ((int)model->outcome_strengths[lance] < 0 ||
-                (int)model->outcome_strengths[lance] >= strength_radix) {
+            if ((int)model->outcome_strengths[lance] >= strength_radix) {
                 return CFR_STATUS_INVALID_ARGUMENT;
             }
             key = key * strength_radix +
