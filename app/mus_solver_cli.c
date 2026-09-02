@@ -67,8 +67,8 @@ static bool print_usage(FILE *stream, const char *program) {
                "                          Reserva capacidad para N conjuntos.\n"
                "  --load FILE            Carga un checkpoint reanudable.\n"
                "  --save FILE            Guarda el checkpoint tras entrenar.\n"
-               "  --evaluate             Evalua exactamente la estrategia media "
-               "(no ordago).\n"
+               "  --evaluate             Evalua la estrategia media; ordago usa "
+               "un diagnostico acotado.\n"
                "  --export-strategy FILE Exporta la estrategia con etiquetas de "
                "mus.\n"
                "  --help, -h             Muestra esta ayuda.\n",
@@ -189,7 +189,7 @@ static bool parse_options(int argc, char *argv[], CliOptions *options) {
         }
     }
     if (options->help)
-        return argc == 2;
+        return true;
     if (!options->iterations_set && !options->evaluate &&
         !(options->load_path != NULL && options->export_path != NULL))
         return false;
@@ -339,15 +339,18 @@ static bool print_report(const Trainer *trainer, const InfoStore *store,
                   seconds) >= 0;
 }
 
-static bool print_evaluation(size_t iterations,
+static bool print_evaluation(size_t iterations, CliFormat format,
                              const EvaluationMetrics *metrics) {
     return printf(
-               "evaluation iterations=%zu profile_value_player_0=%.17g "
+               "evaluation scope=%s iterations=%zu "
+               "profile_value_player_0=%.17g "
                "profile_value_player_1=%.17g "
                "best_response_value_player_0=%.17g "
                "best_response_value_player_1=%.17g "
                "improvement_player_0=%.17g improvement_player_1=%.17g "
                "nash_conv=%.17g exploitability=%.17g\n",
+               format == CLI_FORMAT_ORDAGO ? "bounded-final-lances"
+                                            : "root",
                iterations, metrics->profile_value_player_0,
                metrics->profile_value_player_1,
                metrics->best_response_value_player_0,
@@ -444,12 +447,15 @@ static int run(const CliOptions *options) {
         if (options->format == CLI_FORMAT_RAISES_TO_EIGHT) {
             status = mus_raises_to_eight_evaluation_metrics(&store,
                                                              &metrics);
+        } else if (options->format == CLI_FORMAT_ORDAGO) {
+            status = mus_ordago_evaluation_metrics(&store, &metrics);
         } else {
             status = mus_single_bet_evaluation_metrics(&store, &metrics);
         }
         if (status != CFR_STATUS_SUCCESS)
             goto runtime_error;
-        if (!print_evaluation(trainer.training_iterations, &metrics)) {
+        if (!print_evaluation(trainer.training_iterations,
+                              options->format, &metrics)) {
             status = CFR_STATUS_IO_ERROR;
             goto runtime_error;
         }
@@ -483,12 +489,6 @@ int main(int argc, char *argv[]) {
 
     if (!parse_options(argc, argv, &options)) {
         (void)print_usage(stderr, program);
-        return EXIT_USAGE_ERROR;
-    }
-    if (options.evaluate && options.format == CLI_FORMAT_ORDAGO) {
-        fprintf(stderr,
-                "error: la evaluacion desde la raiz no esta disponible "
-                "para ordago\n");
         return EXIT_USAGE_ERROR;
     }
     if (options.help) {

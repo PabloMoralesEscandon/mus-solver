@@ -709,6 +709,13 @@ static int ordago_prior_wager_total(const MusGameModel *model) {
             model->outcomes[lance] > MUS_LANCE_SECOND_BET_ACCEPTED) {
             continue;
         }
+        if (model->outcomes[lance] == MUS_LANCE_FIRST_BET_REJECTED ||
+            model->outcomes[lance] == MUS_LANCE_SECOND_BET_REJECTED) {
+            total += model->outcome_previous_wagers[lance];
+            if (total >= MUS_ORDAGO_WAGER)
+                return MUS_ORDAGO_WAGER;
+            continue;
+        }
         if (model->outcome_wager_is_ordago[lance]) {
             const int covered = model->outcome_previous_wagers[lance];
 
@@ -716,6 +723,8 @@ static int ordago_prior_wager_total(const MusGameModel *model) {
         } else {
             total += model->outcome_wagers[lance];
         }
+        if (total >= MUS_ORDAGO_WAGER)
+            return MUS_ORDAGO_WAGER;
     }
     return total;
 }
@@ -752,6 +761,67 @@ static bool ordago_offer_is_valid(uint8_t wager, uint8_t previous_wager,
     return previous_wager >= MUS_ORDAGO_MIN_WAGER &&
            previous_wager < wager && wager <= MUS_ORDAGO_WAGER &&
            ordago_increment_is_valid((uint8_t)(wager - previous_wager));
+}
+
+static Status collect_ordago_betting_actions(
+    MusBetStage bet_stage, int prior_wager_total, uint8_t current_wager,
+    uint8_t previous_wager, bool current_wager_is_ordago, Action *actions,
+    size_t capacity, size_t *required_count) {
+    static const Action wager_actions[4] = {
+        MUS_ACTION_BET_TWO, MUS_ACTION_BET_FOUR,
+        MUS_ACTION_BET_SEVEN, MUS_ACTION_BET_TEN,
+    };
+    static const uint8_t increments[4] = {2, 4, 7, 10};
+    Action temporary[7];
+    size_t count = 0;
+
+    if (actions == NULL || required_count == NULL ||
+        prior_wager_total < 0 || prior_wager_total > MUS_ORDAGO_WAGER ||
+        bet_stage < MUS_BET_FIRST_TO_ACT ||
+        bet_stage > MUS_BET_RESPONSE) {
+        return CFR_STATUS_INVALID_ARGUMENT;
+    }
+    if (bet_stage == MUS_BET_RESPONSE) {
+        if (!ordago_offer_is_valid(current_wager, previous_wager,
+                                   current_wager_is_ordago) ||
+            prior_wager_total +
+                    ordago_active_numeric_wager(
+                        current_wager, previous_wager,
+                        current_wager_is_ordago) >
+                MUS_ORDAGO_WAGER) {
+            return CFR_STATUS_INVALID_ARGUMENT;
+        }
+        temporary[count++] = MUS_ACTION_REJECT;
+        temporary[count++] = MUS_ACTION_ACCEPT;
+        if (!current_wager_is_ordago) {
+            for (int index = 0; index < 4; index += 1) {
+                if (ordago_response_increment_is_legal(
+                        prior_wager_total, current_wager,
+                        previous_wager, increments[index])) {
+                    temporary[count++] = wager_actions[index];
+                }
+            }
+            temporary[count++] = MUS_ACTION_ORDAGO;
+        }
+    } else {
+        if (current_wager != 0 || previous_wager != 0 ||
+            current_wager_is_ordago) {
+            return CFR_STATUS_INVALID_ARGUMENT;
+        }
+        temporary[count++] = MUS_ACTION_PASS;
+        for (int index = 0; index < 4; index += 1) {
+            if (prior_wager_total + increments[index] <=
+                MUS_ORDAGO_WAGER) {
+                temporary[count++] = wager_actions[index];
+            }
+        }
+        temporary[count++] = MUS_ACTION_ORDAGO;
+    }
+    *required_count = count;
+    if (capacity < count)
+        return CFR_STATUS_BUFFER_TOO_SMALL;
+    memcpy(actions, temporary, count * sizeof(*actions));
+    return CFR_STATUS_SUCCESS;
 }
 
 static bool outcome_wager_is_valid(const MusGameFormat *format,
@@ -1298,6 +1368,12 @@ static Status score_terminal(const MusGameState *mus,
                          : 0);
         }
     }
+    if (format->ordago_with_mus) {
+        for (int player = 0; player < MUS_GAME_PLAYER_COUNT; player += 1) {
+            if (scores[player] > MUS_ORDAGO_WAGER)
+                scores[player] = MUS_ORDAGO_WAGER;
+        }
+    }
     return CFR_STATUS_SUCCESS;
 }
 
@@ -1528,53 +1604,12 @@ static Status mus_trusted_legal_actions(const void *context,
     if (!phase_is_betting(mus->model.phase))
         return CFR_STATUS_INVALID_ARGUMENT;
     if (format != NULL && format->ordago_with_mus) {
-        Action temporary[7];
-        const int prior_wager_total =
-            ordago_prior_wager_total(&mus->model);
-        size_t count = 0;
-
-        if (mus->model.bet_stage == MUS_BET_RESPONSE) {
-            temporary[count++] = MUS_ACTION_REJECT;
-            temporary[count++] = MUS_ACTION_ACCEPT;
-            static const Action wager_actions[4] = {
-                MUS_ACTION_BET_TWO, MUS_ACTION_BET_FOUR,
-                MUS_ACTION_BET_SEVEN, MUS_ACTION_BET_TEN,
-            };
-            static const uint8_t increments[4] = {2, 4, 7, 10};
-
-            if (!mus->model.current_wager_is_ordago) {
-                for (int index = 0; index < 4; index += 1) {
-                    if (ordago_response_increment_is_legal(
-                            prior_wager_total,
-                            mus->model.current_wager,
-                            mus->model.previous_wager,
-                            increments[index])) {
-                        temporary[count++] = wager_actions[index];
-                    }
-                }
-                temporary[count++] = MUS_ACTION_ORDAGO;
-            }
-        } else {
-            static const Action wager_actions[4] = {
-                MUS_ACTION_BET_TWO, MUS_ACTION_BET_FOUR,
-                MUS_ACTION_BET_SEVEN, MUS_ACTION_BET_TEN,
-            };
-            static const uint8_t increments[4] = {2, 4, 7, 10};
-
-            temporary[count++] = MUS_ACTION_PASS;
-            for (int index = 0; index < 4; index += 1) {
-                if (prior_wager_total + increments[index] <=
-                    MUS_ORDAGO_WAGER) {
-                    temporary[count++] = wager_actions[index];
-                }
-            }
-            temporary[count++] = MUS_ACTION_ORDAGO;
-        }
-        *required_count = count;
-        if (capacity < count)
-            return CFR_STATUS_BUFFER_TOO_SMALL;
-        memcpy(actions, temporary, count * sizeof(*actions));
-        return CFR_STATUS_SUCCESS;
+        return collect_ordago_betting_actions(
+            mus->model.bet_stage,
+            ordago_prior_wager_total(&mus->model),
+            mus->model.current_wager, mus->model.previous_wager,
+            mus->model.current_wager_is_ordago, actions, capacity,
+            required_count);
     }
     const bool can_raise =
         mus->model.bet_stage == MUS_BET_RESPONSE && format != NULL &&
@@ -1618,21 +1653,21 @@ static bool player_action_is_legal(const MusGameModel *model,
                                    const MusGameFormat *format,
                                    Action action) {
     if (format != NULL && format->ordago_with_mus) {
-        const uint8_t amount = ordago_wager_for_action(action);
-        const int prior_wager_total = ordago_prior_wager_total(model);
+        Action actions[7];
+        size_t action_count = 0;
 
-        if (model->bet_stage == MUS_BET_RESPONSE) {
-            return action == MUS_ACTION_REJECT ||
-                   action == MUS_ACTION_ACCEPT ||
-                   (!model->current_wager_is_ordago &&
-                    (action == MUS_ACTION_ORDAGO ||
-                     ordago_response_increment_is_legal(
-                         prior_wager_total, model->current_wager,
-                         model->previous_wager, amount)));
+        if (collect_ordago_betting_actions(
+                model->bet_stage, ordago_prior_wager_total(model),
+                model->current_wager, model->previous_wager,
+                model->current_wager_is_ordago, actions, 7,
+                &action_count) != CFR_STATUS_SUCCESS) {
+            return false;
         }
-        return action == MUS_ACTION_PASS || action == MUS_ACTION_ORDAGO ||
-               (ordago_increment_is_valid(amount) &&
-                prior_wager_total + amount <= MUS_ORDAGO_WAGER);
+        for (size_t index = 0; index < action_count; index += 1) {
+            if (actions[index] == action)
+                return true;
+        }
+        return false;
     }
     if (model->bet_stage == MUS_BET_RESPONSE) {
         return action == MUS_ACTION_REJECT || action == MUS_ACTION_ACCEPT ||
@@ -3049,6 +3084,56 @@ Status mus_ordago_game_information_set_decode(
     if (!decode_ordago_hand(hand_code_value, information_set))
         return CFR_STATUS_INVALID_ARGUMENT;
     return CFR_STATUS_SUCCESS;
+}
+
+Status mus_ordago_game_information_set_legal_actions(
+    const MusOrdagoInformationSet *information_set, Action *actions,
+    size_t capacity, size_t *required_count) {
+    if (information_set == NULL || actions == NULL ||
+        required_count == NULL) {
+        return CFR_STATUS_INVALID_ARGUMENT;
+    }
+    if (information_set->phase == MUS_PHASE_MUS_PLAYER_0 ||
+        information_set->phase == MUS_PHASE_MUS_PLAYER_1) {
+        *required_count = 2;
+        if (capacity < 2)
+            return CFR_STATUS_BUFFER_TOO_SMALL;
+        actions[0] = MUS_ACTION_MUS;
+        actions[1] = MUS_ACTION_NO_MUS;
+        return CFR_STATUS_SUCCESS;
+    }
+    if (information_set->phase == MUS_PHASE_DISCARD_PLAYER_0 ||
+        information_set->phase == MUS_PHASE_DISCARD_PLAYER_1) {
+        Action temporary[MUS_GAME_DISCARD_MASK_COUNT - 1];
+        size_t count = 0;
+
+        if (hand_total(information_set->hand) != MUS_GAME_HAND_SIZE)
+            return CFR_STATUS_INVALID_ARGUMENT;
+        for (unsigned int mask = 1; mask < MUS_GAME_DISCARD_MASK_COUNT;
+             mask += 1) {
+            if (mus_ordago_game_discard_mask_is_canonical(
+                    information_set->hand, mask)) {
+                temporary[count++] = MUS_ACTION_DISCARD_MASK(mask);
+            }
+        }
+        *required_count = count;
+        if (capacity < count)
+            return CFR_STATUS_BUFFER_TOO_SMALL;
+        memcpy(actions, temporary, count * sizeof(*actions));
+        return CFR_STATUS_SUCCESS;
+    }
+    if (!phase_is_betting(information_set->phase) ||
+        (information_set->previous_strength_count == 0 &&
+         information_set->prior_wager_total != 0)) {
+        return CFR_STATUS_INVALID_ARGUMENT;
+    }
+    return collect_ordago_betting_actions(
+        information_set->bet_stage,
+        information_set->prior_wager_total,
+        information_set->current_wager,
+        information_set->previous_wager,
+        information_set->current_wager_is_ordago, actions, capacity,
+        required_count);
 }
 
 const char *mus_game_class_name(MusCardClass card_class) {

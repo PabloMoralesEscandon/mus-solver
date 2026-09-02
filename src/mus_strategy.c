@@ -13,22 +13,6 @@ typedef struct {
     bool ordago;
 } StrategyWriter;
 
-static uint8_t ordago_minimum_response_increment(
-    const MusOrdagoInformationSet *information) {
-    if (information->previous_wager == 1)
-        return information->current_wager;
-    return (uint8_t)(information->current_wager -
-                     information->previous_wager);
-}
-
-static bool ordago_response_increment_is_legal(
-    const MusOrdagoInformationSet *information, uint8_t increment) {
-    return increment >= ordago_minimum_response_increment(information) &&
-           (int)information->prior_wager_total +
-                   (int)information->current_wager + increment <=
-               MUS_ORDAGO_WAGER;
-}
-
 static const char *variant_name(TrainerVariant variant) {
     switch (variant) {
     case CFR_TRAINER_VARIANT_CFR:
@@ -39,50 +23,6 @@ static const char *variant_name(TrainerVariant variant) {
         return "mccfr-external";
     }
     return "unknown";
-}
-
-static size_t ordago_expected_action_count(
-    const MusOrdagoInformationSet *information) {
-    if (information->phase == MUS_PHASE_MUS_PLAYER_0 ||
-        information->phase == MUS_PHASE_MUS_PLAYER_1)
-        return 2;
-    if (information->phase == MUS_PHASE_DISCARD_PLAYER_0 ||
-        information->phase == MUS_PHASE_DISCARD_PLAYER_1) {
-        size_t count = 0;
-
-        for (unsigned int mask = 1; mask < MUS_GAME_DISCARD_MASK_COUNT;
-             mask += 1) {
-            if (mus_ordago_game_discard_mask_is_canonical(
-                    information->hand, mask)) {
-                count += 1;
-            }
-        }
-        return count;
-    }
-    static const uint8_t increments[4] = {2, 4, 7, 10};
-
-    if (information->bet_stage != MUS_BET_RESPONSE) {
-        size_t count = 2;
-
-        for (int index = 0; index < 4; index += 1) {
-            if ((int)information->prior_wager_total + increments[index] <=
-                MUS_ORDAGO_WAGER) {
-                count += 1;
-            }
-        }
-        return count;
-    }
-    if (information->current_wager_is_ordago)
-        return 2;
-    size_t count = 2;
-
-    for (int index = 0; index < 4; index += 1) {
-        if (ordago_response_increment_is_legal(information,
-                                                increments[index])) {
-            count += 1;
-        }
-    }
-    return count + 1;
 }
 
 static const char *ordago_strength_name(MusLanceStrength strength) {
@@ -103,6 +43,29 @@ static const char *ordago_strength_name(MusLanceStrength strength) {
         return "pares_solo_postre";
     }
     return "desconocido";
+}
+
+static const char *ordago_betting_action_name(Action action) {
+    switch (action) {
+    case MUS_ACTION_PASS:
+        return "pasar";
+    case MUS_ACTION_BET_TWO:
+        return "envidar_2";
+    case MUS_ACTION_BET_FOUR:
+        return "envidar_4";
+    case MUS_ACTION_BET_SEVEN:
+        return "envidar_7";
+    case MUS_ACTION_BET_TEN:
+        return "envidar_10";
+    case MUS_ACTION_ORDAGO:
+        return "ordago";
+    case MUS_ACTION_REJECT:
+        return "no_querer";
+    case MUS_ACTION_ACCEPT:
+        return "querer";
+    default:
+        return NULL;
+    }
 }
 
 static Status write_ordago_hand(FILE *stream,
@@ -206,6 +169,7 @@ static Status write_ordago_discard_action(
 static Status write_ordago_node(const InfoNode *node,
                                 StrategyWriter *writer) {
     MusOrdagoInformationSet information;
+    Action actions[MUS_GAME_MAX_LEGAL_ACTIONS];
     Probability strategy[MUS_GAME_MAX_LEGAL_ACTIONS];
     size_t expected_action_count;
     Status status;
@@ -214,10 +178,19 @@ static Status write_ordago_node(const InfoNode *node,
                                                      &information);
     if (status != CFR_STATUS_SUCCESS)
         return status;
-    expected_action_count = ordago_expected_action_count(&information);
+    status = mus_ordago_game_information_set_legal_actions(
+        &information, actions, MUS_GAME_MAX_LEGAL_ACTIONS,
+        &expected_action_count);
+    if (status != CFR_STATUS_SUCCESS)
+        return status;
     if (expected_action_count == 0 ||
-        node->action_count != expected_action_count)
+        node->action_count != expected_action_count) {
+        fprintf(stderr,
+                "error: infoset ordago key=%" PRId64
+                " tiene %zu acciones; se esperaban %zu\n",
+                node->key, node->action_count, expected_action_count);
         return CFR_STATUS_INVALID_ARGUMENT;
+    }
     status = cfr_info_node_average_strategy(
         node, strategy, MUS_GAME_MAX_LEGAL_ACTIONS);
     if (status != CFR_STATUS_SUCCESS)
@@ -278,82 +251,46 @@ static Status write_ordago_node(const InfoNode *node,
     }
     if (information.phase == MUS_PHASE_DISCARD_PLAYER_0 ||
         information.phase == MUS_PHASE_DISCARD_PLAYER_1) {
-        size_t strategy_index = 0;
+        for (size_t strategy_index = 0;
+             strategy_index < expected_action_count;
+             strategy_index += 1) {
+            const unsigned int mask =
+                MUS_ACTION_DISCARD_MASK_VALUE(actions[strategy_index]);
 
-        for (unsigned int mask = 1; mask < MUS_GAME_DISCARD_MASK_COUNT;
-             mask += 1) {
-            if (!mus_ordago_game_discard_mask_is_canonical(
-                    information.hand, mask)) {
-                continue;
-            }
             if (write_ordago_discard_action(
                     writer->stream, &information, mask,
                     strategy[strategy_index]) != CFR_STATUS_SUCCESS) {
                 return CFR_STATUS_IO_ERROR;
             }
-            strategy_index += 1;
         }
         return fputc('\n', writer->stream) == EOF ? CFR_STATUS_IO_ERROR
                                                    : CFR_STATUS_SUCCESS;
     }
+    if (fprintf(writer->stream, " acumulado_previo=%u",
+                information.prior_wager_total) < 0)
+        return CFR_STATUS_IO_ERROR;
     if (information.bet_stage != MUS_BET_RESPONSE) {
-        static const uint8_t increments[4] = {2, 4, 7, 10};
-        size_t strategy_index = 1;
+        if (fputs(information.bet_stage == MUS_BET_FIRST_TO_ACT
+                      ? " actual=inicio"
+                      : " actual=paso_mano",
+                  writer->stream) == EOF)
+            return CFR_STATUS_IO_ERROR;
+    } else if ((information.current_wager_is_ordago
+                    ? fprintf(writer->stream,
+                              " actual=ordago cubierto=%u",
+                              information.previous_wager)
+                    : fprintf(writer->stream,
+                              " actual=%u cubierto=%u",
+                              information.current_wager,
+                              information.previous_wager)) < 0) {
+        return CFR_STATUS_IO_ERROR;
+    }
+    for (size_t index = 0; index < expected_action_count; index += 1) {
+        const char *name = ordago_betting_action_name(actions[index]);
 
-        if (fprintf(writer->stream, " acumulado_previo=%u %s pasar=%.17g",
-                    information.prior_wager_total,
-                    information.bet_stage == MUS_BET_FIRST_TO_ACT
-                        ? "actual=inicio"
-                        : "actual=paso_mano",
-                    strategy[0]) < 0) {
-            return CFR_STATUS_IO_ERROR;
-        }
-        for (int index = 0; index < 4; index += 1) {
-            if ((int)information.prior_wager_total + increments[index] >
-                MUS_ORDAGO_WAGER) {
-                continue;
-            }
-            if (fprintf(writer->stream, " envidar_%u=%.17g",
-                        increments[index], strategy[strategy_index]) < 0) {
-                return CFR_STATUS_IO_ERROR;
-            }
-            strategy_index += 1;
-        }
-        if (fprintf(writer->stream, " ordago=%.17g",
-                    strategy[strategy_index]) < 0)
-            return CFR_STATUS_IO_ERROR;
-    } else {
-        static const uint8_t increments[4] = {2, 4, 7, 10};
-        size_t strategy_index = 2;
-
-        if (fprintf(writer->stream, " acumulado_previo=%u",
-                    information.prior_wager_total) < 0 ||
-            (information.current_wager_is_ordago
-                 ? fprintf(writer->stream,
-                           " actual=ordago cubierto=%u",
-                           information.previous_wager)
-                 : fprintf(writer->stream,
-                           " actual=%u cubierto=%u",
-                           information.current_wager,
-                           information.previous_wager)) < 0 ||
-            fprintf(writer->stream, " no_querer=%.17g querer=%.17g",
-                    strategy[0], strategy[1]) < 0) {
-            return CFR_STATUS_IO_ERROR;
-        }
-        for (int index = 0; index < 4; index += 1) {
-            if (!ordago_response_increment_is_legal(
-                    &information, increments[index])) {
-                continue;
-            }
-            if (fprintf(writer->stream, " envidar_%u=%.17g",
-                        increments[index], strategy[strategy_index]) < 0) {
-                return CFR_STATUS_IO_ERROR;
-            }
-            strategy_index += 1;
-        }
-        if (!information.current_wager_is_ordago &&
-            fprintf(writer->stream, " ordago=%.17g",
-                    strategy[strategy_index]) < 0) {
+        if (name == NULL ||
+            fprintf(writer->stream, " %s=%.17g", name,
+                    strategy[index]) < 0) {
             return CFR_STATUS_IO_ERROR;
         }
     }

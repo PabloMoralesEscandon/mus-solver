@@ -633,11 +633,118 @@ Status mus_ordago_evaluation_metrics_from_state(
         mus_ordago_game_state_as_game_state(&state), store, metrics_out);
 }
 
+static Status prepare_ordago_final_lance_diagnostic(
+    MusOrdagoGameState *state,
+    const uint8_t player_0[MUS_GAME_CLASS_COUNT],
+    const uint8_t player_1[MUS_GAME_CLASS_COUNT],
+    MusGamePhase expected_phase) {
+    const Game *game = mus_ordago_game_descriptor();
+    Status status = mus_ordago_game_state_init(state);
+
+    if (status != CFR_STATUS_SUCCESS)
+        return status;
+    for (int card_class = 0; card_class < MUS_GAME_CLASS_COUNT - 1;
+         card_class += 1) {
+        status = apply_branch(game, state, player_0[card_class]);
+        if (status != CFR_STATUS_SUCCESS)
+            return status;
+    }
+    for (int card_class = 0; card_class < MUS_GAME_CLASS_COUNT - 1;
+         card_class += 1) {
+        status = apply_branch(game, state, player_1[card_class]);
+        if (status != CFR_STATUS_SUCCESS)
+            return status;
+    }
+    status = apply_branch(game, state, MUS_ACTION_NO_MUS);
+    if (status != CFR_STATUS_SUCCESS)
+        return status;
+    for (int lance = 0; lance < 2; lance += 1) {
+        status = apply_branch(game, state, MUS_ACTION_PASS);
+        if (status != CFR_STATUS_SUCCESS)
+            return status;
+        status = apply_branch(game, state, MUS_ACTION_PASS);
+        if (status != CFR_STATUS_SUCCESS)
+            return status;
+    }
+    return state->model.phase == expected_phase
+               ? CFR_STATUS_SUCCESS
+               : CFR_STATUS_INVALID_ARGUMENT;
+}
+
+static EvaluationMetrics average_evaluation_metrics(
+    const EvaluationMetrics *left, const EvaluationMetrics *right) {
+    return (EvaluationMetrics){
+        .profile_value_player_0 =
+            (left->profile_value_player_0 +
+             right->profile_value_player_0) /
+            2.0,
+        .profile_value_player_1 =
+            (left->profile_value_player_1 +
+             right->profile_value_player_1) /
+            2.0,
+        .best_response_value_player_0 =
+            (left->best_response_value_player_0 +
+             right->best_response_value_player_0) /
+            2.0,
+        .best_response_value_player_1 =
+            (left->best_response_value_player_1 +
+             right->best_response_value_player_1) /
+            2.0,
+        .improvement_player_0 =
+            (left->improvement_player_0 +
+             right->improvement_player_0) /
+            2.0,
+        .improvement_player_1 =
+            (left->improvement_player_1 +
+             right->improvement_player_1) /
+            2.0,
+        .nash_conv = (left->nash_conv + right->nash_conv) / 2.0,
+        .exploitability =
+            (left->exploitability + right->exploitability) / 2.0,
+    };
+}
+
 Status mus_ordago_evaluation_metrics(const InfoStore *store,
                                      EvaluationMetrics *metrics_out) {
-    (void)store;
-    (void)metrics_out;
-    return CFR_STATUS_INVALID_ARGUMENT;
+    static const uint8_t point_player_0[MUS_GAME_CLASS_COUNT] = {
+        1, 1, 1, 1, 0, 0, 0, 0,
+    };
+    static const uint8_t point_player_1[MUS_GAME_CLASS_COUNT] = {
+        1, 1, 1, 0, 1, 0, 0, 0,
+    };
+    static const uint8_t game_player_0[MUS_GAME_CLASS_COUNT] = {
+        1, 0, 0, 0, 0, 1, 1, 1,
+    };
+    static const uint8_t game_player_1[MUS_GAME_CLASS_COUNT] = {
+        0, 0, 1, 0, 1, 1, 1, 0,
+    };
+    MusOrdagoGameState point_state;
+    MusOrdagoGameState game_state;
+    EvaluationMetrics point_metrics;
+    EvaluationMetrics game_metrics;
+    Status status;
+
+    if (store == NULL || metrics_out == NULL)
+        return CFR_STATUS_INVALID_ARGUMENT;
+    status = prepare_ordago_final_lance_diagnostic(
+        &point_state, point_player_0, point_player_1, MUS_PHASE_PUNTO);
+    if (status != CFR_STATUS_SUCCESS)
+        return status;
+    status = mus_ordago_evaluation_metrics_from_state(
+        &point_state, store, &point_metrics);
+    if (status != CFR_STATUS_SUCCESS)
+        return status;
+    status = prepare_ordago_final_lance_diagnostic(
+        &game_state, game_player_0, game_player_1, MUS_PHASE_JUEGO);
+    if (status != CFR_STATUS_SUCCESS)
+        return status;
+    status = mus_ordago_evaluation_metrics_from_state(
+        &game_state, store, &game_metrics);
+    if (status != CFR_STATUS_SUCCESS)
+        return status;
+    *metrics_out = average_evaluation_metrics(&point_metrics,
+                                               &game_metrics);
+    return CFR_STATUS_SUCCESS;
 }
 
 Status mus_evaluation_metrics_from_state(const MusGameState *root,

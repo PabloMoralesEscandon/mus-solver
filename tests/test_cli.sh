@@ -12,6 +12,9 @@ grep -q -- '--format FORMAT' "$tmp_dir/help.txt"
 grep -q -- '--reserve-information-sets N' "$tmp_dir/help.txt"
 grep -q -- 'raises-to-eight' "$tmp_dir/help.txt"
 grep -q -- 'ordago' "$tmp_dir/help.txt"
+"$solver" --help --format ordago --evaluate \
+    >"$tmp_dir/combined-help.txt"
+grep -q -- '--evaluate' "$tmp_dir/combined-help.txt"
 
 if "$solver" >"$tmp_dir/no-args.out" 2>"$tmp_dir/no-args.err"; then
     echo "el solver sin argumentos debio fallar" >&2
@@ -55,17 +58,21 @@ grep -q 'schema=mus.heads-up-single-hand.raises-to-eight/v1' \
     "$tmp_dir/raises-strategy.txt"
 grep -Eq 'subir_a_(4|8)=' "$tmp_dir/raises-strategy.txt"
 
-"$solver" --format ordago --iterations 1 --seed 13 \
+"$solver" --format ordago --iterations 2 --seed 13 \
+    --save "$tmp_dir/ordago.cfr" \
+    --export-strategy "$tmp_dir/ordago-strategy.txt" \
     >"$tmp_dir/ordago.out"
-grep -q 'report iterations=1' "$tmp_dir/ordago.out"
+grep -q 'report iterations=2' "$tmp_dir/ordago.out"
+grep -Eq 'schema=mus.heads-up-single-hand.ordago-with-mus/v6-muses-[12]' \
+    "$tmp_dir/ordago-strategy.txt"
+grep -q 'envidar_' "$tmp_dir/ordago-strategy.txt"
+grep -q 'ordago=' "$tmp_dir/ordago-strategy.txt"
+grep -q 'cambiar_' "$tmp_dir/ordago-strategy.txt"
 
-if "$solver" --format ordago --evaluate \
-    >"$tmp_dir/ordago-evaluate.out" 2>"$tmp_dir/ordago-evaluate.err"; then
-    echo "evaluar ordago desde la raiz debio fallar" >&2
-    exit 1
-fi
-grep -q 'evaluacion desde la raiz no esta disponible' \
-    "$tmp_dir/ordago-evaluate.err"
+"$solver" --format ordago --load "$tmp_dir/ordago.cfr" --evaluate \
+    >"$tmp_dir/ordago-evaluate.out"
+grep -q 'evaluation scope=bounded-final-lances iterations=2' \
+    "$tmp_dir/ordago-evaluate.out"
 
 if "$solver" --load "$tmp_dir/raises.cfr" --iterations 1 \
     >"$tmp_dir/wrong-format.out" 2>"$tmp_dir/wrong-format.err"; then

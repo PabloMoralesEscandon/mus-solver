@@ -25,10 +25,10 @@
 
 #if MUS_GAME_MAX_MUSES == 1
 #define MUS_ORDAGO_STRATEGY_SCHEMA_ID                                   \
-    "mus.heads-up-single-hand.ordago-with-mus/v5-muses-1"
+    "mus.heads-up-single-hand.ordago-with-mus/v6-muses-1"
 #else
 #define MUS_ORDAGO_STRATEGY_SCHEMA_ID                                   \
-    "mus.heads-up-single-hand.ordago-with-mus/v5-muses-2"
+    "mus.heads-up-single-hand.ordago-with-mus/v6-muses-2"
 #endif
 
 #define MUS_SINGLE_BET_WAGER 2
@@ -295,6 +295,10 @@ const GameState *mus_ordago_game_state_as_game_state_const(
     const MusOrdagoGameState *state);
 Status mus_ordago_game_information_set_decode(
     InfoSetKey key, MusOrdagoInformationSet *information_set);
+/* Returns the ordered legal actions represented by a decoded information set. */
+Status mus_ordago_game_information_set_legal_actions(
+    const MusOrdagoInformationSet *information_set, Action *actions,
+    size_t capacity, size_t *required_count);
 bool mus_ordago_game_discard_mask_is_canonical(
     const uint8_t hand[MUS_GAME_CLASS_COUNT], unsigned int mask);
 

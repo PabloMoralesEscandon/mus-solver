@@ -44,10 +44,13 @@ calcula valor, mejores respuestas y explotabilidad exactos bajo demanda.
   resumen conserva además si no tenía pares nadie, solo mano o solo postre.
   También se conserva el total numérico acumulado, porque determina qué envites
   siguen disponibles. No se conserva cuánto aportó individualmente cada lance.
-  El acumulado suma el envite numérico final de cada lance; en un órdago
-  rechazado cuenta únicamente la cantidad cubierta antes del órdago.
+  El acumulado suma el envite final cuando se quiere. Cuando se rechaza un
+  envite numérico o un órdago, suma únicamente la cantidad cubierta: una piedra
+  para una apertura y el último total cubierto para una subida.
 - Se aplica literalmente el tanteo de `Simulador-Mus`: el envite o deje se
-  suma al valor intrínseco de pares, juego y punto.
+  suma al valor intrínseco de pares, juego y punto. En `ordago`, el tanteo total
+  de cada jugador se limita a 40 para que una resolución ordinaria nunca supere
+  el valor de un órdago querido.
 - La utilidad del jugador 0 es sus tantos menos los del jugador 1; la utilidad
   contraria es su opuesto.
 
@@ -69,6 +72,8 @@ conserva el número de reyes y la siguiente carta más alta; chica, el número d
 pitos y la siguiente carta más baja; pares, el tipo y los valores de las
 parejas; juego, uno de sus ocho totales; y punto, el total entre 4 y 30. Esta
 abstracción reduce mucho el número de estados, pero pierde recuerdo perfecto.
+Por ello, CFR no garantiza que la estrategia media converja a un equilibrio y
+las métricas acotadas descritas más abajo son diagnósticas, no una garantía.
 
 Los palos no afectan a ninguna decisión. El reparto agrupa las cartas en ocho
 clases de valor, pero conserva exactamente sus multiplicidades y el muestreo
@@ -163,9 +168,9 @@ de esquema son independientes e incompatibles entre sí:
 
 - `single-bet`: `mus.heads-up-single-hand/v1`;
 - `raises-to-eight`: `mus.heads-up-single-hand.raises-to-eight/v1`;
-- `ordago`: `mus.heads-up-single-hand.ordago-with-mus/v5-muses-1` por defecto.
+- `ordago`: `mus.heads-up-single-hand.ordago-with-mus/v6-muses-1` por defecto.
 
-La compilación con dos muses usa el sufijo `v5-muses-2`, por lo que sus
+La compilación con dos muses usa el sufijo `v6-muses-2`, por lo que sus
 checkpoints no se mezclan con los del límite predeterminado.
 
 Al cargar un checkpoint de `raises-to-eight` hay que volver a indicar
@@ -193,10 +198,14 @@ visitados. Calcula:
 - mejora unilateral, NashConv y explotabilidad.
 
 Los formatos históricos acumulan valores contrafactuales por profundidad sin
-materializar el árbol completo. La evaluación de `ordago` desde la raíz está
-deshabilitada porque su árbol de mus, descartes y envites aditivos no es viable
-con el evaluador general; la CLI rechaza `--format ordago --evaluate`. La API
-conserva la evaluación de un subestado acotado mediante
+materializar el árbol completo. La evaluación de `ordago` desde la raíz no es
+viable con el evaluador general por su árbol de mus, descartes y envites
+aditivos. Por eso, `--format ordago --evaluate` calcula un diagnóstico acotado:
+promedia las métricas exactas de dos repartos fijos en el último lance, uno de
+juego y otro de punto. La salida lo identifica con
+`scope=bounded-final-lances`. Esta señal permite comparar checkpoints, pero no
+mide la explotabilidad desde la raíz ni restablece la garantía de convergencia.
+La API permite además evaluar cualquier subestado acotado mediante
 `mus_ordago_evaluation_metrics_from_state`.
 
 ### Referencia reproducible

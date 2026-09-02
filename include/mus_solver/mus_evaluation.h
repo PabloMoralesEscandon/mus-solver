@@ -29,7 +29,7 @@ Status mus_raises_to_eight_evaluation_metrics_from_state(
     const MusRaisesToEightGameState *root, const InfoStore *store,
     EvaluationMetrics *metrics_out);
 
-/* Root evaluation is intentionally unavailable for the ordago format. */
+/* Evaluates two fixed final-lance diagnostics for the ordago format. */
 Status mus_ordago_evaluation_metrics(const InfoStore *store,
                                      EvaluationMetrics *metrics_out);
 Status mus_ordago_evaluation_metrics_from_state(
