@@ -1868,9 +1868,8 @@ static uint8_t ordago_wager_for_action(Action action) {
 
 static bool player_action_is_legal(const MusGameModel *model,
                                    const MusGameFormat *format,
-                                   Action action) {
+                                   Action action, uint8_t ordago_wager) {
     if (format != NULL && format->ordago_with_mus) {
-        const uint8_t amount = ordago_wager_for_action(action);
         const int prior_wager_total = ordago_prior_wager_total(model);
 
         if (model->bet_stage == MUS_BET_RESPONSE) {
@@ -1880,11 +1879,11 @@ static bool player_action_is_legal(const MusGameModel *model,
                     (action == MUS_ACTION_ORDAGO ||
                      ordago_response_increment_is_legal(
                          prior_wager_total, model->current_wager,
-                         model->previous_wager, amount)));
+                         model->previous_wager, ordago_wager)));
         }
         return action == MUS_ACTION_PASS || action == MUS_ACTION_ORDAGO ||
-               (ordago_increment_is_valid(amount) &&
-                prior_wager_total + amount <= MUS_ORDAGO_WAGER);
+               (ordago_increment_is_valid(ordago_wager) &&
+                prior_wager_total + ordago_wager <= MUS_ORDAGO_WAGER);
     }
     if (model->bet_stage == MUS_BET_RESPONSE) {
         return action == MUS_ACTION_REJECT || action == MUS_ACTION_ACCEPT ||
@@ -2053,7 +2052,10 @@ static Status apply_to_model(
     }
     if (!phase_is_betting(model->phase))
         return CFR_STATUS_INVALID_ARGUMENT;
-    if (!player_action_is_legal(model, format, action))
+    const uint8_t ordago_wager =
+        format->ordago_with_mus ? ordago_wager_for_action(action) : 0;
+
+    if (!player_action_is_legal(model, format, action, ordago_wager))
         return CFR_STATUS_ILLEGAL_ACTION;
 
     if (model->bet_stage == MUS_BET_FIRST_TO_ACT) {
@@ -2062,7 +2064,7 @@ static Status apply_to_model(
             model->current_player = CFR_PLAYER_1;
         } else {
             const uint8_t wager = format->ordago_with_mus
-                                      ? ordago_wager_for_action(action)
+                                      ? ordago_wager
                                       : MUS_SINGLE_BET_WAGER;
 
             model->bet_stage = MUS_BET_RESPONSE;
@@ -2082,7 +2084,7 @@ static Status apply_to_model(
             advance_lance(model, MUS_LANCE_ALL_PASS, format, summaries);
         } else {
             const uint8_t wager = format->ordago_with_mus
-                                      ? ordago_wager_for_action(action)
+                                      ? ordago_wager
                                       : MUS_SINGLE_BET_WAGER;
 
             model->bet_stage = MUS_BET_RESPONSE;
@@ -2103,17 +2105,13 @@ static Status apply_to_model(
         int completed_lance;
 
         if (action == MUS_ACTION_RAISE_DOUBLE ||
-            (format->ordago_with_mus &&
-             ordago_wager_for_action(action) > 0)) {
+            (format->ordago_with_mus && ordago_wager > 0)) {
             const Player previous_bettor = model->bettor;
-            const uint8_t amount = format->ordago_with_mus
-                                       ? ordago_wager_for_action(action)
-                                       : 0;
             const uint8_t next_wager =
                 format->ordago_with_mus
                     ? (action == MUS_ACTION_ORDAGO
                            ? MUS_ORDAGO_WAGER
-                           : (uint8_t)(model->current_wager + amount))
+                           : (uint8_t)(model->current_wager + ordago_wager))
                     : (uint8_t)(model->current_wager * 2);
 
             model->bettor = model->current_player;
