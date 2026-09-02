@@ -13,6 +13,22 @@ typedef struct {
     bool ordago;
 } StrategyWriter;
 
+static uint8_t ordago_minimum_response_increment(
+    const MusOrdagoInformationSet *information) {
+    if (information->previous_wager == 1)
+        return information->current_wager;
+    return (uint8_t)(information->current_wager -
+                     information->previous_wager);
+}
+
+static bool ordago_response_increment_is_legal(
+    const MusOrdagoInformationSet *information, uint8_t increment) {
+    return increment >= ordago_minimum_response_increment(information) &&
+           (int)information->prior_wager_total +
+                   (int)information->current_wager + increment <=
+               MUS_ORDAGO_WAGER;
+}
+
 static const char *variant_name(TrainerVariant variant) {
     switch (variant) {
     case CFR_TRAINER_VARIANT_CFR:
@@ -43,22 +59,30 @@ static size_t ordago_expected_action_count(
         }
         return count;
     }
-    if (information->bet_stage != MUS_BET_RESPONSE)
-        return 6;
+    static const uint8_t increments[4] = {2, 4, 7, 10};
+
+    if (information->bet_stage != MUS_BET_RESPONSE) {
+        size_t count = 2;
+
+        for (int index = 0; index < 4; index += 1) {
+            if ((int)information->prior_wager_total + increments[index] <=
+                MUS_ORDAGO_WAGER) {
+                count += 1;
+            }
+        }
+        return count;
+    }
     if (information->current_wager_is_ordago)
         return 2;
     size_t count = 2;
-    static const uint8_t increments[4] = {2, 4, 7, 10};
 
     for (int index = 0; index < 4; index += 1) {
-        if ((int)information->current_wager + increments[index] <=
-            MUS_ORDAGO_WAGER) {
+        if (ordago_response_increment_is_legal(information,
+                                                increments[index])) {
             count += 1;
         }
     }
-    if (information->current_wager < MUS_ORDAGO_WAGER)
-        count += 1;
-    return count;
+    return count + 1;
 }
 
 static const char *ordago_strength_name(MusLanceStrength strength) {
@@ -206,13 +230,19 @@ static Status write_ordago_node(const InfoNode *node,
     if (write_ordago_hand(writer->stream, &information) !=
         CFR_STATUS_SUCCESS)
         return CFR_STATUS_IO_ERROR;
-    if (fprintf(writer->stream,
-                " fase=%s muses=%u descartes=%u/%u,%u/%u corte=",
-                mus_game_phase_name(information.phase), information.mus_count,
-                information.discard_counts[0][0],
-                information.discard_counts[0][1],
-                information.discard_counts[1][0],
-                information.discard_counts[1][1]) < 0)
+    if (fprintf(writer->stream, " fase=%s muses=%u descartes=",
+                mus_game_phase_name(information.phase),
+                information.mus_count) < 0)
+        return CFR_STATUS_IO_ERROR;
+    for (int round = 0; round < MUS_GAME_MAX_MUSES; round += 1) {
+        if ((round > 0 && fputc(',', writer->stream) == EOF) ||
+            fprintf(writer->stream, "%u/%u",
+                    information.discard_counts[round][0],
+                    information.discard_counts[round][1]) < 0) {
+            return CFR_STATUS_IO_ERROR;
+        }
+    }
+    if (fputs(" corte=", writer->stream) == EOF)
         return CFR_STATUS_IO_ERROR;
     if (!information.mus_stopped) {
         if (fputs("limite_o_pendiente", writer->stream) == EOF)
@@ -267,26 +297,38 @@ static Status write_ordago_node(const InfoNode *node,
                                                    : CFR_STATUS_SUCCESS;
     }
     if (information.bet_stage != MUS_BET_RESPONSE) {
-        static const char *const labels[6] = {
-            "pasar", "envidar_2", "envidar_4", "envidar_7",
-            "envidar_10", "ordago",
-        };
+        static const uint8_t increments[4] = {2, 4, 7, 10};
+        size_t strategy_index = 1;
 
-        if (fputs(information.bet_stage == MUS_BET_FIRST_TO_ACT
-                      ? " actual=inicio"
-                      : " actual=paso_mano",
-                  writer->stream) == EOF)
+        if (fprintf(writer->stream, " acumulado_previo=%u %s pasar=%.17g",
+                    information.prior_wager_total,
+                    information.bet_stage == MUS_BET_FIRST_TO_ACT
+                        ? "actual=inicio"
+                        : "actual=paso_mano",
+                    strategy[0]) < 0) {
             return CFR_STATUS_IO_ERROR;
-        for (size_t index = 0; index < 6; index += 1) {
-            if (fprintf(writer->stream, " %s=%.17g", labels[index],
-                        strategy[index]) < 0)
-                return CFR_STATUS_IO_ERROR;
         }
+        for (int index = 0; index < 4; index += 1) {
+            if ((int)information.prior_wager_total + increments[index] >
+                MUS_ORDAGO_WAGER) {
+                continue;
+            }
+            if (fprintf(writer->stream, " envidar_%u=%.17g",
+                        increments[index], strategy[strategy_index]) < 0) {
+                return CFR_STATUS_IO_ERROR;
+            }
+            strategy_index += 1;
+        }
+        if (fprintf(writer->stream, " ordago=%.17g",
+                    strategy[strategy_index]) < 0)
+            return CFR_STATUS_IO_ERROR;
     } else {
         static const uint8_t increments[4] = {2, 4, 7, 10};
         size_t strategy_index = 2;
 
-        if ((information.current_wager_is_ordago
+        if (fprintf(writer->stream, " acumulado_previo=%u",
+                    information.prior_wager_total) < 0 ||
+            (information.current_wager_is_ordago
                  ? fprintf(writer->stream,
                            " actual=ordago cubierto=%u",
                            information.previous_wager)
@@ -299,8 +341,8 @@ static Status write_ordago_node(const InfoNode *node,
             return CFR_STATUS_IO_ERROR;
         }
         for (int index = 0; index < 4; index += 1) {
-            if ((int)information.current_wager + increments[index] >
-                MUS_ORDAGO_WAGER) {
+            if (!ordago_response_increment_is_legal(
+                    &information, increments[index])) {
                 continue;
             }
             if (fprintf(writer->stream, " envidar_%u=%.17g",
@@ -310,7 +352,6 @@ static Status write_ordago_node(const InfoNode *node,
             strategy_index += 1;
         }
         if (!information.current_wager_is_ordago &&
-            information.current_wager < MUS_ORDAGO_WAGER &&
             fprintf(writer->stream, " ordago=%.17g",
                     strategy[strategy_index]) < 0) {
             return CFR_STATUS_IO_ERROR;

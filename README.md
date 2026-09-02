@@ -20,11 +20,13 @@ calcula valor, mejores respuestas y explotabilidad exactos bajo demanda.
   cantidad: 2 → 4 → 8. Ante 8 ya no se puede volver a subir.
 - El formato `ordago` permite pasar o envidar 2, 4, 7, 10 u órdago en todos
   los lances. Los envites numéricos son incrementos: responder a 2 con otro 2
-  deja 4 tantos en juego, y responder después con 7 deja 11. El total numérico
-  se limita a 40 para que el árbol sea finito. Al llegar a 40 de forma numérica
-  solo se puede querer o no querer; ya no se puede lanzar un órdago sin aumentar
-  la apuesta. El órdago es una acción distinta disponible mientras el total sea
-  menor que 40.
+  deja 4 tantos en juego, y responder después con 7 deja 11. La apertura puede
+  ser de 2, 4, 7 o 10; cada respuesta numérica debe ser igual o mayor que el
+  incremento anterior. El presupuesto numérico de 40 es global para toda la
+  mano: acumulado de los lances anteriores + envite activo + incremento no
+  puede superar 40. Por ejemplo, con 30 acumulados y 6 en el lance actual solo
+  caben incrementos de 2 o 4. Al agotar el presupuesto ya no se puede hacer otro
+  envite numérico, pero sí lanzar órdago, que sigue siendo una acción distinta.
 - En `ordago`, antes de grande cada jugador dice, por orden, `mus` o `no mus`.
   Si ambos dicen mus, cada uno elige un subconjunto no vacío de sus cartas. Los
   bits recorren la mano en su orden canónico, de menor a mayor valor. Las copias
@@ -32,12 +34,18 @@ calcula valor, mejores respuestas y explotabilidad exactos bajo demanda.
   agrupan: hay como máximo 15 acciones y solo 4 para cuatro cartas iguales. Las
   cartas descartadas quedan fuera del mazo y los robos se hacen sin reposición.
 - El estado conserva el número de muses, las máscaras y los recuentos de
-  descarte. Tras dos muses aceptados se pasa directamente a grande.
+  descarte. Por defecto, tras un mus aceptado se pasa directamente a grande.
+  `MUS_GAME_MAX_MUSES` permite compilar el solver con un límite de uno o dos
+  muses; su valor predeterminado es uno.
 - En los lances posteriores, cada lance completado se resume como ninguna
   muestra de fuerza, solo jugador 0, solo jugador 1 o ambos. Envidar, subir o
   querer cuenta como mostrar fuerza. No se conservan la secuencia ni las
   cantidades exactas de los lances anteriores. Si pares no se negocia, el
   resumen conserva además si no tenía pares nadie, solo mano o solo postre.
+  También se conserva el total numérico acumulado, porque determina qué envites
+  siguen disponibles. No se conserva cuánto aportó individualmente cada lance.
+  El acumulado suma el envite numérico final de cada lance; en un órdago
+  rechazado cuenta únicamente la cantidad cubierta antes del órdago.
 - Se aplica literalmente el tanteo de `Simulador-Mus`: el envite o deje se
   suma al valor intrínseco de pares, juego y punto.
 - La utilidad del jugador 0 es sus tantos menos los del jugador 1; la utilidad
@@ -86,6 +94,12 @@ make dependencies
 Para una compilación release con optimización entre unidades de traducción,
 use `make lto`. Sus artefactos se escriben en `build/lto/release` y los de
 `C-CFR` en `C-CFR/build/lto/release`, sin reemplazar la compilación normal.
+
+Para volver a permitir dos muses en una compilación independiente:
+
+```sh
+make BUILD_DIR=build/two-muses MUS_MAX_MUSES=2
+```
 
 Los artefactos principales son:
 
@@ -149,7 +163,10 @@ de esquema son independientes e incompatibles entre sí:
 
 - `single-bet`: `mus.heads-up-single-hand/v1`;
 - `raises-to-eight`: `mus.heads-up-single-hand.raises-to-eight/v1`;
-- `ordago`: `mus.heads-up-single-hand.ordago-with-mus/v3`.
+- `ordago`: `mus.heads-up-single-hand.ordago-with-mus/v5-muses-1` por defecto.
+
+La compilación con dos muses usa el sufijo `v5-muses-2`, por lo que sus
+checkpoints no se mezclan con los del límite predeterminado.
 
 Al cargar un checkpoint de `raises-to-eight` hay que volver a indicar
 `--format raises-to-eight`.

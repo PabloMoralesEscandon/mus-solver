@@ -2,6 +2,9 @@ CC ?= cc
 AR ?= ar
 
 CPPFLAGS += -Iinclude -IC-CFR/include -ISimulador-Mus/include
+ifneq ($(origin MUS_MAX_MUSES), undefined)
+CPPFLAGS += -DMUS_GAME_MAX_MUSES=$(MUS_MAX_MUSES)
+endif
 C_STANDARD := -std=c17
 WARNINGS := -Wall -Wextra -Wpedantic -Wshadow -Wconversion -Werror
 RELEASE_FLAGS := -O2

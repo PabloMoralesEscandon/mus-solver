@@ -13,8 +13,23 @@
 #define MUS_GAME_LANCE_COUNT 4
 #define MUS_GAME_UNDO_CAPACITY 160
 #define MUS_GAME_MAX_LEGAL_ACTIONS 16
-#define MUS_GAME_MAX_MUSES 2
 #define MUS_GAME_DISCARD_MASK_COUNT 16
+
+#ifndef MUS_GAME_MAX_MUSES
+#define MUS_GAME_MAX_MUSES 1
+#endif
+
+#if MUS_GAME_MAX_MUSES != 1 && MUS_GAME_MAX_MUSES != 2
+#error "MUS_GAME_MAX_MUSES must be 1 or 2"
+#endif
+
+#if MUS_GAME_MAX_MUSES == 1
+#define MUS_ORDAGO_STRATEGY_SCHEMA_ID                                   \
+    "mus.heads-up-single-hand.ordago-with-mus/v5-muses-1"
+#else
+#define MUS_ORDAGO_STRATEGY_SCHEMA_ID                                   \
+    "mus.heads-up-single-hand.ordago-with-mus/v5-muses-2"
+#endif
 
 #define MUS_SINGLE_BET_WAGER 2
 #define MUS_RAISES_TO_EIGHT_MIN_WAGER 2
@@ -237,6 +252,7 @@ typedef struct {
     Player mus_stop_player;
     MusLanceStrength previous_strengths[MUS_GAME_LANCE_COUNT - 1];
     uint8_t previous_strength_count;
+    uint8_t prior_wager_total;
     Player bettor;
     uint8_t current_wager;
     uint8_t previous_wager;
@@ -271,7 +287,7 @@ const GameState *mus_raises_to_eight_game_state_as_game_state_const(
 Status mus_raises_to_eight_game_information_set_decode(
     InfoSetKey key, MusRaisesToEightInformationSet *information_set);
 
-/* Additive wagers 2/4/7/10/ordago plus up to two rounds of mus. */
+/* Additive wagers 2/4/7/10/ordago plus configurable mus rounds. */
 Status mus_ordago_game_state_init(MusOrdagoGameState *state);
 const Game *mus_ordago_game_descriptor(void);
 GameState *mus_ordago_game_state_as_game_state(MusOrdagoGameState *state);

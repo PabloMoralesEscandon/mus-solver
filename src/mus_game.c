@@ -18,9 +18,12 @@
 #define MUS_ORDAGO_GAME_HAND_RADIX 8
 #define MUS_ORDAGO_POINT_HAND_RADIX 27
 #define MUS_ORDAGO_DISCARD_COUNT_RADIX MUS_GAME_HAND_SIZE
-#define MUS_ORDAGO_PUBLIC_MUS_RADIX 290
+#define MUS_ORDAGO_DISCARD_ROUND_RADIX                                  \
+    (MUS_ORDAGO_DISCARD_COUNT_RADIX * MUS_ORDAGO_DISCARD_COUNT_RADIX)
 #define MUS_ORDAGO_WAGER_RADIX (MUS_ORDAGO_WAGER + 1)
-#define MUS_ORDAGO_SITUATION_COUNT 28
+#define MUS_ORDAGO_TOTAL_WAGER_RADIX (MUS_ORDAGO_WAGER + 1)
+#define MUS_ORDAGO_SITUATION_COUNT                                      \
+    (MUS_GAME_MAX_MUSES * 4 + 5 * 4)
 
 typedef struct {
     bool raises_to_eight;
@@ -255,7 +258,7 @@ static const Game MUS_ORDAGO_GAME = {
     .context = &MUS_ORDAGO_FORMAT,
     .strategic_player_count = MUS_GAME_PLAYER_COUNT,
     .max_legal_actions = MUS_GAME_MAX_LEGAL_ACTIONS,
-    .strategy_schema_id = "mus.heads-up-single-hand.ordago-with-mus/v3",
+    .strategy_schema_id = MUS_ORDAGO_STRATEGY_SCHEMA_ID,
     .trusted_operations = &MUS_ORDAGO_TRUSTED_OPERATIONS,
 };
 
@@ -689,11 +692,60 @@ static bool ordago_increment_is_valid(uint8_t increment) {
            increment == 10;
 }
 
+static uint8_t ordago_minimum_response_increment(uint8_t current_wager,
+                                                  uint8_t previous_wager) {
+    if (previous_wager == 1)
+        return current_wager;
+    if (previous_wager < current_wager)
+        return (uint8_t)(current_wager - previous_wager);
+    return 0;
+}
+
+static int ordago_prior_wager_total(const MusGameModel *model) {
+    int total = 0;
+
+    for (int lance = 0; lance < MUS_GAME_LANCE_COUNT; lance += 1) {
+        if (model->outcomes[lance] < MUS_LANCE_FIRST_BET_REJECTED ||
+            model->outcomes[lance] > MUS_LANCE_SECOND_BET_ACCEPTED) {
+            continue;
+        }
+        if (model->outcome_wager_is_ordago[lance]) {
+            const int covered = model->outcome_previous_wagers[lance];
+
+            total += covered == 1 ? 0 : covered;
+        } else {
+            total += model->outcome_wagers[lance];
+        }
+    }
+    return total;
+}
+
+static int ordago_active_numeric_wager(uint8_t current_wager,
+                                       uint8_t previous_wager,
+                                       bool is_ordago) {
+    if (!is_ordago)
+        return current_wager;
+    return previous_wager == 1 ? 0 : previous_wager;
+}
+
+static bool ordago_response_increment_is_legal(int prior_wager_total,
+                                                uint8_t current_wager,
+                                                uint8_t previous_wager,
+                                                uint8_t increment) {
+    const uint8_t minimum = ordago_minimum_response_increment(
+        current_wager, previous_wager);
+
+    return minimum > 0 && ordago_increment_is_valid(increment) &&
+           increment >= minimum &&
+           prior_wager_total + (int)current_wager + increment <=
+               MUS_ORDAGO_WAGER;
+}
+
 static bool ordago_offer_is_valid(uint8_t wager, uint8_t previous_wager,
                                   bool is_ordago) {
     if (is_ordago) {
         return wager == MUS_ORDAGO_WAGER && previous_wager >= 1 &&
-               previous_wager < MUS_ORDAGO_WAGER;
+               previous_wager <= MUS_ORDAGO_WAGER;
     }
     if (previous_wager == 1)
         return ordago_increment_is_valid(wager);
@@ -784,6 +836,10 @@ static Status validate_model(const MusGameModel *model,
                 model->outcome_strengths[lance])) {
             return CFR_STATUS_INVALID_ARGUMENT;
         }
+    }
+    if (format->ordago_with_mus &&
+        ordago_prior_wager_total(model) > MUS_ORDAGO_WAGER) {
+        return CFR_STATUS_INVALID_ARGUMENT;
     }
     if (model->mus_count > MUS_GAME_MAX_MUSES)
         return CFR_STATUS_INVALID_ARGUMENT;
@@ -922,6 +978,12 @@ static Status validate_model(const MusGameModel *model,
                 if (!ordago_offer_is_valid(
                         model->current_wager, model->previous_wager,
                         model->current_wager_is_ordago) ||
+                    ordago_prior_wager_total(model) +
+                            ordago_active_numeric_wager(
+                                model->current_wager,
+                                model->previous_wager,
+                                model->current_wager_is_ordago) >
+                        MUS_ORDAGO_WAGER ||
                     (model->previous_wager == 1 &&
                      model->current_strength != bettor_strength) ||
                     (model->previous_wager > 1 &&
@@ -1467,6 +1529,8 @@ static Status mus_trusted_legal_actions(const void *context,
         return CFR_STATUS_INVALID_ARGUMENT;
     if (format != NULL && format->ordago_with_mus) {
         Action temporary[7];
+        const int prior_wager_total =
+            ordago_prior_wager_total(&mus->model);
         size_t count = 0;
 
         if (mus->model.bet_stage == MUS_BET_RESPONSE) {
@@ -1480,23 +1544,31 @@ static Status mus_trusted_legal_actions(const void *context,
 
             if (!mus->model.current_wager_is_ordago) {
                 for (int index = 0; index < 4; index += 1) {
-                    if ((int)mus->model.current_wager + increments[index] <=
-                        MUS_ORDAGO_WAGER) {
+                    if (ordago_response_increment_is_legal(
+                            prior_wager_total,
+                            mus->model.current_wager,
+                            mus->model.previous_wager,
+                            increments[index])) {
                         temporary[count++] = wager_actions[index];
                     }
                 }
-                if (mus->model.current_wager < MUS_ORDAGO_WAGER)
-                    temporary[count++] = MUS_ACTION_ORDAGO;
+                temporary[count++] = MUS_ACTION_ORDAGO;
             }
         } else {
-            static const Action opening_actions[6] = {
-                MUS_ACTION_PASS,      MUS_ACTION_BET_TWO,
-                MUS_ACTION_BET_FOUR,  MUS_ACTION_BET_SEVEN,
-                MUS_ACTION_BET_TEN,   MUS_ACTION_ORDAGO,
+            static const Action wager_actions[4] = {
+                MUS_ACTION_BET_TWO, MUS_ACTION_BET_FOUR,
+                MUS_ACTION_BET_SEVEN, MUS_ACTION_BET_TEN,
             };
+            static const uint8_t increments[4] = {2, 4, 7, 10};
 
-            count = 6;
-            memcpy(temporary, opening_actions, sizeof(opening_actions));
+            temporary[count++] = MUS_ACTION_PASS;
+            for (int index = 0; index < 4; index += 1) {
+                if (prior_wager_total + increments[index] <=
+                    MUS_ORDAGO_WAGER) {
+                    temporary[count++] = wager_actions[index];
+                }
+            }
+            temporary[count++] = MUS_ACTION_ORDAGO;
         }
         *required_count = count;
         if (capacity < count)
@@ -1547,19 +1619,20 @@ static bool player_action_is_legal(const MusGameModel *model,
                                    Action action) {
     if (format != NULL && format->ordago_with_mus) {
         const uint8_t amount = ordago_wager_for_action(action);
+        const int prior_wager_total = ordago_prior_wager_total(model);
 
         if (model->bet_stage == MUS_BET_RESPONSE) {
             return action == MUS_ACTION_REJECT ||
                    action == MUS_ACTION_ACCEPT ||
                    (!model->current_wager_is_ordago &&
-                    ((action == MUS_ACTION_ORDAGO &&
-                      model->current_wager < MUS_ORDAGO_WAGER) ||
-                     (ordago_increment_is_valid(amount) &&
-                      (int)model->current_wager + amount <=
-                          MUS_ORDAGO_WAGER)));
+                    (action == MUS_ACTION_ORDAGO ||
+                     ordago_response_increment_is_legal(
+                         prior_wager_total, model->current_wager,
+                         model->previous_wager, amount)));
         }
         return action == MUS_ACTION_PASS || action == MUS_ACTION_ORDAGO ||
-               ordago_increment_is_valid(amount);
+               (ordago_increment_is_valid(amount) &&
+                prior_wager_total + amount <= MUS_ORDAGO_WAGER);
     }
     if (model->bet_stage == MUS_BET_RESPONSE) {
         return action == MUS_ACTION_REJECT || action == MUS_ACTION_ACCEPT ||
@@ -2142,7 +2215,7 @@ static bool compact_hand_from_code(int rank,
 }
 
 enum {
-    MUS_ORDAGO_MUS_SITUATION_COUNT = 8,
+    MUS_ORDAGO_MUS_SITUATION_COUNT = MUS_GAME_MAX_MUSES * 4,
     MUS_ORDAGO_BETTING_SITUATION_COUNT = 4
 };
 
@@ -2278,43 +2351,59 @@ static int ordago_hand_code(const MusGameModel *model) {
     return -1;
 }
 
-static int ordago_public_mus_code(const MusGameModel *model) {
-    int discard_code;
+static int ordago_discard_history_code(const MusGameModel *model,
+                                        int completed_rounds) {
+    int code = 0;
 
-    if (model->mus_stopped) {
-        if (model->mus_count == 0)
-            return model->mus_stop_player;
-        if (model->mus_count == 1) {
-            const int player_0_count = model->discard_counts[0][0];
-            const int player_1_count = model->discard_counts[0][1];
-
-            if (player_0_count < 1 || player_1_count < 1 ||
-                player_0_count > MUS_GAME_HAND_SIZE ||
-                player_1_count > MUS_GAME_HAND_SIZE) {
-                return -1;
-            }
-            discard_code =
-                (player_0_count - 1) * MUS_ORDAGO_DISCARD_COUNT_RADIX +
-                player_1_count - 1;
-            return 2 + (int)model->mus_stop_player * 16 + discard_code;
-        }
+    if (completed_rounds < 0 || completed_rounds > MUS_GAME_MAX_MUSES)
         return -1;
-    }
-    if (model->mus_count != MUS_GAME_MAX_MUSES)
-        return -1;
-    discard_code = 0;
-    for (int round = 0; round < MUS_GAME_MAX_MUSES; round += 1) {
+    for (int round = 0; round < completed_rounds; round += 1) {
         for (int player = 0; player < MUS_GAME_PLAYER_COUNT; player += 1) {
             const int count = model->discard_counts[round][player];
 
             if (count < 1 || count > MUS_GAME_HAND_SIZE)
                 return -1;
-            discard_code =
-                discard_code * MUS_ORDAGO_DISCARD_COUNT_RADIX +
-                count - 1;
+            code = code * MUS_ORDAGO_DISCARD_COUNT_RADIX + count - 1;
         }
     }
-    return 34 + discard_code;
+    return code;
+}
+
+static int ordago_public_mus_radix(void) {
+    int radix = 0;
+    int history_radix = 1;
+
+    for (int round = 0; round < MUS_GAME_MAX_MUSES; round += 1) {
+        radix += MUS_GAME_PLAYER_COUNT * history_radix;
+        history_radix *= MUS_ORDAGO_DISCARD_ROUND_RADIX;
+    }
+    return radix + history_radix;
+}
+
+static int ordago_public_mus_code(const MusGameModel *model) {
+    const int completed_rounds = model->mus_count;
+    const int discard_code =
+        ordago_discard_history_code(model, completed_rounds);
+    int offset = 0;
+    int history_radix = 1;
+
+    if (discard_code < 0)
+        return -1;
+    for (int round = 0; round < completed_rounds; round += 1) {
+        offset += MUS_GAME_PLAYER_COUNT * history_radix;
+        history_radix *= MUS_ORDAGO_DISCARD_ROUND_RADIX;
+    }
+    if (model->mus_stopped) {
+        if (completed_rounds >= MUS_GAME_MAX_MUSES ||
+            !player_is_valid(model->mus_stop_player)) {
+            return -1;
+        }
+        return offset + (int)model->mus_stop_player * history_radix +
+               discard_code;
+    }
+    if (completed_rounds != MUS_GAME_MAX_MUSES)
+        return -1;
+    return offset + discard_code;
 }
 
 static int ordago_hand_radix(MusGamePhase phase) {
@@ -2353,14 +2442,15 @@ static Status ordago_information_set_key(const MusGameModel *model,
     key = hand;
     if (phase_is_mus_decision(model->phase) ||
         phase_is_discard(model->phase)) {
-        if (model->mus_count == 1) {
-            if (model->discard_counts[0][0] < 1 ||
-                model->discard_counts[0][1] < 1)
-                return CFR_STATUS_INVALID_ARGUMENT;
-            key = key * MUS_ORDAGO_DISCARD_COUNT_RADIX +
-                  model->discard_counts[0][0] - 1;
-            key = key * MUS_ORDAGO_DISCARD_COUNT_RADIX +
-                  model->discard_counts[0][1] - 1;
+        for (int round = 0; round < model->mus_count; round += 1) {
+            for (int player = 0; player < MUS_GAME_PLAYER_COUNT;
+                 player += 1) {
+                const int count = model->discard_counts[round][player];
+
+                if (count < 1 || count > MUS_GAME_HAND_SIZE)
+                    return CFR_STATUS_INVALID_ARGUMENT;
+                key = key * MUS_ORDAGO_DISCARD_COUNT_RADIX + count - 1;
+            }
         }
         if (model->phase == MUS_PHASE_DISCARD_PLAYER_1) {
             if (model->discard_counts[model->mus_count][0] < 1)
@@ -2370,13 +2460,17 @@ static Status ordago_information_set_key(const MusGameModel *model,
         }
     } else {
         const int mus = ordago_public_mus_code(model);
+        const int mus_radix = ordago_public_mus_radix();
+        const int prior_wager_total =
+            ordago_prior_wager_total(model);
         const int strength_count =
             ordago_previous_strength_count(model->phase);
 
-        if (mus < 0 || mus >= MUS_ORDAGO_PUBLIC_MUS_RADIX ||
-            strength_count < 0)
+        if (mus < 0 || mus >= mus_radix ||
+            strength_count < 0 || prior_wager_total < 0 ||
+            prior_wager_total > MUS_ORDAGO_WAGER)
             return CFR_STATUS_INVALID_ARGUMENT;
-        key = key * MUS_ORDAGO_PUBLIC_MUS_RADIX + mus;
+        key = key * mus_radix + mus;
         for (int lance = 0; lance < strength_count; lance += 1) {
             const int strength_radix = ordago_strength_radix(lance);
 
@@ -2387,10 +2481,17 @@ static Status ordago_information_set_key(const MusGameModel *model,
             key = key * strength_radix +
                   model->outcome_strengths[lance];
         }
+        key = key * MUS_ORDAGO_TOTAL_WAGER_RADIX + prior_wager_total;
         if (model->bet_stage == MUS_BET_RESPONSE) {
             if (!ordago_offer_is_valid(
                     model->current_wager, model->previous_wager,
-                    model->current_wager_is_ordago)) {
+                    model->current_wager_is_ordago) ||
+                prior_wager_total +
+                        ordago_active_numeric_wager(
+                            model->current_wager,
+                            model->previous_wager,
+                            model->current_wager_is_ordago) >
+                    MUS_ORDAGO_WAGER) {
                 return CFR_STATUS_INVALID_ARGUMENT;
             }
             key = key * MUS_ORDAGO_WAGER_RADIX + model->current_wager;
@@ -2763,33 +2864,10 @@ static bool decode_ordago_situation(int situation,
     return true;
 }
 
-static bool decode_ordago_public_mus(
-    int code, MusOrdagoInformationSet *information) {
-    if (code < 0 || code >= MUS_ORDAGO_PUBLIC_MUS_RADIX)
-        return false;
-    if (code < 2) {
-        information->mus_stopped = true;
-        information->mus_stop_player = (Player)code;
-        return true;
-    }
-    if (code < 34) {
-        const int stopped_code = code - 2;
-        const int discard_code = stopped_code % 16;
-
-        information->mus_count = 1;
-        information->mus_stopped = true;
-        information->mus_stop_player = (Player)(stopped_code / 16);
-        information->discard_counts[0][0] =
-            (uint8_t)(discard_code / MUS_ORDAGO_DISCARD_COUNT_RADIX + 1);
-        information->discard_counts[0][1] =
-            (uint8_t)(discard_code % MUS_ORDAGO_DISCARD_COUNT_RADIX + 1);
-        return true;
-    }
-    code -= 34;
-    information->mus_count = MUS_GAME_MAX_MUSES;
-    information->mus_stopped = false;
-    information->mus_stop_player = CFR_PLAYER_0;
-    for (int round = MUS_GAME_MAX_MUSES - 1; round >= 0; round -= 1) {
+static bool decode_ordago_discard_history(
+    int code, int completed_rounds,
+    MusOrdagoInformationSet *information) {
+    for (int round = completed_rounds - 1; round >= 0; round -= 1) {
         for (int player = MUS_GAME_PLAYER_COUNT - 1; player >= 0;
              player -= 1) {
             information->discard_counts[round][player] =
@@ -2798,6 +2876,36 @@ static bool decode_ordago_public_mus(
         }
     }
     return code == 0;
+}
+
+static bool decode_ordago_public_mus(
+    int code, MusOrdagoInformationSet *information) {
+    int history_radix = 1;
+
+    if (code < 0 || code >= ordago_public_mus_radix())
+        return false;
+    for (int completed_rounds = 0;
+         completed_rounds < MUS_GAME_MAX_MUSES;
+         completed_rounds += 1) {
+        const int stopped_block =
+            MUS_GAME_PLAYER_COUNT * history_radix;
+
+        if (code < stopped_block) {
+            information->mus_count = (uint8_t)completed_rounds;
+            information->mus_stopped = true;
+            information->mus_stop_player =
+                (Player)(code / history_radix);
+            return decode_ordago_discard_history(
+                code % history_radix, completed_rounds, information);
+        }
+        code -= stopped_block;
+        history_radix *= MUS_ORDAGO_DISCARD_ROUND_RADIX;
+    }
+    information->mus_count = MUS_GAME_MAX_MUSES;
+    information->mus_stopped = false;
+    information->mus_stop_player = CFR_PLAYER_0;
+    return decode_ordago_discard_history(
+        code, MUS_GAME_MAX_MUSES, information);
 }
 
 static bool decode_ordago_hand(int code,
@@ -2882,13 +2990,14 @@ Status mus_ordago_game_information_set_decode(
                 (uint8_t)(key % MUS_ORDAGO_DISCARD_COUNT_RADIX + 1);
             key /= MUS_ORDAGO_DISCARD_COUNT_RADIX;
         }
-        if (round == 1) {
-            information_set->discard_counts[0][1] =
-                (uint8_t)(key % MUS_ORDAGO_DISCARD_COUNT_RADIX + 1);
-            key /= MUS_ORDAGO_DISCARD_COUNT_RADIX;
-            information_set->discard_counts[0][0] =
-                (uint8_t)(key % MUS_ORDAGO_DISCARD_COUNT_RADIX + 1);
-            key /= MUS_ORDAGO_DISCARD_COUNT_RADIX;
+        for (int completed_round = round - 1; completed_round >= 0;
+             completed_round -= 1) {
+            for (int player = MUS_GAME_PLAYER_COUNT - 1; player >= 0;
+                 player -= 1) {
+                information_set->discard_counts[completed_round][player] =
+                    (uint8_t)(key % MUS_ORDAGO_DISCARD_COUNT_RADIX + 1);
+                key /= MUS_ORDAGO_DISCARD_COUNT_RADIX;
+            }
         }
     } else {
         if (information_set->bet_stage == MUS_BET_RESPONSE) {
@@ -2900,12 +3009,24 @@ Status mus_ordago_game_information_set_decode(
             information_set->current_wager =
                 (uint8_t)(key % MUS_ORDAGO_WAGER_RADIX);
             key /= MUS_ORDAGO_WAGER_RADIX;
-            if (!ordago_offer_is_valid(
-                    information_set->current_wager,
-                    information_set->previous_wager,
-                    information_set->current_wager_is_ordago)) {
-                return CFR_STATUS_INVALID_ARGUMENT;
-            }
+        }
+        information_set->prior_wager_total =
+            (uint8_t)(key % MUS_ORDAGO_TOTAL_WAGER_RADIX);
+        key /= MUS_ORDAGO_TOTAL_WAGER_RADIX;
+        if ((information_set->previous_strength_count == 0 &&
+             information_set->prior_wager_total != 0) ||
+            (information_set->bet_stage == MUS_BET_RESPONSE &&
+             (!ordago_offer_is_valid(
+                  information_set->current_wager,
+                  information_set->previous_wager,
+                  information_set->current_wager_is_ordago) ||
+              information_set->prior_wager_total +
+                      ordago_active_numeric_wager(
+                          information_set->current_wager,
+                          information_set->previous_wager,
+                          information_set->current_wager_is_ordago) >
+                  MUS_ORDAGO_WAGER))) {
+            return CFR_STATUS_INVALID_ARGUMENT;
         }
         for (int lance = information_set->previous_strength_count - 1;
              lance >= 0; lance -= 1) {
@@ -2915,9 +3036,10 @@ Status mus_ordago_game_information_set_decode(
                 (MusLanceStrength)(key % strength_radix);
             key /= strength_radix;
         }
-        const int mus_code = (int)(key % MUS_ORDAGO_PUBLIC_MUS_RADIX);
+        const int mus_radix = ordago_public_mus_radix();
+        const int mus_code = (int)(key % mus_radix);
 
-        key /= MUS_ORDAGO_PUBLIC_MUS_RADIX;
+        key /= mus_radix;
         if (!decode_ordago_public_mus(mus_code, information_set))
             return CFR_STATUS_INVALID_ARGUMENT;
     }
