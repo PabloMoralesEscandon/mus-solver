@@ -149,6 +149,8 @@ typedef struct {
     uint8_t previous_wager;
     /* Settled numeric wager total from completed lances, capped at ordago. */
     uint8_t prior_wager_total;
+    /* Points already resolved by completed lances in the ordago format. */
+    uint8_t settled_scores[MUS_GAME_PLAYER_COUNT];
     bool current_wager_is_ordago;
     uint8_t current_strength;
     uint8_t current_player;

@@ -191,6 +191,20 @@ static int compact_hand_code(const uint8_t hand[MUS_GAME_CLASS_COUNT]);
 static Status summarize_ordago_hand_codes(
     const MusGameModel *model,
     MusOrdagoHandCodes codes[MUS_GAME_PLAYER_COUNT]);
+static bool outcome_is_accepted(MusLanceOutcome outcome);
+static bool outcome_is_rejected(MusLanceOutcome outcome);
+static int outcome_bettor(MusLanceOutcome outcome);
+static int ordago_showdown_winner(
+    const MusGameModel *model,
+    const MusHandSummary summaries[MUS_GAME_PLAYER_COUNT], int lance);
+static bool settle_ordago_lance_score(
+    const MusGameModel *model,
+    const MusHandSummary summaries[MUS_GAME_PLAYER_COUNT], int lance,
+    uint8_t scores[MUS_GAME_PLAYER_COUNT]);
+static Status recompute_ordago_settled_scores(
+    const MusGameModel *model,
+    const MusHandSummary summaries[MUS_GAME_PLAYER_COUNT],
+    uint8_t scores[MUS_GAME_PLAYER_COUNT]);
 
 static const GameOperations MUS_OPERATIONS = {
     .is_terminal = mus_is_terminal,
@@ -528,8 +542,115 @@ static void start_mus_round(MusGameModel *model) {
     model->mus_stop_player = CFR_PLAYER_0;
 }
 
+static int ordago_outcome_stake(const MusGameModel *model, int lance,
+                                MusLanceOutcome outcome) {
+    if (outcome_is_accepted(outcome))
+        return model->outcome_wagers[lance];
+    if (outcome_is_rejected(outcome)) {
+        const int previous = model->outcome_previous_wagers[lance];
+
+        return previous == 0 ? 1 : previous;
+    }
+    return 0;
+}
+
+static void add_ordago_score(uint8_t scores[MUS_GAME_PLAYER_COUNT],
+                             int player, int points) {
+    const int total = scores[player] + points;
+
+    scores[player] =
+        (uint8_t)(total < MUS_ORDAGO_WAGER ? total : MUS_ORDAGO_WAGER);
+}
+
+static bool settle_ordago_lance_score(
+    const MusGameModel *model,
+    const MusHandSummary summaries[MUS_GAME_PLAYER_COUNT], int lance,
+    uint8_t scores[MUS_GAME_PLAYER_COUNT]) {
+    const MusLanceOutcome outcome = model->outcomes[lance];
+    int winner;
+    int points = 0;
+
+    if (outcome == MUS_LANCE_UNRESOLVED)
+        return false;
+    if (model->outcome_wager_is_ordago[lance] &&
+        outcome_is_accepted(outcome)) {
+        winner = ordago_showdown_winner(model, summaries, lance);
+        scores[0] = 0;
+        scores[1] = 0;
+        scores[winner] = MUS_ORDAGO_WAGER;
+        return true;
+    }
+    if (lance == 0 || lance == 1) {
+        if (outcome_is_rejected(outcome)) {
+            winner = outcome_bettor(outcome);
+            points = ordago_outcome_stake(model, lance, outcome);
+        } else {
+            winner = ordago_showdown_winner(model, summaries, lance);
+            points = outcome_is_accepted(outcome)
+                         ? ordago_outcome_stake(model, lance, outcome)
+                         : 1;
+        }
+    } else if (lance == 2) {
+        if (!model->pairs[0] && !model->pairs[1])
+            return false;
+        if (outcome_is_rejected(outcome)) {
+            winner = outcome_bettor(outcome);
+            points = ordago_outcome_stake(model, lance, outcome);
+        } else if (model->pairs[0] && model->pairs[1]) {
+            winner = ordago_showdown_winner(model, summaries, lance);
+        } else {
+            winner = model->pairs[0] ? 0 : 1;
+        }
+        points += summaries[winner].pairs_points;
+        if (outcome_is_accepted(outcome))
+            points += ordago_outcome_stake(model, lance, outcome);
+    } else if (lance == 3) {
+        if (model->game[0] || model->game[1]) {
+            if (outcome_is_rejected(outcome)) {
+                winner = outcome_bettor(outcome);
+                points = ordago_outcome_stake(model, lance, outcome);
+            } else if (model->game[0] && model->game[1]) {
+                winner = ordago_showdown_winner(model, summaries, lance);
+            } else {
+                winner = model->game[0] ? 0 : 1;
+            }
+            points += summaries[winner].game_points;
+            if (outcome_is_accepted(outcome))
+                points += ordago_outcome_stake(model, lance, outcome);
+        } else {
+            winner = outcome_is_rejected(outcome)
+                         ? outcome_bettor(outcome)
+                         : ordago_showdown_winner(model, summaries, lance);
+            points = 1;
+            if (outcome_is_accepted(outcome) ||
+                outcome_is_rejected(outcome)) {
+                points += ordago_outcome_stake(model, lance, outcome);
+            }
+        }
+    } else {
+        return false;
+    }
+    add_ordago_score(scores, winner, points);
+    return false;
+}
+
+static Status recompute_ordago_settled_scores(
+    const MusGameModel *model,
+    const MusHandSummary summaries[MUS_GAME_PLAYER_COUNT],
+    uint8_t scores[MUS_GAME_PLAYER_COUNT]) {
+    if (model == NULL || summaries == NULL || scores == NULL)
+        return CFR_STATUS_INVALID_ARGUMENT;
+    scores[0] = 0;
+    scores[1] = 0;
+    for (int lance = 0; lance < MUS_GAME_LANCE_COUNT; lance += 1) {
+        if (settle_ordago_lance_score(model, summaries, lance, scores))
+            break;
+    }
+    return CFR_STATUS_SUCCESS;
+}
+
 static void prepare_final_lance(
-    MusGameModel *model,
+    MusGameModel *model, const MusGameFormat *format,
     const MusHandSummary summaries[MUS_GAME_PLAYER_COUNT]) {
     model->game_revealed = true;
     model->game[0] = summaries[0].game_key >= 0;
@@ -541,6 +662,10 @@ static void prepare_final_lance(
         start_betting(model, MUS_PHASE_PUNTO);
     } else {
         model->outcomes[3] = MUS_LANCE_SKIPPED;
+        if (format->ordago_with_mus) {
+            (void)settle_ordago_lance_score(
+                model, summaries, 3, model->settled_scores);
+        }
         model->phase = MUS_PHASE_TERMINAL;
     }
 }
@@ -577,6 +702,8 @@ static void advance_lance(
             model->prior_wager_total =
                 (uint8_t)(total < MUS_ORDAGO_WAGER ? total
                                                    : MUS_ORDAGO_WAGER);
+            (void)settle_ordago_lance_score(
+                model, summaries, lance, model->settled_scores);
         }
     }
     if (completed_phase == MUS_PHASE_GRANDE) {
@@ -596,11 +723,13 @@ static void advance_lance(
                     : model->pairs[1]
                         ? MUS_LANCE_STRENGTH_PARES_SKIPPED_PLAYER_1
                         : MUS_LANCE_STRENGTH_PARES_SKIPPED_NONE;
+                (void)settle_ordago_lance_score(
+                    model, summaries, 2, model->settled_scores);
             }
-            prepare_final_lance(model, summaries);
+            prepare_final_lance(model, format, summaries);
         }
     } else if (completed_phase == MUS_PHASE_PARES) {
-        prepare_final_lance(model, summaries);
+        prepare_final_lance(model, format, summaries);
     } else if (completed_phase == MUS_PHASE_JUEGO ||
                completed_phase == MUS_PHASE_PUNTO) {
         model->phase = MUS_PHASE_TERMINAL;
@@ -1169,7 +1298,20 @@ static Status validate_state_data(const MusGameState *state,
         if (status != CFR_STATUS_SUCCESS)
             return status;
     }
-    return validate_hand_summaries(&state->model, state->hand_summaries);
+    status = validate_hand_summaries(&state->model, state->hand_summaries);
+    if (status != CFR_STATUS_SUCCESS || !format->ordago_with_mus)
+        return status;
+
+    uint8_t expected_scores[MUS_GAME_PLAYER_COUNT];
+    status = recompute_ordago_settled_scores(
+        &state->model, state->hand_summaries, expected_scores);
+    if (status != CFR_STATUS_SUCCESS)
+        return status;
+    for (int player = 0; player < MUS_GAME_PLAYER_COUNT; player += 1) {
+        if (state->model.settled_scores[player] != expected_scores[player])
+            return CFR_STATUS_INVALID_ARGUMENT;
+    }
+    return CFR_STATUS_SUCCESS;
 }
 
 Status mus_game_state_init(MusGameState *state) {
@@ -1524,6 +1666,16 @@ static Status mus_trusted_terminal_utility(const void *context,
         mus->model.phase != MUS_PHASE_TERMINAL ||
         game_format(context) == NULL) {
         return CFR_STATUS_INVALID_ARGUMENT;
+    }
+    if (game_format(context)->ordago_with_mus) {
+        const uint8_t *cached_scores = mus->model.settled_scores;
+
+        *result = player == CFR_PLAYER_0
+                      ? (Utility)((int)cached_scores[0] -
+                                  (int)cached_scores[1])
+                      : (Utility)((int)cached_scores[1] -
+                                  (int)cached_scores[0]);
+        return CFR_STATUS_SUCCESS;
     }
     status = score_terminal(mus, game_format(context), scores);
     if (status != CFR_STATUS_SUCCESS)
@@ -1983,6 +2135,9 @@ static Status apply_to_model(
         }
         advance_lance(model, outcome, format, summaries);
         if (accepted_ordago) {
+            const int winner =
+                ordago_showdown_winner(model, summaries, completed_lance);
+
             for (int lance = completed_lance + 1;
                  lance < MUS_GAME_LANCE_COUNT; lance += 1) {
                 model->outcomes[lance] = MUS_LANCE_SKIPPED;
@@ -1992,6 +2147,9 @@ static Status apply_to_model(
                 model->outcome_strengths[lance] =
                     MUS_LANCE_STRENGTH_NONE;
             }
+            model->settled_scores[0] = 0;
+            model->settled_scores[1] = 0;
+            model->settled_scores[winner] = MUS_ORDAGO_WAGER;
             model->phase = MUS_PHASE_TERMINAL;
         }
     }
