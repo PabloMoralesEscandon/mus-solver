@@ -96,9 +96,10 @@ make test-sanitize
 make dependencies
 ```
 
-Para una compilación release con optimización entre unidades de traducción,
-use `make lto`. Sus artefactos se escriben en `build/lto/release` y los de
-`C-CFR` en `C-CFR/build/lto/release`, sin reemplazar la compilación normal.
+La compilación release usa LTO y requiere la biblioteca de desarrollo de
+Zstandard. `make lto` genera la misma configuración optimizada en
+`build/lto/release` y `C-CFR/build/lto/release`, sin reemplazar los artefactos
+normales.
 
 Para volver a permitir dos muses en una compilación independiente:
 
@@ -176,6 +177,22 @@ checkpoints no se mezclan con los del límite predeterminado.
 Al cargar un checkpoint de `raises-to-eight` hay que volver a indicar
 `--format raises-to-eight`.
 Lo mismo se aplica a `ordago`: hay que indicar `--format ordago`.
+
+Los checkpoints pueden comprimirse en streaming con Zstandard nivel 1. Es un
+modo explícito: `--save` y `--load` conservan el formato binario original.
+
+```sh
+build/release/mus-solver \
+    --format ordago \
+    --iterations 1000000 \
+    --save-compressed mus-ordago-1m.cfr.zst
+
+build/release/mus-solver \
+    --format ordago \
+    --load-compressed mus-ordago-1m.cfr.zst \
+    --iterations 500000 \
+    --save-compressed mus-ordago-1.5m.cfr.zst
+```
 
 ## Evaluación exacta
 

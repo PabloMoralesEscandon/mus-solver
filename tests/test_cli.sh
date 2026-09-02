@@ -10,6 +10,8 @@ grep -q -- '--iterations N' "$tmp_dir/help.txt"
 grep -q -- '--evaluate' "$tmp_dir/help.txt"
 grep -q -- '--format FORMAT' "$tmp_dir/help.txt"
 grep -q -- '--reserve-information-sets N' "$tmp_dir/help.txt"
+grep -q -- '--load-compressed FILE' "$tmp_dir/help.txt"
+grep -q -- '--save-compressed FILE' "$tmp_dir/help.txt"
 grep -q -- 'raises-to-eight' "$tmp_dir/help.txt"
 grep -q -- 'ordago' "$tmp_dir/help.txt"
 "$solver" --help --format ordago --evaluate \
@@ -38,6 +40,9 @@ fi
     --export-strategy "$tmp_dir/strategy.txt" >"$tmp_dir/continuous.out"
 "$solver" --iterations 20 --seed 7 --reserve-information-sets 64 \
     --save "$tmp_dir/reserved.cfr" >"$tmp_dir/reserved.out"
+"$solver" --iterations 20 --seed 7 \
+    --save-compressed "$tmp_dir/continuous.cfr.zst" \
+    >"$tmp_dir/compressed.out"
 
 cmp "$tmp_dir/resumed.cfr" "$tmp_dir/continuous.cfr"
 cmp "$tmp_dir/reserved.cfr" "$tmp_dir/continuous.cfr"
@@ -49,6 +54,9 @@ grep -q 'pasar=' "$tmp_dir/strategy.txt"
 "$solver" --load "$tmp_dir/continuous.cfr" \
     --export-strategy "$tmp_dir/loaded-strategy.txt"
 cmp "$tmp_dir/strategy.txt" "$tmp_dir/loaded-strategy.txt"
+"$solver" --load-compressed "$tmp_dir/continuous.cfr.zst" \
+    --export-strategy "$tmp_dir/compressed-strategy.txt"
+cmp "$tmp_dir/strategy.txt" "$tmp_dir/compressed-strategy.txt"
 
 "$solver" --format raises-to-eight --iterations 20 --seed 11 \
     --save "$tmp_dir/raises.cfr" \

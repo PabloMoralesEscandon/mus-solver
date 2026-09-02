@@ -41,6 +41,8 @@ typedef struct {
     bool reserve_information_sets_set;
     bool seed_set;
     bool format_set;
+    bool load_compressed;
+    bool save_compressed;
     bool evaluate;
     bool help;
 } CliOptions;
@@ -72,7 +74,9 @@ static bool print_usage(FILE *stream, const char *program) {
                "                          Sustituye la reserva automatica de "
                "ordago.\n"
                "  --load FILE            Carga un checkpoint reanudable.\n"
+               "  --load-compressed FILE Carga un checkpoint Zstandard.\n"
                "  --save FILE            Guarda el checkpoint tras entrenar.\n"
+               "  --save-compressed FILE Guarda un checkpoint Zstandard nivel 1.\n"
                "  --evaluate             Evalua la estrategia media; ordago usa "
                "un diagnostico acotado.\n"
                "  --export-strategy FILE Exporta la estrategia con etiquetas de "
@@ -176,11 +180,23 @@ static bool parse_options(int argc, char *argv[], CliOptions *options) {
                 !option_value(argc, argv, &index, &options->load_path)) {
                 return false;
             }
+        } else if (strcmp(argument, "--load-compressed") == 0) {
+            if (options->load_path != NULL ||
+                !option_value(argc, argv, &index, &options->load_path)) {
+                return false;
+            }
+            options->load_compressed = true;
         } else if (strcmp(argument, "--save") == 0) {
             if (options->save_path != NULL ||
                 !option_value(argc, argv, &index, &options->save_path)) {
                 return false;
             }
+        } else if (strcmp(argument, "--save-compressed") == 0) {
+            if (options->save_path != NULL ||
+                !option_value(argc, argv, &index, &options->save_path)) {
+                return false;
+            }
+            options->save_compressed = true;
         } else if (strcmp(argument, "--export-strategy") == 0) {
             if (options->export_path != NULL ||
                 !option_value(argc, argv, &index, &options->export_path)) {
@@ -263,19 +279,23 @@ static bool elapsed_seconds(const struct timespec *start,
 
 static Status load_checkpoint(const char *path, const Game *game,
                               GameState *state, InfoStore *store,
-                              Trainer *trainer) {
+                              Trainer *trainer, bool compressed) {
     FILE *stream = fopen(path, "rb");
     Status status;
 
     if (stream == NULL)
         return CFR_STATUS_IO_ERROR;
-    status = cfr_checkpoint_read(stream, game, state, store, trainer);
+    status = compressed
+                 ? cfr_checkpoint_read_zstd(stream, game, state, store,
+                                            trainer)
+                 : cfr_checkpoint_read(stream, game, state, store, trainer);
     if (fclose(stream) != 0 && status == CFR_STATUS_SUCCESS)
         status = CFR_STATUS_IO_ERROR;
     return status;
 }
 
-static Status save_checkpoint(const char *path, const Trainer *trainer) {
+static Status save_checkpoint(const char *path, const Trainer *trainer,
+                              bool compressed) {
     const size_t length = strlen(path);
     char *temporary_path;
     FILE *stream = NULL;
@@ -307,7 +327,8 @@ static Status save_checkpoint(const char *path, const Trainer *trainer) {
         free(temporary_path);
         return CFR_STATUS_IO_ERROR;
     }
-    status = cfr_checkpoint_write(stream, trainer);
+    status = compressed ? cfr_checkpoint_write_zstd(stream, trainer)
+                        : cfr_checkpoint_write(stream, trainer);
     if (fclose(stream) != 0 && status == CFR_STATUS_SUCCESS)
         status = CFR_STATUS_IO_ERROR;
     if (status == CFR_STATUS_SUCCESS && rename(temporary_path, path) != 0)
@@ -406,7 +427,7 @@ static int run(const CliOptions *options) {
     game_state = mus_game_state_as_game_state(&state);
     if (options->load_path != NULL) {
         status = load_checkpoint(options->load_path, game, game_state, &store,
-                                 &trainer);
+                                 &trainer, options->load_compressed);
         if (status != CFR_STATUS_SUCCESS) {
             fprintf(stderr, "error: no se pudo cargar '%s': %s\n",
                     options->load_path, status_name(status));
@@ -457,7 +478,8 @@ static int run(const CliOptions *options) {
     }
 
     if (options->save_path != NULL) {
-        status = save_checkpoint(options->save_path, &trainer);
+        status = save_checkpoint(options->save_path, &trainer,
+                                 options->save_compressed);
         if (status != CFR_STATUS_SUCCESS) {
             fprintf(stderr, "error: no se pudo guardar '%s': %s\n",
                     options->save_path, status_name(status));

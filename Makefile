@@ -1,6 +1,8 @@
 CC ?= cc
 AR ?= ar
 
+LDLIBS += -lzstd
+
 CPPFLAGS += -Iinclude -IC-CFR/include -ISimulador-Mus/include
 ifneq ($(origin MUS_MAX_MUSES), undefined)
 CPPFLAGS += -DMUS_GAME_MAX_MUSES=$(MUS_MAX_MUSES)
