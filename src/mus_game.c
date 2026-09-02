@@ -145,6 +145,8 @@ static Status mus_trusted_legal_actions(const void *context,
                                         Action *actions, size_t capacity,
                                         size_t *required_count);
 static Status mus_trusted_undo_action(const void *context, GameState *state);
+static Status mus_ordago_trusted_undo_action(const void *context,
+                                             GameState *state);
 static Status mus_trusted_chance_probability(const void *context,
                                              const GameState *state,
                                              Action action,
@@ -185,6 +187,10 @@ static Status mus_ordago_trusted_apply_action(const void *context,
                                               Action action);
 static Status mus_ordago_trusted_information_set_key(
     const void *context, const GameState *state, InfoSetKey *result);
+static int compact_hand_code(const uint8_t hand[MUS_GAME_CLASS_COUNT]);
+static Status summarize_ordago_hand_codes(
+    const MusGameModel *model,
+    MusOrdagoHandCodes codes[MUS_GAME_PLAYER_COUNT]);
 
 static const GameOperations MUS_OPERATIONS = {
     .is_terminal = mus_is_terminal,
@@ -229,7 +235,7 @@ static const GameOperations MUS_ORDAGO_TRUSTED_OPERATIONS = {
     .current_actor = mus_trusted_current_actor,
     .legal_actions = mus_ordago_trusted_legal_actions,
     .apply_action = mus_ordago_trusted_apply_action,
-    .undo_action = mus_trusted_undo_action,
+    .undo_action = mus_ordago_trusted_undo_action,
     .chance_probability = mus_trusted_chance_probability,
     .information_set_key = mus_ordago_trusted_information_set_key,
     .chance_outcomes = mus_trusted_chance_outcomes,
@@ -1127,6 +1133,26 @@ static Status validate_hand_summaries(
     return CFR_STATUS_SUCCESS;
 }
 
+static bool ordago_hand_codes_are_equal(const MusOrdagoHandCodes *left,
+                                        const MusOrdagoHandCodes *right) {
+    return left->exact == right->exact && left->grande == right->grande &&
+           left->chica == right->chica && left->pairs == right->pairs;
+}
+
+static Status validate_ordago_hand_codes(
+    const MusGameModel *model,
+    const MusOrdagoHandCodes codes[MUS_GAME_PLAYER_COUNT]) {
+    MusOrdagoHandCodes expected[MUS_GAME_PLAYER_COUNT];
+
+    if (summarize_ordago_hand_codes(model, expected) != CFR_STATUS_SUCCESS)
+        return CFR_STATUS_INVALID_ARGUMENT;
+    for (int player = 0; player < MUS_GAME_PLAYER_COUNT; player += 1) {
+        if (!ordago_hand_codes_are_equal(&codes[player], &expected[player]))
+            return CFR_STATUS_INVALID_ARGUMENT;
+    }
+    return CFR_STATUS_SUCCESS;
+}
+
 static Status validate_state_data(const MusGameState *state,
                                   const MusGameFormat *format) {
     Status status;
@@ -1137,6 +1163,12 @@ static Status validate_state_data(const MusGameState *state,
     if (status != CFR_STATUS_SUCCESS || phase_is_deal(state->model.phase) ||
         phase_is_discard(state->model.phase))
         return status;
+    if (format->ordago_with_mus) {
+        status = validate_ordago_hand_codes(&state->model,
+                                            state->ordago_hand_codes);
+        if (status != CFR_STATUS_SUCCESS)
+            return status;
+    }
     return validate_hand_summaries(&state->model, state->hand_summaries);
 }
 
@@ -1970,6 +2002,7 @@ static Status apply_action_to_state(MusGameState *mus, Action action,
                                     const MusGameFormat *format) {
     MusGameModel temporary;
     MusHandSummary completed_summaries[MUS_GAME_PLAYER_COUNT];
+    MusOrdagoHandCodes completed_codes[MUS_GAME_PLAYER_COUNT];
     const MusHandSummary *active_summaries;
     bool completed_deal;
     Status status;
@@ -1990,6 +2023,12 @@ static Status apply_action_to_state(MusGameState *mus, Action action,
         status = summarize_hands(&temporary, completed_summaries);
         if (status != CFR_STATUS_SUCCESS)
             return status;
+        if (format->ordago_with_mus) {
+            status = summarize_ordago_hand_codes(&temporary,
+                                                 completed_codes);
+            if (status != CFR_STATUS_SUCCESS)
+                return status;
+        }
         active_summaries = completed_summaries;
     }
     status = validate_model(&temporary, format);
@@ -2007,6 +2046,10 @@ static Status apply_action_to_state(MusGameState *mus, Action action,
     if (completed_deal) {
         memcpy(mus->hand_summaries, completed_summaries,
                sizeof(completed_summaries));
+        if (format->ordago_with_mus) {
+            memcpy(mus->ordago_hand_codes, completed_codes,
+                   sizeof(completed_codes));
+        }
     }
     return CFR_STATUS_SUCCESS;
 }
@@ -2048,6 +2091,52 @@ static Status apply_trusted_action_to_state(MusGameState *mus, Action action,
     return CFR_STATUS_SUCCESS;
 }
 
+static Status apply_ordago_trusted_action_to_state(MusGameState *mus,
+                                                    Action action) {
+    MusHandSummary completed_summaries[MUS_GAME_PLAYER_COUNT];
+    MusOrdagoHandCodes completed_codes[MUS_GAME_PLAYER_COUNT];
+    MusGameModel *undo_model;
+    bool completed_deal;
+    Status status;
+
+    if (mus == NULL)
+        return CFR_STATUS_INVALID_ARGUMENT;
+    if (mus->undo_count >= MUS_GAME_UNDO_CAPACITY)
+        return CFR_STATUS_BUFFER_TOO_SMALL;
+
+    undo_model = &mus->undo_history[mus->undo_count];
+    *undo_model = mus->model;
+    memcpy(mus->undo_hand_summaries[mus->undo_count],
+           mus->hand_summaries, sizeof(mus->hand_summaries));
+    status = apply_to_model(&mus->model, &MUS_ORDAGO_FORMAT, action,
+                            mus->hand_summaries);
+    if (status != CFR_STATUS_SUCCESS) {
+        mus->model = *undo_model;
+        return status;
+    }
+    completed_deal = phase_is_deal(undo_model->phase) &&
+                     !phase_is_deal(mus->model.phase);
+    if (completed_deal) {
+        status = summarize_hands(&mus->model, completed_summaries);
+        if (status != CFR_STATUS_SUCCESS) {
+            mus->model = *undo_model;
+            return status;
+        }
+        status = summarize_ordago_hand_codes(&mus->model,
+                                             completed_codes);
+        if (status != CFR_STATUS_SUCCESS) {
+            mus->model = *undo_model;
+            return status;
+        }
+        memcpy(mus->hand_summaries, completed_summaries,
+               sizeof(completed_summaries));
+        memcpy(mus->ordago_hand_codes, completed_codes,
+               sizeof(completed_codes));
+    }
+    mus->undo_count += 1;
+    return CFR_STATUS_SUCCESS;
+}
+
 static Status mus_apply_action(const void *context, GameState *state,
                                Action action) {
     MusGameState *mus = as_mus(state);
@@ -2078,17 +2167,18 @@ static Status mus_ordago_trusted_apply_action(const void *context,
                                               GameState *state,
                                               Action action) {
     (void)context;
-    return apply_trusted_action_to_state(as_mus(state), action,
-                                         &MUS_ORDAGO_FORMAT);
+    return apply_ordago_trusted_action_to_state(as_mus(state), action);
 }
 
 static Status mus_undo_action(const void *context, GameState *state) {
     MusGameState *mus = as_mus(state);
+    const MusGameFormat *format = game_format(context);
 
-    if (validate_state_data(mus, game_format(context)) !=
-        CFR_STATUS_SUCCESS) {
+    if (validate_state_data(mus, format) != CFR_STATUS_SUCCESS) {
         return CFR_STATUS_INVALID_ARGUMENT;
     }
+    if (format->ordago_with_mus)
+        return mus_ordago_trusted_undo_action(context, state);
     return mus_trusted_undo_action(context, state);
 }
 
@@ -2105,6 +2195,30 @@ static Status mus_trusted_undo_action(const void *context, GameState *state) {
     memcpy(mus->hand_summaries,
            mus->undo_hand_summaries[mus->undo_count],
            sizeof(mus->hand_summaries));
+    return CFR_STATUS_SUCCESS;
+}
+
+static Status mus_ordago_trusted_undo_action(const void *context,
+                                             GameState *state) {
+    MusGameState *mus = as_mus(state);
+    Status status = mus_trusted_undo_action(context, state);
+
+    if (status != CFR_STATUS_SUCCESS)
+        return status;
+    if (phase_is_mus_decision(mus->model.phase) ||
+        mus->model.phase == MUS_PHASE_DISCARD_PLAYER_0) {
+        status = summarize_ordago_hand_codes(&mus->model,
+                                             mus->ordago_hand_codes);
+    } else if (mus->model.phase == MUS_PHASE_DISCARD_PLAYER_1) {
+        const int player = mus->model.current_player;
+        const int exact = compact_hand_code(mus->model.hands[player]);
+
+        if (exact < 0)
+            return CFR_STATUS_INVALID_ARGUMENT;
+        mus->ordago_hand_codes[player].exact = (int16_t)exact;
+    }
+    if (status != CFR_STATUS_SUCCESS)
+        return CFR_STATUS_INVALID_ARGUMENT;
     return CFR_STATUS_SUCCESS;
 }
 
@@ -2380,29 +2494,47 @@ static int pairs_hand_code(const uint8_t hand[MUS_GAME_CLASS_COUNT]) {
     return first_pair;
 }
 
-static int ordago_hand_code(const MusGameModel *model) {
-    const uint8_t *hand = model->hands[model->current_player];
-    int point_value = 0;
+static Status summarize_ordago_hand_codes(
+    const MusGameModel *model,
+    MusOrdagoHandCodes codes[MUS_GAME_PLAYER_COUNT]) {
+    if (model == NULL || codes == NULL)
+        return CFR_STATUS_INVALID_ARGUMENT;
+    for (int player = 0; player < MUS_GAME_PLAYER_COUNT; player += 1) {
+        const uint8_t *hand = model->hands[player];
+        const int exact = compact_hand_code(hand);
+        const int grande = grande_hand_code(hand);
+        const int chica = chica_hand_code(hand);
+        const int pairs = pairs_hand_code(hand);
+
+        if (exact < 0 || grande < 0 || chica < 0)
+            return CFR_STATUS_INVALID_ARGUMENT;
+        codes[player].exact = (int16_t)exact;
+        codes[player].grande = (int8_t)grande;
+        codes[player].chica = (int8_t)chica;
+        codes[player].pairs = (int8_t)pairs;
+    }
+    return CFR_STATUS_SUCCESS;
+}
+
+static int ordago_hand_code(const MusGameModel *model,
+                            const MusOrdagoHandCodes *codes,
+                            const MusHandSummary *summary) {
 
     if (phase_is_mus_decision(model->phase) ||
         phase_is_discard(model->phase)) {
-        return compact_hand_code(hand);
+        return codes->exact;
     }
     if (model->phase == MUS_PHASE_GRANDE)
-        return grande_hand_code(hand);
+        return codes->grande;
     if (model->phase == MUS_PHASE_CHICA)
-        return chica_hand_code(hand);
+        return codes->chica;
     if (model->phase == MUS_PHASE_PARES)
-        return pairs_hand_code(hand);
-    for (int card_class = MUS_CLASS_PITOS; card_class <= MUS_CLASS_KINGS;
-         card_class += 1) {
-        point_value += hand[card_class] * POINT_VALUES[card_class];
-    }
+        return codes->pairs;
     if (model->phase == MUS_PHASE_JUEGO)
-        return game_key(point_value);
-    if (model->phase == MUS_PHASE_PUNTO && point_value >= 4 &&
-        point_value <= 30) {
-        return point_value - 4;
+        return summary->game_key;
+    if (model->phase == MUS_PHASE_PUNTO && summary->point_value >= 4 &&
+        summary->point_value <= 30) {
+        return summary->point_value - 4;
     }
     return -1;
 }
@@ -2485,10 +2617,14 @@ static int ordago_strength_radix(int lance) {
     return lance == 2 ? 7 : 4;
 }
 
-static Status ordago_information_set_key(const MusGameModel *model,
-                                         InfoSetKey *result) {
+static Status ordago_information_set_key(
+    const MusGameModel *model, const MusHandSummary *summaries,
+    const MusOrdagoHandCodes *codes, InfoSetKey *result) {
     const int situation = ordago_situation_code(model);
-    const int hand = ordago_hand_code(model);
+    const int current_player_index = model->current_player;
+    const int hand =
+        ordago_hand_code(model, &codes[current_player_index],
+                         &summaries[current_player_index]);
     const int hand_radix = ordago_hand_radix(model->phase);
     InfoSetKey key;
 
@@ -2589,7 +2725,8 @@ static Status mus_trusted_information_set_key(const void *context,
     }
     model = &mus->model;
     if (format->ordago_with_mus)
-        return ordago_information_set_key(model, result);
+        return ordago_information_set_key(model, mus->hand_summaries,
+                                          mus->ordago_hand_codes, result);
     phase_code = information_phase_code(model->phase);
     if (phase_code < 0)
         return CFR_STATUS_INVALID_ARGUMENT;
@@ -2672,7 +2809,8 @@ static Status mus_ordago_trusted_information_set_key(
     (void)context;
     if (mus == NULL)
         return CFR_STATUS_INVALID_ARGUMENT;
-    return ordago_information_set_key(&mus->model, result);
+    return ordago_information_set_key(&mus->model, mus->hand_summaries,
+                                      mus->ordago_hand_codes, result);
 }
 
 static Status mus_validate_state(const void *context, const GameState *state) {

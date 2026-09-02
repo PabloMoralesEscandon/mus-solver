@@ -177,8 +177,16 @@ typedef struct {
 } MusHandSummary;
 
 typedef struct {
+    int16_t exact;
+    int8_t grande;
+    int8_t chica;
+    int8_t pairs;
+} MusOrdagoHandCodes;
+
+typedef struct {
     MusGameModel model;
     MusHandSummary hand_summaries[MUS_GAME_PLAYER_COUNT];
+    MusOrdagoHandCodes ordago_hand_codes[MUS_GAME_PLAYER_COUNT];
     MusGameModel undo_history[MUS_GAME_UNDO_CAPACITY];
     MusHandSummary undo_hand_summaries[MUS_GAME_UNDO_CAPACITY]
                                            [MUS_GAME_PLAYER_COUNT];
