@@ -16,6 +16,11 @@
 
 enum { EXIT_RUNTIME_ERROR = 1, EXIT_USAGE_ERROR = 2 };
 
+enum {
+    ORDAGO_INFORMATION_SETS_PER_ITERATION = 12000,
+    ORDAGO_AUTOMATIC_RESERVE_ITERATION_LIMIT = 1000
+};
+
 typedef enum {
     CLI_FORMAT_SINGLE_BET,
     CLI_FORMAT_RAISES_TO_EIGHT,
@@ -64,7 +69,8 @@ static bool print_usage(FILE *stream, const char *program) {
                "  --format FORMAT        single-bet (por defecto) o "
                "raises-to-eight u ordago.\n"
                "  --reserve-information-sets N\n"
-               "                          Reserva capacidad para N conjuntos.\n"
+               "                          Sustituye la reserva automatica de "
+               "ordago.\n"
                "  --load FILE            Carga un checkpoint reanudable.\n"
                "  --save FILE            Guarda el checkpoint tras entrenar.\n"
                "  --evaluate             Evalua la estrategia media; ordago usa "
@@ -230,6 +236,20 @@ static const char *status_name(Status status) {
         return "incompatible game";
     }
     return "unknown error";
+}
+
+static size_t automatic_information_set_reservation(
+    const CliOptions *options) {
+    if (options->format != CLI_FORMAT_ORDAGO ||
+        !options->iterations_set || options->load_path != NULL) {
+        return 0;
+    }
+    const size_t iterations =
+        options->iterations < ORDAGO_AUTOMATIC_RESERVE_ITERATION_LIMIT
+            ? options->iterations
+            : ORDAGO_AUTOMATIC_RESERVE_ITERATION_LIMIT;
+
+    return iterations * ORDAGO_INFORMATION_SETS_PER_ITERATION;
 }
 
 static bool elapsed_seconds(const struct timespec *start,
@@ -403,9 +423,12 @@ static int run(const CliOptions *options) {
         if (status != CFR_STATUS_SUCCESS)
             goto runtime_error;
     }
-    if (options->reserve_information_sets_set) {
-        status = cfr_info_store_reserve(&store,
-                                        options->reserve_information_sets);
+    const size_t reservation = options->reserve_information_sets_set
+                                   ? options->reserve_information_sets
+                                   : automatic_information_set_reservation(
+                                         options);
+    if (reservation > 0) {
+        status = cfr_info_store_reserve(&store, reservation);
         if (status != CFR_STATUS_SUCCESS)
             goto runtime_error;
     }
