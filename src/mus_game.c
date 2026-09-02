@@ -1858,21 +1858,21 @@ static bool player_action_is_legal(const MusGameModel *model,
                                    const MusGameFormat *format,
                                    Action action) {
     if (format != NULL && format->ordago_with_mus) {
-        Action actions[7];
-        size_t action_count = 0;
+        const uint8_t amount = ordago_wager_for_action(action);
+        const int prior_wager_total = ordago_prior_wager_total(model);
 
-        if (collect_ordago_betting_actions(
-                model->bet_stage, ordago_prior_wager_total(model),
-                model->current_wager, model->previous_wager,
-                model->current_wager_is_ordago, actions, 7,
-                &action_count) != CFR_STATUS_SUCCESS) {
-            return false;
+        if (model->bet_stage == MUS_BET_RESPONSE) {
+            return action == MUS_ACTION_REJECT ||
+                   action == MUS_ACTION_ACCEPT ||
+                   (!model->current_wager_is_ordago &&
+                    (action == MUS_ACTION_ORDAGO ||
+                     ordago_response_increment_is_legal(
+                         prior_wager_total, model->current_wager,
+                         model->previous_wager, amount)));
         }
-        for (size_t index = 0; index < action_count; index += 1) {
-            if (actions[index] == action)
-                return true;
-        }
-        return false;
+        return action == MUS_ACTION_PASS || action == MUS_ACTION_ORDAGO ||
+               (ordago_increment_is_valid(amount) &&
+                prior_wager_total + amount <= MUS_ORDAGO_WAGER);
     }
     if (model->bet_stage == MUS_BET_RESPONSE) {
         return action == MUS_ACTION_REJECT || action == MUS_ACTION_ACCEPT ||
