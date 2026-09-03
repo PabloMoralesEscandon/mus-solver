@@ -102,6 +102,14 @@ grep -q 'envidar_' "$tmp_dir/ordago-strategy.txt"
 grep -q 'ordago=' "$tmp_dir/ordago-strategy.txt"
 grep -q 'cambiar_' "$tmp_dir/ordago-strategy.txt"
 
+# Exercises repeated hidden histories while another worker updates their
+# shared information sets. C-CFR must retain one strategy snapshot per
+# traversal instead of mixing a cached action with a later distribution.
+"$solver" --format ordago --iterations 10 --threads 2 --seed 0 \
+    --report-every 10 >"$tmp_dir/ordago-concurrent-snapshot.out"
+grep -q 'report iterations=10 threads=2' \
+    "$tmp_dir/ordago-concurrent-snapshot.out"
+
 "$solver" --format ordago --load "$tmp_dir/ordago.cfr" --evaluate \
     >"$tmp_dir/ordago-evaluate.out"
 grep -q 'evaluation scope=bounded-final-lances iterations=2' \
