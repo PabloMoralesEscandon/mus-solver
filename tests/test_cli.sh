@@ -7,6 +7,7 @@ trap 'rm -rf -- "$tmp_dir"' EXIT HUP INT TERM
 
 "$solver" --help >"$tmp_dir/help.txt"
 grep -q -- '--iterations N' "$tmp_dir/help.txt"
+grep -q -- '--threads N' "$tmp_dir/help.txt"
 grep -q -- '--evaluate' "$tmp_dir/help.txt"
 grep -q -- '--format FORMAT' "$tmp_dir/help.txt"
 grep -q -- '--reserve-information-sets N' "$tmp_dir/help.txt"
@@ -26,6 +27,16 @@ if "$solver" --iterations 0 >"$tmp_dir/zero.out" 2>"$tmp_dir/zero.err"; then
     echo "--iterations 0 debio fallar" >&2
     exit 1
 fi
+if "$solver" --iterations 1 --threads 0 \
+    >"$tmp_dir/zero-threads.out" 2>"$tmp_dir/zero-threads.err"; then
+    echo "--threads 0 debio fallar" >&2
+    exit 1
+fi
+if "$solver" --evaluate --threads 2 \
+    >"$tmp_dir/evaluate-threads.out" 2>"$tmp_dir/evaluate-threads.err"; then
+    echo "--threads sin entrenamiento debio fallar" >&2
+    exit 1
+fi
 if "$solver" --iterations 1 --reserve-information-sets 0 \
     >"$tmp_dir/zero-reserve.out" 2>"$tmp_dir/zero-reserve.err"; then
     echo "--reserve-information-sets 0 debio fallar" >&2
@@ -40,16 +51,30 @@ fi
     --export-strategy "$tmp_dir/strategy.txt" >"$tmp_dir/continuous.out"
 "$solver" --iterations 20 --seed 7 --reserve-information-sets 64 \
     --save "$tmp_dir/reserved.cfr" >"$tmp_dir/reserved.out"
+"$solver" --iterations 20 --threads 1 --seed 7 \
+    --save "$tmp_dir/one-thread.cfr" >"$tmp_dir/one-thread.out"
 "$solver" --iterations 20 --seed 7 \
     --save-compressed "$tmp_dir/continuous.cfr.zst" \
     >"$tmp_dir/compressed.out"
 
 cmp "$tmp_dir/resumed.cfr" "$tmp_dir/continuous.cfr"
 cmp "$tmp_dir/reserved.cfr" "$tmp_dir/continuous.cfr"
+cmp "$tmp_dir/one-thread.cfr" "$tmp_dir/continuous.cfr"
 grep -q 'report iterations=20' "$tmp_dir/continuous.out"
 grep -q 'mus-strategy version=1' "$tmp_dir/strategy.txt"
 grep -q 'posicion=' "$tmp_dir/strategy.txt"
 grep -q 'pasar=' "$tmp_dir/strategy.txt"
+
+"$solver" --iterations 12 --threads 3 --report-every 4 --seed 17 \
+    --save "$tmp_dir/parallel.cfr" >"$tmp_dir/parallel.out"
+grep -q 'report iterations=12 threads=3' "$tmp_dir/parallel.out"
+"$solver" --load "$tmp_dir/parallel.cfr" --iterations 5 --threads 2 \
+    --save "$tmp_dir/parallel-resumed.cfr" \
+    >"$tmp_dir/parallel-resumed.out"
+grep -q 'report iterations=17 threads=2' "$tmp_dir/parallel-resumed.out"
+"$solver" --load "$tmp_dir/parallel-resumed.cfr" \
+    --export-strategy "$tmp_dir/parallel-strategy.txt"
+grep -q 'training_iterations=17' "$tmp_dir/parallel-strategy.txt"
 
 "$solver" --load "$tmp_dir/continuous.cfr" \
     --export-strategy "$tmp_dir/loaded-strategy.txt"
@@ -66,7 +91,7 @@ grep -q 'schema=mus.heads-up-single-hand.raises-to-eight/v1' \
     "$tmp_dir/raises-strategy.txt"
 grep -Eq 'subir_a_(4|8)=' "$tmp_dir/raises-strategy.txt"
 
-"$solver" --format ordago --iterations 2 --seed 13 \
+"$solver" --format ordago --iterations 2 --threads 2 --seed 13 \
     --save "$tmp_dir/ordago.cfr" \
     --export-strategy "$tmp_dir/ordago-strategy.txt" \
     >"$tmp_dir/ordago.out"

@@ -14,6 +14,7 @@ RELEASE_FLAGS := -O2 $(RELEASE_LTO_FLAGS)
 RELEASE_LINK_FLAGS := $(RELEASE_LTO_FLAGS)
 DEBUG_FLAGS := -O0 -g3
 DEPENDENCY_FLAGS := -MMD -MP
+THREAD_FLAGS ?= -pthread
 
 BUILD_DIR := build
 CFR_BUILD_DIR ?= build
@@ -46,7 +47,8 @@ DEPENDENCY_FILES := $(RELEASE_OBJECTS:.o=.d) $(DEBUG_OBJECTS:.o=.d) \
 	$(RELEASE_APP_OBJECT:.o=.d) $(DEBUG_APP_OBJECT:.o=.d) \
 	$(DEBUG_TEST_OBJECT:.o=.d)
 
-.PHONY: all lto debug test test-sanitize dependencies cfr-release cfr-debug clean
+.PHONY: all lto debug test test-tsan test-sanitize dependencies cfr-release \
+	cfr-debug clean
 
 all: $(RELEASE_BINARY)
 
@@ -59,6 +61,12 @@ debug: $(DEBUG_BINARY) $(TEST_BINARY)
 test: $(TEST_BINARY) $(DEBUG_BINARY)
 	./$(TEST_BINARY)
 	./tests/test_cli.sh ./$(DEBUG_BINARY)
+
+test-tsan:
+	$(MAKE) BUILD_DIR=$(BUILD_DIR)/test-tsan \
+		CFR_BUILD_DIR=$(CFR_BUILD_DIR)/test-tsan \
+		CFLAGS='$(CFLAGS) -fsanitize=thread -fno-omit-frame-pointer' \
+		LDFLAGS='$(LDFLAGS) -fsanitize=thread' test
 
 test-sanitize:
 	$(MAKE) BUILD_DIR=$(BUILD_DIR)/sanitize \
@@ -90,11 +98,12 @@ $(DEBUG_LIBRARY): $(DEBUG_OBJECTS)
 
 $(RELEASE_BINARY): $(RELEASE_APP_OBJECT) $(RELEASE_LIBRARY) \
 		cfr-release
-	$(CC) $(LDFLAGS) $(RELEASE_LINK_FLAGS) $(RELEASE_APP_OBJECT) $(RELEASE_LIBRARY) \
-		$(RELEASE_CFR_LIBRARY) $(LDLIBS) -o $@
+	$(CC) $(LDFLAGS) $(RELEASE_LINK_FLAGS) $(THREAD_FLAGS) \
+		$(RELEASE_APP_OBJECT) $(RELEASE_LIBRARY) $(RELEASE_CFR_LIBRARY) \
+		$(LDLIBS) -o $@
 
 $(DEBUG_BINARY): $(DEBUG_APP_OBJECT) $(DEBUG_LIBRARY) cfr-debug
-	$(CC) $(LDFLAGS) $(DEBUG_APP_OBJECT) $(DEBUG_LIBRARY) \
+	$(CC) $(LDFLAGS) $(THREAD_FLAGS) $(DEBUG_APP_OBJECT) $(DEBUG_LIBRARY) \
 		$(DEBUG_CFR_LIBRARY) $(LDLIBS) -o $@
 
 $(TEST_BINARY): $(DEBUG_TEST_OBJECT) $(DEBUG_LIBRARY) cfr-debug
@@ -103,12 +112,12 @@ $(TEST_BINARY): $(DEBUG_TEST_OBJECT) $(DEBUG_LIBRARY) cfr-debug
 
 $(RELEASE_DIR)/%.o: %.c
 	@mkdir -p $(dir $@)
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(C_STANDARD) $(WARNINGS) \
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(THREAD_FLAGS) $(C_STANDARD) $(WARNINGS) \
 		$(RELEASE_FLAGS) $(DEPENDENCY_FLAGS) -c $< -o $@
 
 $(DEBUG_DIR)/%.o: %.c
 	@mkdir -p $(dir $@)
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(C_STANDARD) $(WARNINGS) \
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(THREAD_FLAGS) $(C_STANDARD) $(WARNINGS) \
 		$(DEBUG_FLAGS) $(DEPENDENCY_FLAGS) -c $< -o $@
 
 clean:

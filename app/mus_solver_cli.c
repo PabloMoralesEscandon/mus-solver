@@ -1,7 +1,10 @@
 #include <errno.h>
 #include <inttypes.h>
+#include <pthread.h>
+#include <sched.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -31,6 +34,7 @@ typedef struct {
     size_t iterations;
     size_t report_every;
     size_t reserve_information_sets;
+    size_t threads;
     uint64_t seed;
     const char *load_path;
     const char *save_path;
@@ -39,6 +43,7 @@ typedef struct {
     bool iterations_set;
     bool report_every_set;
     bool reserve_information_sets_set;
+    bool threads_set;
     bool seed_set;
     bool format_set;
     bool load_compressed;
@@ -52,10 +57,12 @@ static bool print_usage(FILE *stream, const char *program) {
                stream,
                "Uso:\n"
                "  %s --iterations N [--seed N] [--report-every N] "
+               "[--threads N] "
                "[--format FORMAT] [--reserve-information-sets N] "
                "[--save FILE]\n"
                "     [--evaluate] [--export-strategy FILE]\n"
                "  %s --load FILE --iterations N [--report-every N] "
+               "[--threads N] "
                "[--format FORMAT] [--save FILE]\n"
                "     [--evaluate] [--export-strategy FILE]\n"
                "  %s [--format FORMAT] [--load FILE] --evaluate "
@@ -66,6 +73,7 @@ static bool print_usage(FILE *stream, const char *program) {
                "Opciones:\n"
                "  --iterations N         Iteraciones MCCFR nuevas.\n"
                "  --report-every N       Frecuencia de informes de entrenamiento.\n"
+               "  --threads N            Hilos de entrenamiento (1 por defecto).\n"
                "  --seed N               Semilla de un entrenamiento nuevo (0 por "
                "defecto).\n"
                "  --format FORMAT        single-bet (por defecto) o "
@@ -125,7 +133,7 @@ static bool option_value(int argc, char *argv[], int *index,
 }
 
 static bool parse_options(int argc, char *argv[], CliOptions *options) {
-    *options = (CliOptions){0};
+    *options = (CliOptions){.threads = 1};
     for (int index = 1; index < argc; index += 1) {
         const char *argument = argv[index];
         const char *value = NULL;
@@ -146,6 +154,13 @@ static bool parse_options(int argc, char *argv[], CliOptions *options) {
                 return false;
             }
             options->report_every_set = true;
+        } else if (strcmp(argument, "--threads") == 0) {
+            if (options->threads_set ||
+                !option_value(argc, argv, &index, &value) ||
+                !parse_size(value, &options->threads)) {
+                return false;
+            }
+            options->threads_set = true;
         } else if (strcmp(argument, "--seed") == 0) {
             if (options->seed_set ||
                 !option_value(argc, argv, &index, &value) ||
@@ -215,8 +230,10 @@ static bool parse_options(int argc, char *argv[], CliOptions *options) {
     if (!options->iterations_set && !options->evaluate &&
         !(options->load_path != NULL && options->export_path != NULL))
         return false;
-    if (options->report_every_set && !options->iterations_set)
+    if ((options->report_every_set || options->threads_set) &&
+        !options->iterations_set) {
         return false;
+    }
     if (options->seed_set && options->load_path != NULL)
         return false;
     if (options->save_path != NULL && !options->iterations_set)
@@ -275,6 +292,137 @@ static bool elapsed_seconds(const struct timespec *start,
 
     *seconds_out = (double)seconds + (double)nanoseconds / 1000000000.0;
     return *seconds_out >= 0.0;
+}
+
+static size_t saturated_add(size_t left, size_t right) {
+    return left > SIZE_MAX - right ? SIZE_MAX : left + right;
+}
+
+static bool aggregate_trainers(const Trainer *trainers, size_t thread_count,
+                               size_t *training_iterations_out,
+                               TrainerStats *stats_out) {
+    size_t training_iterations = 0;
+    TrainerStats total = {0};
+
+    if (trainers == NULL || thread_count == 0 ||
+        training_iterations_out == NULL || stats_out == NULL) {
+        return false;
+    }
+    for (size_t index = 0; index < thread_count; index += 1) {
+        TrainerStats current;
+
+        if (cfr_trainer_get_stats(&trainers[index], &current) !=
+            CFR_STATUS_SUCCESS) {
+            return false;
+        }
+        training_iterations = saturated_add(
+            training_iterations, trainers[index].training_iterations);
+        total.iterations = saturated_add(total.iterations, current.iterations);
+        total.traversals =
+            saturated_add(total.traversals, current.traversals);
+        total.visited_nodes =
+            saturated_add(total.visited_nodes, current.visited_nodes);
+        total.errors = saturated_add(total.errors, current.errors);
+    }
+    *training_iterations_out = training_iterations;
+    *stats_out = total;
+    return true;
+}
+
+static uint64_t parallel_worker_seed(uint64_t base_seed,
+                                     size_t worker_index) {
+    uint64_t value =
+        base_seed + UINT64_C(0x9e3779b97f4a7c15) * (uint64_t)worker_index;
+
+    value = (value ^ (value >> 30)) * UINT64_C(0xbf58476d1ce4e5b9);
+    value = (value ^ (value >> 27)) * UINT64_C(0x94d049bb133111eb);
+    return value ^ (value >> 31);
+}
+
+typedef struct {
+    atomic_bool *start;
+    atomic_bool *cancel;
+    Trainer *trainer;
+    size_t iterations;
+    Status status;
+} TrainingWorker;
+
+static void *run_training_worker(void *raw_worker) {
+    TrainingWorker *worker = raw_worker;
+
+    while (!atomic_load_explicit(worker->start, memory_order_acquire))
+        (void)sched_yield();
+    if (!atomic_load_explicit(worker->cancel, memory_order_acquire)) {
+        worker->status =
+            cfr_trainer_run(worker->trainer, worker->iterations);
+    }
+    return NULL;
+}
+
+/*
+ * Runs one reporting block. The main thread handles worker zero while each
+ * remaining active worker owns one pthread. A start gate prevents a partial
+ * pthread_create failure from applying only part of the requested block.
+ */
+static int run_training_block(Trainer *trainers, size_t thread_count,
+                              size_t iterations, pthread_t *thread_handles,
+                              TrainingWorker *workers, Status *status_out) {
+    atomic_bool start;
+    atomic_bool cancel;
+    const size_t active_count =
+        thread_count < iterations ? thread_count : iterations;
+    const size_t iterations_per_worker = iterations / active_count;
+    const size_t extra_iterations = iterations % active_count;
+    size_t created = 0;
+    int thread_error = 0;
+
+    if (trainers == NULL || thread_count == 0 || iterations == 0 ||
+        workers == NULL || status_out == NULL ||
+        (active_count > 1 && thread_handles == NULL)) {
+        return EINVAL;
+    }
+    atomic_init(&start, false);
+    atomic_init(&cancel, false);
+    for (size_t index = 0; index < active_count; index += 1) {
+        workers[index] = (TrainingWorker){
+            .start = &start,
+            .cancel = &cancel,
+            .trainer = &trainers[index],
+            .iterations = iterations_per_worker +
+                          (index < extra_iterations ? 1 : 0),
+            .status = CFR_STATUS_SUCCESS,
+        };
+    }
+    for (size_t index = 1; index < active_count; index += 1) {
+        thread_error = pthread_create(&thread_handles[index - 1], NULL,
+                                      run_training_worker, &workers[index]);
+        if (thread_error != 0)
+            break;
+        created += 1;
+    }
+    if (thread_error != 0)
+        atomic_store_explicit(&cancel, true, memory_order_release);
+    atomic_store_explicit(&start, true, memory_order_release);
+    if (thread_error == 0) {
+        workers[0].status =
+            cfr_trainer_run(workers[0].trainer, workers[0].iterations);
+    }
+    for (size_t index = 0; index < created; index += 1) {
+        const int join_error = pthread_join(thread_handles[index], NULL);
+
+        if (thread_error == 0 && join_error != 0)
+            thread_error = join_error;
+    }
+    if (thread_error != 0)
+        return thread_error;
+    *status_out = CFR_STATUS_SUCCESS;
+    for (size_t index = 0; index < active_count; index += 1) {
+        if (workers[index].status != CFR_STATUS_SUCCESS) {
+            *status_out = workers[index].status;
+            break;
+        }
+    }
+    return 0;
 }
 
 static Status load_checkpoint(const char *path, const Game *game,
@@ -360,22 +508,25 @@ static Status export_strategy(const char *path, const Trainer *trainer,
     return status;
 }
 
-static bool print_report(const Trainer *trainer, const InfoStore *store,
+static bool print_report(const Trainer *trainers, size_t thread_count,
+                         const InfoStore *store,
                          const struct timespec *start) {
     TrainerStats trainer_stats;
     InfoStoreStats store_stats;
     struct timespec now;
+    size_t training_iterations;
     double seconds;
 
-    if (cfr_trainer_get_stats(trainer, &trainer_stats) != CFR_STATUS_SUCCESS ||
+    if (!aggregate_trainers(trainers, thread_count, &training_iterations,
+                            &trainer_stats) ||
         cfr_info_store_get_stats(store, &store_stats) != CFR_STATUS_SUCCESS ||
         timespec_get(&now, TIME_UTC) != TIME_UTC ||
         !elapsed_seconds(start, &now, &seconds)) {
         return false;
     }
-    return printf("report iterations=%zu information_sets=%zu traversals=%zu "
-                  "visited_nodes=%zu seconds=%.6f\n",
-                  trainer->training_iterations, store_stats.size,
+    return printf("report iterations=%zu threads=%zu information_sets=%zu "
+                  "traversals=%zu visited_nodes=%zu seconds=%.6f\n",
+                  training_iterations, thread_count, store_stats.size,
                   trainer_stats.traversals, trainer_stats.visited_nodes,
                   seconds) >= 0;
 }
@@ -402,32 +553,51 @@ static bool print_evaluation(size_t iterations, CliFormat format,
 }
 
 static int run(const CliOptions *options) {
-    MusGameState state;
+    MusGameState *states = NULL;
     InfoStore store = {0};
-    Trainer trainer = {0};
+    Trainer *trainers = NULL;
+    TrainingWorker *workers = NULL;
+    pthread_t *thread_handles = NULL;
     const Game *game;
-    GameState *game_state;
     bool store_initialized = false;
     int result = EXIT_RUNTIME_ERROR;
     Status status;
 
     if (options->format == CLI_FORMAT_RAISES_TO_EIGHT) {
         game = mus_raises_to_eight_game_descriptor();
-        status = mus_raises_to_eight_game_state_init(&state);
     } else if (options->format == CLI_FORMAT_ORDAGO) {
         game = mus_ordago_game_descriptor();
-        status = mus_ordago_game_state_init(&state);
     } else {
         game = mus_single_bet_game_descriptor();
-        status = mus_single_bet_game_state_init(&state);
     }
-
-    if (status != CFR_STATUS_SUCCESS)
-        goto cleanup;
-    game_state = mus_game_state_as_game_state(&state);
+    states = calloc(options->threads, sizeof(*states));
+    trainers = calloc(options->threads, sizeof(*trainers));
+    workers = calloc(options->threads, sizeof(*workers));
+    if (options->threads > 1) {
+        thread_handles =
+            calloc(options->threads - 1, sizeof(*thread_handles));
+    }
+    if (states == NULL || trainers == NULL || workers == NULL ||
+        (options->threads > 1 && thread_handles == NULL)) {
+        status = CFR_STATUS_OUT_OF_MEMORY;
+        goto runtime_error;
+    }
+    for (size_t index = 0; index < options->threads; index += 1) {
+        if (options->format == CLI_FORMAT_RAISES_TO_EIGHT) {
+            status = mus_raises_to_eight_game_state_init(&states[index]);
+        } else if (options->format == CLI_FORMAT_ORDAGO) {
+            status = mus_ordago_game_state_init(&states[index]);
+        } else {
+            status = mus_single_bet_game_state_init(&states[index]);
+        }
+        if (status != CFR_STATUS_SUCCESS)
+            goto runtime_error;
+    }
     if (options->load_path != NULL) {
-        status = load_checkpoint(options->load_path, game, game_state, &store,
-                                 &trainer, options->load_compressed);
+        status = load_checkpoint(options->load_path, game,
+                                 mus_game_state_as_game_state(&states[0]),
+                                 &store, &trainers[0],
+                                 options->load_compressed);
         if (status != CFR_STATUS_SUCCESS) {
             fprintf(stderr, "error: no se pudo cargar '%s': %s\n",
                     options->load_path, status_name(status));
@@ -439,8 +609,26 @@ static int run(const CliOptions *options) {
         if (status != CFR_STATUS_SUCCESS)
             goto runtime_error;
         store_initialized = true;
-        status = cfr_trainer_init_mccfr(&trainer, game, game_state, &store,
-                                        options->seed);
+        status = cfr_trainer_init_mccfr(
+            &trainers[0], game,
+            mus_game_state_as_game_state(&states[0]), &store, options->seed);
+        if (status != CFR_STATUS_SUCCESS)
+            goto runtime_error;
+    }
+    if (options->threads > 1 &&
+        trainers[0].variant != CFR_TRAINER_VARIANT_MCCFR_EXTERNAL) {
+        fprintf(stderr,
+                "error: el entrenamiento con varios hilos requiere un "
+                "checkpoint MCCFR\n");
+        goto cleanup;
+    }
+    const uint64_t parallel_seed_base = trainers[0].mccfr_rng.state;
+
+    for (size_t index = 1; index < options->threads; index += 1) {
+        status = cfr_trainer_init_mccfr(
+            &trainers[index], game,
+            mus_game_state_as_game_state(&states[index]), &store,
+            parallel_worker_seed(parallel_seed_base, index));
         if (status != CFR_STATUS_SUCCESS)
             goto runtime_error;
     }
@@ -465,20 +653,35 @@ static int run(const CliOptions *options) {
             const size_t block = options->report_every < remaining
                                      ? options->report_every
                                      : remaining;
+            int thread_error;
 
-            status = cfr_trainer_run(&trainer, block);
+            thread_error = run_training_block(
+                trainers, options->threads, block, thread_handles, workers,
+                &status);
+            if (thread_error != 0) {
+                fprintf(stderr,
+                        "error: fallo de los hilos de entrenamiento: %s\n",
+                        strerror(thread_error));
+                goto cleanup;
+            }
             if (status != CFR_STATUS_SUCCESS)
                 goto runtime_error;
             completed += block;
-            if (!print_report(&trainer, &store, &start)) {
+            if (!print_report(trainers, options->threads, &store, &start)) {
                 status = CFR_STATUS_IO_ERROR;
                 goto runtime_error;
             }
         }
+        if (!aggregate_trainers(trainers, options->threads,
+                                &trainers[0].training_iterations,
+                                &trainers[0].stats)) {
+            status = CFR_STATUS_INVALID_ARGUMENT;
+            goto runtime_error;
+        }
     }
 
     if (options->save_path != NULL) {
-        status = save_checkpoint(options->save_path, &trainer,
+        status = save_checkpoint(options->save_path, &trainers[0],
                                  options->save_compressed);
         if (status != CFR_STATUS_SUCCESS) {
             fprintf(stderr, "error: no se pudo guardar '%s': %s\n",
@@ -499,14 +702,14 @@ static int run(const CliOptions *options) {
         }
         if (status != CFR_STATUS_SUCCESS)
             goto runtime_error;
-        if (!print_evaluation(trainer.training_iterations,
+        if (!print_evaluation(trainers[0].training_iterations,
                               options->format, &metrics)) {
             status = CFR_STATUS_IO_ERROR;
             goto runtime_error;
         }
     }
     if (options->export_path != NULL) {
-        status = export_strategy(options->export_path, &trainer,
+        status = export_strategy(options->export_path, &trainers[0],
                                  options->format);
         if (status != CFR_STATUS_SUCCESS) {
             fprintf(stderr, "error: no se pudo exportar '%s': %s\n",
@@ -525,6 +728,10 @@ cleanup:
         cfr_info_store_destroy(&store) != CFR_STATUS_SUCCESS) {
         result = EXIT_RUNTIME_ERROR;
     }
+    free(thread_handles);
+    free(workers);
+    free(trainers);
+    free(states);
     return result;
 }
 

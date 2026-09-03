@@ -92,6 +92,7 @@ Después puede compilar la versión optimizada o ejecutar las pruebas:
 ```sh
 make
 make test
+make test-tsan
 make test-sanitize
 make dependencies
 ```
@@ -100,6 +101,8 @@ La compilación release usa LTO y requiere la biblioteca de desarrollo de
 Zstandard. `make lto` genera la misma configuración optimizada en
 `build/lto/release` y `C-CFR/build/lto/release`, sin reemplazar los artefactos
 normales.
+`make test-tsan` comprueba con ThreadSanitizer tanto el acceso concurrente al
+almacén de C-CFR como el entrenamiento paralelo del CLI.
 
 Para volver a permitir dos muses en una compilación independiente:
 
@@ -127,6 +130,34 @@ build/release/mus-solver \
     --save mus-1m.cfr
 ```
 
+Para repartir esas mismas iteraciones entre varios hilos:
+
+```sh
+build/release/mus-solver \
+    --iterations 1000000 \
+    --threads 8 \
+    --seed 0 \
+    --report-every 100000 \
+    --save mus-1m-parallel.cfr
+```
+
+`--iterations` siempre indica el total global: cada bloque se distribuye de la
+forma más uniforme posible entre los hilos. Cada hilo mantiene el `Trainer`, el
+estado raíz y el flujo aleatorio independientes que exige C-CFR, y todos
+actualizan un único `InfoStore` concurrente. El hilo principal también entrena,
+por lo que `--threads 8` crea siete hilos adicionales. Antes de emitir un
+informe, guardar, evaluar o exportar, el programa espera a que finalice el
+bloque completo. El valor predeterminado, `--threads 1`, conserva el recorrido
+secuencial y reproducible de las versiones anteriores.
+
+Con varios hilos, una misma semilla determina los flujos aleatorios iniciales,
+pero el orden de las actualizaciones depende del planificador y el resultado no
+es reproducible bit a bit. Los checkpoints paralelos guardan correctamente el
+almacén y los contadores globales y se pueden reanudar. El formato de checkpoint
+de C-CFR contiene un solo flujo aleatorio; al reanudar, los flujos auxiliares se
+derivan de él de nuevo. Por tanto, dividir una ejecución paralela entre procesos
+no produce necesariamente el mismo fichero que ejecutarla sin interrupciones.
+
 `single-bet` es el formato predeterminado, por lo que los comandos y
 checkpoints existentes conservan su comportamiento. Para entrenar con subidas:
 
@@ -151,10 +182,11 @@ build/release/mus-solver \
 Un informe normal no recorre el árbol completo:
 
 ```text
-report iterations=100000 information_sets=... traversals=... visited_nodes=... seconds=...
+report iterations=100000 threads=8 information_sets=... traversals=... visited_nodes=... seconds=...
 ```
 
-Continuación exacta del mismo flujo aleatorio:
+Continuación exacta del mismo flujo aleatorio en el modo secuencial
+predeterminado:
 
 ```sh
 build/release/mus-solver \
