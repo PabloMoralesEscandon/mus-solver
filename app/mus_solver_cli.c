@@ -345,6 +345,7 @@ typedef struct {
     Trainer *trainer;
     size_t iterations;
     Status status;
+    bool concurrent;
 } TrainingWorker;
 
 static void *run_training_worker(void *raw_worker) {
@@ -353,8 +354,11 @@ static void *run_training_worker(void *raw_worker) {
     while (!atomic_load_explicit(worker->start, memory_order_acquire))
         (void)sched_yield();
     if (!atomic_load_explicit(worker->cancel, memory_order_acquire)) {
-        worker->status =
-            cfr_trainer_run(worker->trainer, worker->iterations);
+        worker->status = worker->concurrent
+                             ? cfr_trainer_run_concurrent(
+                                   worker->trainer, worker->iterations)
+                             : cfr_trainer_run(worker->trainer,
+                                               worker->iterations);
     }
     return NULL;
 }
@@ -391,6 +395,7 @@ static int run_training_block(Trainer *trainers, size_t thread_count,
             .iterations = iterations_per_worker +
                           (index < extra_iterations ? 1 : 0),
             .status = CFR_STATUS_SUCCESS,
+            .concurrent = active_count > 1,
         };
     }
     for (size_t index = 1; index < active_count; index += 1) {
@@ -404,8 +409,12 @@ static int run_training_block(Trainer *trainers, size_t thread_count,
         atomic_store_explicit(&cancel, true, memory_order_release);
     atomic_store_explicit(&start, true, memory_order_release);
     if (thread_error == 0) {
-        workers[0].status =
-            cfr_trainer_run(workers[0].trainer, workers[0].iterations);
+        workers[0].status = workers[0].concurrent
+                                ? cfr_trainer_run_concurrent(
+                                      workers[0].trainer,
+                                      workers[0].iterations)
+                                : cfr_trainer_run(workers[0].trainer,
+                                                  workers[0].iterations);
     }
     for (size_t index = 0; index < created; index += 1) {
         const int join_error = pthread_join(thread_handles[index], NULL);
