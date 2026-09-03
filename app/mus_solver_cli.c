@@ -641,6 +641,11 @@ static int run(const CliOptions *options) {
         if (status != CFR_STATUS_SUCCESS)
             goto runtime_error;
     }
+    if (options->threads > 1) {
+        status = cfr_info_store_prepare_concurrent(&store);
+        if (status != CFR_STATUS_SUCCESS)
+            goto runtime_error;
+    }
     const size_t reservation = options->reserve_information_sets_set
                                    ? options->reserve_information_sets
                                    : automatic_information_set_reservation(
