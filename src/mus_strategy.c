@@ -266,7 +266,8 @@ static Status write_ordago_node(const InfoNode *node,
         return fputc('\n', writer->stream) == EOF ? CFR_STATUS_IO_ERROR
                                                    : CFR_STATUS_SUCCESS;
     }
-    if (fprintf(writer->stream, " acumulado_previo=%u",
+    if (fprintf(writer->stream, " tantos_maximos=%u acumulado_previo=%u",
+                information.max_settled_score,
                 information.prior_wager_total) < 0)
         return CFR_STATUS_IO_ERROR;
     if (information.bet_stage != MUS_BET_RESPONSE) {

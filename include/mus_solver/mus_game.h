@@ -25,10 +25,10 @@
 
 #if MUS_GAME_MAX_MUSES == 1
 #define MUS_ORDAGO_STRATEGY_SCHEMA_ID                                   \
-    "mus.heads-up-single-hand.ordago-with-mus/v6-muses-1"
+    "mus.heads-up-single-hand.ordago-with-mus/v7-muses-1"
 #else
 #define MUS_ORDAGO_STRATEGY_SCHEMA_ID                                   \
-    "mus.heads-up-single-hand.ordago-with-mus/v6-muses-2"
+    "mus.heads-up-single-hand.ordago-with-mus/v7-muses-2"
 #endif
 
 #define MUS_SINGLE_BET_WAGER 2
@@ -264,6 +264,9 @@ typedef struct {
     Player mus_stop_player;
     MusLanceStrength previous_strengths[MUS_GAME_LANCE_COUNT - 1];
     uint8_t previous_strength_count;
+    /* Highest score already settled for either player. */
+    uint8_t max_settled_score;
+    /* Settled numeric wager total from completed lances. */
     uint8_t prior_wager_total;
     Player bettor;
     uint8_t current_wager;

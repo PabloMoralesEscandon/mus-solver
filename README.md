@@ -22,11 +22,14 @@ calcula valor, mejores respuestas y explotabilidad exactos bajo demanda.
   los lances. Los envites numéricos son incrementos: responder a 2 con otro 2
   deja 4 tantos en juego, y responder después con 7 deja 11. La apertura puede
   ser de 2, 4, 7 o 10; cada respuesta numérica debe ser igual o mayor que el
-  incremento anterior. El presupuesto numérico de 40 es global para toda la
-  mano: acumulado de los lances anteriores + envite activo + incremento no
-  puede superar 40. Por ejemplo, con 30 acumulados y 6 en el lance actual solo
-  caben incrementos de 2 o 4. Al agotar el presupuesto ya no se puede hacer otro
-  envite numérico, pero sí lanzar órdago, que sigue siendo una acción distinta.
+  incremento anterior. La cota numérica tiene en cuenta los tantos ya ganados
+  por el jugador que va por delante, los envites acumulados de los lances
+  anteriores, el envite activo y el nuevo incremento. La suma debe ser
+  estrictamente menor que 40. Por ejemplo, si los jugadores han ganado 10 y 15
+  tantos y hay 20 de envites acumulados, se puede envidar 4 porque
+  15 + 20 + 4 = 39, pero no 7 ni 10. Al agotar el presupuesto ya no se puede
+  hacer otro envite numérico, pero sí lanzar órdago, que sigue siendo una
+  acción distinta.
 - En `ordago`, antes de grande cada jugador dice, por orden, `mus` o `no mus`.
   Si ambos dicen mus, cada uno elige un subconjunto no vacío de sus cartas. Los
   bits recorren la mano en su orden canónico, de menor a mayor valor. Las copias
@@ -42,8 +45,9 @@ calcula valor, mejores respuestas y explotabilidad exactos bajo demanda.
   querer cuenta como mostrar fuerza. No se conservan la secuencia ni las
   cantidades exactas de los lances anteriores. Si pares no se negocia, el
   resumen conserva además si no tenía pares nadie, solo mano o solo postre.
-  También se conserva el total numérico acumulado, porque determina qué envites
-  siguen disponibles. No se conserva cuánto aportó individualmente cada lance.
+  También se conservan el mayor tanteo ya resuelto y el total numérico
+  acumulado, porque ambos determinan qué envites siguen disponibles. No se
+  conserva cuánto aportó individualmente cada lance.
   El acumulado suma el envite final cuando se quiere. Cuando se rechaza un
   envite numérico o un órdago, suma únicamente la cantidad cubierta: una piedra
   para una apertura y el último total cubierto para una subida.
@@ -201,9 +205,9 @@ de esquema son independientes e incompatibles entre sí:
 
 - `single-bet`: `mus.heads-up-single-hand/v1`;
 - `raises-to-eight`: `mus.heads-up-single-hand.raises-to-eight/v1`;
-- `ordago`: `mus.heads-up-single-hand.ordago-with-mus/v6-muses-1` por defecto.
+- `ordago`: `mus.heads-up-single-hand.ordago-with-mus/v7-muses-1` por defecto.
 
-La compilación con dos muses usa el sufijo `v6-muses-2`, por lo que sus
+La compilación con dos muses usa el sufijo `v7-muses-2`, por lo que sus
 checkpoints no se mezclan con los del límite predeterminado.
 
 Al cargar un checkpoint de `raises-to-eight` hay que volver a indicar
