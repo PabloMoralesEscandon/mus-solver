@@ -76,6 +76,25 @@ grep -q 'report iterations=17 threads=2' "$tmp_dir/parallel-resumed.out"
     --export-strategy "$tmp_dir/parallel-strategy.txt"
 grep -q 'training_iterations=17' "$tmp_dir/parallel-strategy.txt"
 
+"$solver" --iterations 12 --threads 3 --report-every 5 --seed 17 \
+    >"$tmp_dir/partial-workers.out"
+grep -q 'report iterations=5 threads=3' "$tmp_dir/partial-workers.out"
+grep -q 'report iterations=10 threads=3' "$tmp_dir/partial-workers.out"
+grep -q 'report iterations=12 threads=3' "$tmp_dir/partial-workers.out"
+[ "$(grep -c '^report ' "$tmp_dir/partial-workers.out")" -eq 3 ]
+"$solver" --iterations 5 --threads 8 --report-every 2 --seed 17 \
+    >"$tmp_dir/fewer-active-workers.out"
+grep -q 'report iterations=5 threads=8' "$tmp_dir/fewer-active-workers.out"
+[ "$(grep -c '^report ' "$tmp_dir/fewer-active-workers.out")" -eq 3 ]
+"$solver" --iterations 3 --threads 8 --report-every 100 --seed 17 \
+    >"$tmp_dir/large-report-interval.out"
+grep -q 'report iterations=3 threads=8' "$tmp_dir/large-report-interval.out"
+[ "$(grep -c '^report ' "$tmp_dir/large-report-interval.out")" -eq 1 ]
+"$solver" --iterations 20 --threads 1 --report-every 1 --seed 7 \
+    --save "$tmp_dir/frequent-single-thread.cfr" \
+    >"$tmp_dir/frequent-single-thread.out"
+cmp "$tmp_dir/frequent-single-thread.cfr" "$tmp_dir/continuous.cfr"
+
 "$solver" --load "$tmp_dir/continuous.cfr" \
     --export-strategy "$tmp_dir/loaded-strategy.txt"
 cmp "$tmp_dir/strategy.txt" "$tmp_dir/loaded-strategy.txt"

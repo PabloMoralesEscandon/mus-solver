@@ -169,7 +169,9 @@ estado raíz y el flujo aleatorio independientes que exige C-CFR, y todos
 actualizan un único `InfoStore` concurrente. El hilo principal también entrena,
 por lo que `--threads 8` crea siete hilos adicionales. Antes de emitir un
 informe, guardar, evaluar o exportar, el programa espera a que finalice el
-bloque completo. El valor predeterminado, `--threads 1`, conserva el recorrido
+bloque completo. Los hilos y sus espacios de trabajo se conservan entre
+informes durante toda la ejecución; cada informe mantiene su barrera de
+sincronización. El valor predeterminado, `--threads 1`, conserva el recorrido
 secuencial y reproducible de las versiones anteriores.
 
 Los entrenamientos nuevos de `ordago` reservan capacidad para reducir las

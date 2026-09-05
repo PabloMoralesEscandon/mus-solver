@@ -330,61 +330,187 @@ static uint64_t parallel_worker_seed(uint64_t base_seed,
     return value ^ (value >> 31);
 }
 
+typedef struct TrainingControl TrainingControl;
+
 typedef struct {
-    atomic_bool *start;
-    atomic_bool *cancel;
+    TrainingControl *control;
     Trainer *trainer;
     size_t iterations;
+    size_t interval;
+    size_t index;
+    size_t ready_blocks;
     Status status;
     bool concurrent;
+    bool finished;
 } TrainingWorker;
+
+struct TrainingControl {
+    atomic_bool start;
+    atomic_bool cancel;
+    pthread_mutex_t mutex;
+    pthread_cond_t changed;
+    pthread_cond_t resume;
+    TrainingWorker *workers;
+    Trainer *trainers;
+    const InfoStore *store;
+    const struct timespec *start_time;
+    size_t active_count;
+    size_t thread_count;
+    size_t iterations;
+    size_t report_every;
+    size_t completed;
+    size_t released_blocks;
+    bool stop;
+    Status status;
+};
+
+static bool print_report(const Trainer *trainers, size_t thread_count,
+                         const InfoStore *store,
+                         const struct timespec *start);
+
+static void stop_training_locked(TrainingControl *control, Status status) {
+    if (!control->stop) {
+        control->stop = true;
+        control->status = status;
+    }
+    (void)pthread_cond_broadcast(&control->resume);
+    (void)pthread_cond_broadcast(&control->changed);
+}
+
+static Status report_training_progress(const Trainer *trainer,
+                                       size_t completed, void *context) {
+    TrainingWorker *worker = context;
+    TrainingControl *control = worker->control;
+
+    (void)trainer;
+    (void)completed;
+    (void)pthread_mutex_lock(&control->mutex);
+    worker->ready_blocks += 1;
+    if (worker->index != 0) {
+        (void)pthread_cond_broadcast(&control->changed);
+        while (!control->stop &&
+               control->released_blocks < worker->ready_blocks) {
+            if (pthread_cond_wait(&control->resume, &control->mutex) != 0)
+                stop_training_locked(control, CFR_STATUS_INVALID_ARGUMENT);
+        }
+    } else {
+        for (;;) {
+            bool ready = true;
+            for (size_t index = 1; index < control->active_count; index += 1) {
+                const TrainingWorker *other = &control->workers[index];
+                if (!other->finished &&
+                    other->ready_blocks < worker->ready_blocks) {
+                    ready = false;
+                    break;
+                }
+            }
+            if (ready || control->stop)
+                break;
+            if (pthread_cond_wait(&control->changed, &control->mutex) != 0)
+                stop_training_locked(control, CFR_STATUS_INVALID_ARGUMENT);
+        }
+        if (!control->stop) {
+            const size_t remaining = control->iterations - control->completed;
+            control->completed += remaining < control->report_every
+                                      ? remaining
+                                      : control->report_every;
+            if (!print_report(control->trainers, control->thread_count,
+                               control->store, control->start_time)) {
+                stop_training_locked(control, CFR_STATUS_IO_ERROR);
+            } else {
+                control->released_blocks = worker->ready_blocks;
+                (void)pthread_cond_broadcast(&control->resume);
+            }
+        }
+    }
+    const Status status = control->status;
+    (void)pthread_mutex_unlock(&control->mutex);
+    return status;
+}
+
+static void train_worker(TrainingWorker *worker) {
+    TrainingControl *control = worker->control;
+    const Status status = cfr_trainer_run_with_callback(
+        worker->trainer, worker->iterations, worker->interval,
+        worker->concurrent, report_training_progress, worker);
+
+    (void)pthread_mutex_lock(&control->mutex);
+    worker->status = status;
+    worker->finished = true;
+    if (status != CFR_STATUS_SUCCESS)
+        stop_training_locked(control, status);
+    (void)pthread_cond_broadcast(&control->changed);
+    (void)pthread_mutex_unlock(&control->mutex);
+}
 
 static void *run_training_worker(void *raw_worker) {
     TrainingWorker *worker = raw_worker;
+    TrainingControl *control = worker->control;
 
-    while (!atomic_load_explicit(worker->start, memory_order_acquire))
+    while (!atomic_load_explicit(&control->start, memory_order_acquire))
         (void)sched_yield();
-    if (!atomic_load_explicit(worker->cancel, memory_order_acquire)) {
-        worker->status = worker->concurrent
-                             ? cfr_trainer_run_concurrent(
-                                   worker->trainer, worker->iterations)
-                             : cfr_trainer_run(worker->trainer,
-                                               worker->iterations);
-    }
+    if (!atomic_load_explicit(&control->cancel, memory_order_acquire))
+        train_worker(worker);
     return NULL;
 }
 
 /*
- * Runs one reporting block. The main thread handles worker zero while each
- * remaining active worker owns one pthread. A start gate prevents a partial
- * pthread_create failure from applying only part of the requested block.
+ * Each worker retains its thread and traversal workspace for the whole run.
+ * Callbacks stop every worker at reporting boundaries. A worker with no work
+ * in the final partial block may finish before that last boundary.
+ * The start gate preserves cancellation after a partial pthread_create error.
  */
-static int run_training_block(Trainer *trainers, size_t thread_count,
-                              size_t iterations, pthread_t *thread_handles,
-                              TrainingWorker *workers, Status *status_out) {
-    atomic_bool start;
-    atomic_bool cancel;
-    const size_t active_count =
-        thread_count < iterations ? thread_count : iterations;
-    const size_t iterations_per_worker = iterations / active_count;
-    const size_t extra_iterations = iterations % active_count;
+static int run_training(Trainer *trainers, size_t thread_count,
+                        size_t iterations, size_t report_every,
+                        pthread_t *thread_handles, TrainingWorker *workers,
+                        const InfoStore *store, const struct timespec *start,
+                        Status *status_out) {
     size_t created = 0;
     int thread_error = 0;
 
     if (trainers == NULL || thread_count == 0 || iterations == 0 ||
-        workers == NULL || status_out == NULL ||
-        (active_count > 1 && thread_handles == NULL)) {
+        report_every == 0 || workers == NULL || status_out == NULL ||
+        store == NULL || start == NULL) {
         return EINVAL;
     }
-    atomic_init(&start, false);
-    atomic_init(&cancel, false);
+    size_t active_count = thread_count < iterations ? thread_count : iterations;
+    if (active_count > report_every)
+        active_count = report_every;
+    if (active_count > 1 && thread_handles == NULL)
+        return EINVAL;
+    TrainingControl control = {
+        .workers = workers, .trainers = trainers, .store = store,
+        .start_time = start, .active_count = active_count,
+        .thread_count = thread_count, .iterations = iterations,
+        .report_every = report_every, .status = CFR_STATUS_SUCCESS};
+    atomic_init(&control.start, false);
+    atomic_init(&control.cancel, false);
+    thread_error = pthread_mutex_init(&control.mutex, NULL);
+    if (thread_error != 0)
+        return thread_error;
+    thread_error = pthread_cond_init(&control.changed, NULL);
+    if (thread_error != 0) {
+        (void)pthread_mutex_destroy(&control.mutex);
+        return thread_error;
+    }
+    thread_error = pthread_cond_init(&control.resume, NULL);
+    if (thread_error != 0) {
+        (void)pthread_cond_destroy(&control.changed);
+        (void)pthread_mutex_destroy(&control.mutex);
+        return thread_error;
+    }
+    const size_t full_blocks = iterations / report_every;
+    const size_t remainder = iterations % report_every;
     for (size_t index = 0; index < active_count; index += 1) {
+        const size_t interval = report_every / active_count +
+                                (index < report_every % active_count ? 1 : 0);
         workers[index] = (TrainingWorker){
-            .start = &start,
-            .cancel = &cancel,
+            .control = &control,
             .trainer = &trainers[index],
-            .iterations = iterations_per_worker +
-                          (index < extra_iterations ? 1 : 0),
+            .iterations = full_blocks * interval + remainder / active_count +
+                          (index < remainder % active_count ? 1 : 0),
+            .interval = interval,
+            .index = index,
             .status = CFR_STATUS_SUCCESS,
             .concurrent = active_count > 1,
         };
@@ -397,32 +523,21 @@ static int run_training_block(Trainer *trainers, size_t thread_count,
         created += 1;
     }
     if (thread_error != 0)
-        atomic_store_explicit(&cancel, true, memory_order_release);
-    atomic_store_explicit(&start, true, memory_order_release);
-    if (thread_error == 0) {
-        workers[0].status = workers[0].concurrent
-                                ? cfr_trainer_run_concurrent(
-                                      workers[0].trainer,
-                                      workers[0].iterations)
-                                : cfr_trainer_run(workers[0].trainer,
-                                                  workers[0].iterations);
-    }
+        atomic_store_explicit(&control.cancel, true, memory_order_release);
+    atomic_store_explicit(&control.start, true, memory_order_release);
+    if (thread_error == 0)
+        train_worker(&workers[0]);
     for (size_t index = 0; index < created; index += 1) {
         const int join_error = pthread_join(thread_handles[index], NULL);
 
         if (thread_error == 0 && join_error != 0)
             thread_error = join_error;
     }
-    if (thread_error != 0)
-        return thread_error;
-    *status_out = CFR_STATUS_SUCCESS;
-    for (size_t index = 0; index < active_count; index += 1) {
-        if (workers[index].status != CFR_STATUS_SUCCESS) {
-            *status_out = workers[index].status;
-            break;
-        }
-    }
-    return 0;
+    *status_out = control.status;
+    (void)pthread_cond_destroy(&control.resume);
+    (void)pthread_cond_destroy(&control.changed);
+    (void)pthread_mutex_destroy(&control.mutex);
+    return thread_error;
 }
 
 static Status load_checkpoint(const char *path, const Game *game,
@@ -649,34 +764,21 @@ static int run(const CliOptions *options) {
 
     if (options->iterations_set) {
         struct timespec start;
-        size_t completed = 0;
 
         if (timespec_get(&start, TIME_UTC) != TIME_UTC)
             goto runtime_error;
-        while (completed < options->iterations) {
-            const size_t remaining = options->iterations - completed;
-            const size_t block = options->report_every < remaining
-                                     ? options->report_every
-                                     : remaining;
-            int thread_error;
-
-            thread_error = run_training_block(
-                trainers, options->threads, block, thread_handles, workers,
-                &status);
-            if (thread_error != 0) {
-                fprintf(stderr,
-                        "error: fallo de los hilos de entrenamiento: %s\n",
-                        strerror(thread_error));
-                goto cleanup;
-            }
-            if (status != CFR_STATUS_SUCCESS)
-                goto runtime_error;
-            completed += block;
-            if (!print_report(trainers, options->threads, &store, &start)) {
-                status = CFR_STATUS_IO_ERROR;
-                goto runtime_error;
-            }
+        const int thread_error = run_training(
+            trainers, options->threads, options->iterations,
+            options->report_every, thread_handles, workers, &store, &start,
+            &status);
+        if (thread_error != 0) {
+            fprintf(stderr,
+                    "error: fallo de los hilos de entrenamiento: %s\n",
+                    strerror(thread_error));
+            goto cleanup;
         }
+        if (status != CFR_STATUS_SUCCESS)
+            goto runtime_error;
         if (!aggregate_trainers(trainers, options->threads,
                                 &trainers[0].training_iterations,
                                 &trainers[0].stats)) {
