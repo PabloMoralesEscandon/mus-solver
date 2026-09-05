@@ -16,13 +16,9 @@
 #include "mus_solver/mus_evaluation.h"
 #include "mus_solver/mus_game.h"
 #include "mus_solver/mus_strategy.h"
+#include "reservation_internal.h"
 
 enum { EXIT_RUNTIME_ERROR = 1, EXIT_USAGE_ERROR = 2 };
-
-enum {
-    ORDAGO_INFORMATION_SETS_PER_ITERATION = 12600,
-    ORDAGO_AUTOMATIC_RESERVE_ITERATION_LIMIT = 1000
-};
 
 typedef enum {
     CLI_FORMAT_SINGLE_BET,
@@ -277,12 +273,7 @@ static size_t automatic_information_set_reservation(
         !options->iterations_set || options->load_path != NULL) {
         return 0;
     }
-    const size_t iterations =
-        options->iterations < ORDAGO_AUTOMATIC_RESERVE_ITERATION_LIMIT
-            ? options->iterations
-            : ORDAGO_AUTOMATIC_RESERVE_ITERATION_LIMIT;
-
-    return iterations * ORDAGO_INFORMATION_SETS_PER_ITERATION;
+    return mus_cli_ordago_reservation(options->iterations);
 }
 
 static bool elapsed_seconds(const struct timespec *start,

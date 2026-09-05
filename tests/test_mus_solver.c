@@ -15,6 +15,7 @@
 #include "mus_solver/mus_evaluation.h"
 #include "mus_solver/mus_game.h"
 #include "mus_solver/mus_strategy.h"
+#include "../app/reservation_internal.h"
 
 static int failures;
 
@@ -2092,7 +2093,19 @@ static void test_ordago_training_and_export(void) {
     CHECK(cfr_info_store_destroy(&store) == CFR_STATUS_SUCCESS);
 }
 
+static void test_ordago_reservation_limits(void) {
+    CHECK(mus_cli_ordago_reservation(0) == 0);
+    CHECK(mus_cli_ordago_reservation(500) == 6300000);
+    CHECK(mus_cli_ordago_reservation(1000) == 12600000);
+    CHECK(mus_cli_ordago_reservation(1001) == 12601200);
+    CHECK(mus_cli_ordago_reservation(2000) == 13800000);
+    CHECK(mus_cli_ordago_reservation(20000) == 35400000);
+    CHECK(mus_cli_ordago_reservation(20001) == 35400000);
+    CHECK(mus_cli_ordago_reservation(SIZE_MAX) == 35400000);
+}
+
 int main(void) {
+    test_ordago_reservation_limits();
     test_apply_undo_and_contract();
     test_cached_hand_summary_validation();
     test_explicit_format_apis_preserve_single_bet();

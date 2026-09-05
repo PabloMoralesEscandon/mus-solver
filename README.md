@@ -172,6 +172,14 @@ informe, guardar, evaluar o exportar, el programa espera a que finalice el
 bloque completo. El valor predeterminado, `--threads 1`, conserva el recorrido
 secuencial y reproducible de las versiones anteriores.
 
+Los entrenamientos nuevos de `ordago` reservan capacidad para reducir las
+ampliaciones del almacén. La estimación conserva 12.600 infosets por iteración
+durante las primeras 1.000 iteraciones y añade 1.200 por iteración posterior,
+hasta un máximo de 35,4 millones de infosets reservados. Es una heurística,
+no un límite de entrenamiento. Los checkpoints cargados no usan esta reserva
+automática. `--reserve-information-sets N` sustituye la estimación; conviene
+ajustarlo si el tamaño de la carga o la memoria disponible son distintos.
+
 Con varios hilos, una misma semilla determina los flujos aleatorios iniciales,
 pero el orden de las actualizaciones depende del planificador y el resultado no
 es reproducible bit a bit. Los checkpoints paralelos guardan correctamente el

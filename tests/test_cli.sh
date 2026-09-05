@@ -91,6 +91,13 @@ grep -q 'schema=mus.heads-up-single-hand.raises-to-eight/v1' \
     "$tmp_dir/raises-strategy.txt"
 grep -Eq 'subir_a_(4|8)=' "$tmp_dir/raises-strategy.txt"
 
+"$solver" --format ordago --iterations 2 --threads 1 --seed 13 \
+    --save "$tmp_dir/ordago-auto-reserve.cfr" >"$tmp_dir/ordago-auto-reserve.out"
+"$solver" --format ordago --iterations 2 --threads 1 --seed 13 \
+    --reserve-information-sets 100000 \
+    --save "$tmp_dir/ordago-explicit-reserve.cfr" >"$tmp_dir/ordago-explicit-reserve.out"
+cmp "$tmp_dir/ordago-auto-reserve.cfr" "$tmp_dir/ordago-explicit-reserve.cfr"
+
 "$solver" --format ordago --iterations 2 --threads 2 --seed 13 \
     --save "$tmp_dir/ordago.cfr" \
     --export-strategy "$tmp_dir/ordago-strategy.txt" \
