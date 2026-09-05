@@ -1,4 +1,5 @@
 #include <math.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -2518,6 +2519,16 @@ static Status apply_trusted_action_to_state(MusGameState *mus, Action action,
     return CFR_STATUS_SUCCESS;
 }
 
+/* Cards and mus history stay fixed throughout the betting subtree. */
+static void copy_ordago_betting_model(MusGameModel *target,
+                                      const MusGameModel *source) {
+    const size_t offset = offsetof(MusGameModel, current_wager);
+
+    target->phase = source->phase;
+    memcpy((unsigned char *)target + offset,
+           (const unsigned char *)source + offset, sizeof(*target) - offset);
+}
+
 static Status apply_ordago_trusted_action_to_state(MusGameState *mus,
                                                     Action action) {
     MusHandSummary completed_summaries[MUS_GAME_PLAYER_COUNT];
@@ -2532,6 +2543,16 @@ static Status apply_ordago_trusted_action_to_state(MusGameState *mus,
         return CFR_STATUS_BUFFER_TOO_SMALL;
 
     undo_model = &mus->undo_history[mus->undo_count];
+    if (phase_is_betting(mus->model.phase)) {
+        copy_ordago_betting_model(undo_model, &mus->model);
+        status = apply_to_model(&mus->model, &MUS_ORDAGO_FORMAT, action,
+                                mus->hand_summaries);
+        if (status == CFR_STATUS_SUCCESS)
+            mus->undo_count += 1;
+        else
+            copy_ordago_betting_model(&mus->model, undo_model);
+        return status;
+    }
     *undo_model = mus->model;
     memcpy(mus->undo_hand_summaries[mus->undo_count],
            mus->hand_summaries, sizeof(mus->hand_summaries));
@@ -2628,6 +2649,16 @@ static Status mus_trusted_undo_action(const void *context, GameState *state) {
 static Status mus_ordago_trusted_undo_action(const void *context,
                                              GameState *state) {
     MusGameState *mus = as_mus(state);
+
+    if (mus == NULL || mus->undo_count == 0 ||
+        mus->undo_count > MUS_GAME_UNDO_CAPACITY)
+        return CFR_STATUS_INVALID_ARGUMENT;
+    const MusGameModel *undo_model = &mus->undo_history[mus->undo_count - 1];
+    if (phase_is_betting(undo_model->phase)) {
+        mus->undo_count -= 1;
+        copy_ordago_betting_model(&mus->model, undo_model);
+        return CFR_STATUS_SUCCESS;
+    }
     Status status = mus_trusted_undo_action(context, state);
 
     if (status != CFR_STATUS_SUCCESS)

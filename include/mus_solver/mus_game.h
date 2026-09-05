@@ -148,6 +148,10 @@ typedef struct {
     uint8_t discard_counts[MUS_GAME_MAX_MUSES][MUS_GAME_PLAYER_COUNT];
     bool mus_stopped;
     uint8_t mus_stop_player;
+    /*
+     * Keep all mutable betting fields except phase in this suffix. The
+     * trusted ordago undo copies this region without copying card data.
+     */
     /* Total offered amount awaiting a response; zero outside a response. */
     uint8_t current_wager;
     /* Amount covered before the current offer. */
@@ -196,6 +200,8 @@ typedef struct {
     MusGameModel model;
     MusHandSummary hand_summaries[MUS_GAME_PLAYER_COUNT];
     MusOrdagoHandCodes ordago_hand_codes[MUS_GAME_PLAYER_COUNT];
+    /* Private undo storage. Betting entries contain only phase and the
+     * mutable betting suffix, not a complete previous model. */
     MusGameModel undo_history[MUS_GAME_UNDO_CAPACITY];
     MusHandSummary undo_hand_summaries[MUS_GAME_UNDO_CAPACITY]
                                            [MUS_GAME_PLAYER_COUNT];

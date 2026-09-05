@@ -944,6 +944,11 @@ static void check_ordago_betting_tree_round_trip(
 
     for (size_t action_index = 0; action_index < model_count;
          action_index += 1) {
+        const MusGameModel before = state->model;
+        MusOrdagoGameState trusted = *state;
+        CHECK(ordago_game()->trusted_operations->apply_action(
+                  ordago_game()->context, ordago_game_state(&trusted),
+                  model_actions[action_index]) == CFR_STATUS_SUCCESS);
         const Status apply_status = cfr_game_apply_action(
             ordago_game(), ordago_game_state(state),
             model_actions[action_index]);
@@ -951,13 +956,38 @@ static void check_ordago_betting_tree_round_trip(
         CHECK(apply_status == CFR_STATUS_SUCCESS);
         if (apply_status != CFR_STATUS_SUCCESS)
             continue;
+        CHECK(memcmp(&trusted.model, &state->model, sizeof(state->model)) == 0);
+        CHECK(memcmp(trusted.hand_summaries, state->hand_summaries,
+                     sizeof(state->hand_summaries)) == 0);
+        CHECK(memcmp(trusted.ordago_hand_codes, state->ordago_hand_codes,
+                     sizeof(state->ordago_hand_codes)) == 0);
         if (state->model.phase == lance) {
             check_ordago_betting_tree_round_trip(
                 state, lance, visited);
         }
-        CHECK(cfr_game_undo_action(
-                  ordago_game(), ordago_game_state(state)) ==
-              CFR_STATUS_SUCCESS);
+        /* Exercise public and trusted undo with either kind of backup. */
+        if (action_index % 2 == 0) {
+            CHECK(cfr_game_undo_action(
+                      ordago_game(), ordago_game_state(&trusted)) ==
+                  CFR_STATUS_SUCCESS);
+            CHECK(ordago_game()->trusted_operations->undo_action(
+                      ordago_game()->context, ordago_game_state(state)) ==
+                  CFR_STATUS_SUCCESS);
+        } else {
+            CHECK(ordago_game()->trusted_operations->undo_action(
+                      ordago_game()->context, ordago_game_state(&trusted)) ==
+                  CFR_STATUS_SUCCESS);
+            CHECK(cfr_game_undo_action(
+                      ordago_game(), ordago_game_state(state)) ==
+                  CFR_STATUS_SUCCESS);
+        }
+        CHECK(memcmp(&trusted.model, &before, sizeof(before)) == 0);
+        CHECK(memcmp(&state->model, &before, sizeof(before)) == 0);
+        CHECK(trusted.undo_count == state->undo_count);
+        CHECK(memcmp(trusted.hand_summaries, state->hand_summaries,
+                     sizeof(state->hand_summaries)) == 0);
+        CHECK(memcmp(trusted.ordago_hand_codes, state->ordago_hand_codes,
+                     sizeof(state->ordago_hand_codes)) == 0);
     }
 }
 
@@ -969,8 +999,33 @@ static void test_ordago_betting_tree_round_trip(void) {
 
     ordago_deal(&state, kings, knights);
     ordago_apply(&state, MUS_ACTION_NO_MUS);
-    check_ordago_betting_tree_round_trip(
-        &state, MUS_PHASE_GRANDE, &visited);
+    const MusGameModel before = state.model;
+    const size_t undo_count = state.undo_count;
+    CHECK(ordago_game()->trusted_operations->apply_action(
+              ordago_game()->context, ordago_game_state(&state),
+              MUS_ACTION_MUS) == CFR_STATUS_ILLEGAL_ACTION);
+    CHECK(memcmp(&state.model, &before, sizeof(before)) == 0);
+    CHECK(state.undo_count == undo_count);
+    for (size_t lance = 0; lance < MUS_GAME_LANCE_COUNT &&
+                           state.model.phase != MUS_PHASE_TERMINAL; lance += 1) {
+        check_ordago_betting_tree_round_trip(
+            &state, (MusGamePhase)state.model.phase, &visited);
+        ordago_apply(&state, MUS_ACTION_PASS);
+        ordago_apply(&state, MUS_ACTION_PASS);
+    }
+    CHECK(state.model.phase == MUS_PHASE_TERMINAL);
+    const uint8_t mixed_low[MUS_GAME_CLASS_COUNT] = {1, 1, 1, 1, 0, 0, 0, 0};
+    const uint8_t mixed_high[MUS_GAME_CLASS_COUNT] = {0, 1, 1, 1, 1, 0, 0, 0};
+    ordago_deal(&state, mixed_low, mixed_high);
+    ordago_apply(&state, MUS_ACTION_NO_MUS);
+    for (size_t lance = 0; lance < MUS_GAME_LANCE_COUNT &&
+                           state.model.phase != MUS_PHASE_TERMINAL; lance += 1) {
+        check_ordago_betting_tree_round_trip(
+            &state, (MusGamePhase)state.model.phase, &visited);
+        ordago_apply(&state, MUS_ACTION_PASS);
+        ordago_apply(&state, MUS_ACTION_PASS);
+    }
+    CHECK(state.model.phase == MUS_PHASE_TERMINAL);
     CHECK(visited > 20);
 }
 
