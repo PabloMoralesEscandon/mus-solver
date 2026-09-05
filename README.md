@@ -20,16 +20,23 @@ calcula valor, mejores respuestas y explotabilidad exactos bajo demanda.
   cantidad: 2 → 4 → 8. Ante 8 ya no se puede volver a subir.
 - El formato `ordago` permite pasar o envidar 2, 4, 7, 10 u órdago en todos
   los lances. Los envites numéricos son incrementos: responder a 2 con otro 2
-  deja 4 tantos en juego, y responder después con 7 deja 11. La apertura puede
-  ser de 2, 4, 7 o 10; cada respuesta numérica debe ser igual o mayor que el
-  incremento anterior. La cota numérica tiene en cuenta los tantos ya ganados
-  por el jugador que va por delante, los envites acumulados de los lances
-  anteriores, el envite activo y el nuevo incremento. La suma debe ser
-  estrictamente menor que 40. Por ejemplo, si los jugadores han ganado 10 y 15
-  tantos y hay 20 de envites acumulados, se puede envidar 4 porque
-  15 + 20 + 4 = 39, pero no 7 ni 10. Al agotar el presupuesto ya no se puede
-  hacer otro envite numérico, pero sí lanzar órdago, que sigue siendo una
-  acción distinta.
+  deja 4 tantos en juego, y responder después con 4 deja 8. La apertura puede
+  ser de 2, 4, 7 o 10. Las respuestas numéricas solo pueden ser de 2, 4 o 10 y
+  deben ser iguales o mayores que el incremento anterior. Cada jugador puede
+  usar cada incremento numérico una sola vez por lance. Por ejemplo, tras
+  `+2 → +2`, el jugador que abrió ya no puede volver a usar `+2`, aunque el
+  incremento anterior también sea 2; antes de responder, el otro jugador sí
+  podía igualar con `+2` porque todavía no lo había usado. Por ello, tras
+  `paso → +7`, el jugador 0 puede no querer, querer, lanzar órdago o subir 10.
+  Cada lance admite como máximo cinco envites numéricos, incluida la apertura;
+  después del quinto solo se puede no querer, querer o lanzar órdago. La cota
+  numérica tiene en cuenta los tantos ya ganados por el jugador que va por
+  delante, los envites acumulados de los lances anteriores, el envite activo y
+  el nuevo incremento. La suma debe ser estrictamente menor que 40. Por
+  ejemplo, si los jugadores han ganado 10 y 15 tantos y hay 20 de envites
+  acumulados, se puede envidar 4 porque 15 + 20 + 4 = 39, pero no 7 ni 10. Al
+  agotar el presupuesto ya no se puede hacer otro envite numérico, pero sí
+  lanzar órdago, que sigue siendo una acción distinta.
 - En `ordago`, antes de grande cada jugador dice, por orden, `mus` o `no mus`.
   Si ambos dicen mus, cada uno elige un subconjunto no vacío de sus cartas. Los
   bits recorren la mano en su orden canónico, de menor a mayor valor. Las copias
@@ -51,6 +58,12 @@ calcula valor, mejores respuestas y explotabilidad exactos bajo demanda.
   El acumulado suma el envite final cuando se quiere. Cuando se rechaza un
   envite numérico o un órdago, suma únicamente la cantidad cubierta: una piedra
   para una apertura y el último total cubierto para una subida.
+  Mientras un lance está abierto, el conjunto de información conserva además
+  el número de envites numéricos del lance y los incrementos ya usados por
+  cada jugador para aplicar ambos límites. Las máscaras exportadas como
+  `usados_j0` y `usados_j1` asignan los bits 0, 1, 2 y 3 a `+2`, `+4`, `+7` y
+  `+10`, respectivamente; por ejemplo, el valor 11 representa `+2`, `+4` y
+  `+10`.
 - Se aplica literalmente el tanteo de `Simulador-Mus`: el envite o deje se
   suma al valor intrínseco de pares, juego y punto. En `ordago`, el tanteo total
   de cada jugador se limita a 40 para que una resolución ordinaria nunca supere
@@ -64,8 +77,8 @@ el lance se resuelve por la cantidad final aceptada.
 
 En `ordago` se aplica la misma regla general: rechazar una apertura concede una
 piedra y rechazar una subida concede el total anterior ya cubierto. Por
-ejemplo, tras envites de 2, 2 y 7 hay 11 tantos en juego; si después se lanza
-un órdago y se rechaza, se conceden los 11 tantos cubiertos.
+ejemplo, tras envites de 2, 2 y 4 hay 8 tantos en juego; si después se lanza
+un órdago y se rechaza, se conceden los 8 tantos cubiertos.
 Si se quiere el órdago, la mano termina inmediatamente y el ganador del lance
 actual recibe exactamente 40 tantos; no se suman lances ni valores intrínsecos
 posteriores.
@@ -78,6 +91,11 @@ parejas; juego, uno de sus ocho totales; y punto, el total entre 4 y 30. Esta
 abstracción reduce mucho el número de estados, pero pierde recuerdo perfecto.
 Por ello, CFR no garantiza que la estrategia media converja a un equilibrio y
 las métricas acotadas descritas más abajo son diagnósticas, no una garantía.
+La regla de usar cada incremento una sola vez por jugador introduce además una
+asimetría posicional deliberada que no pertenece al mus sin abstraer. El mayor
+envite numérico alcanzable desde un lance vacío es 30, mediante
+`2 → 4 → 4 → 10 → 10`. Por estos cambios, los valores y la explotabilidad del
+esquema `v9` no son comparables con los del esquema `v7`.
 
 Los palos no afectan a ninguna decisión. El reparto agrupa las cartas en ocho
 clases de valor, pero conserva exactamente sus multiplicidades y el muestreo
@@ -205,9 +223,9 @@ de esquema son independientes e incompatibles entre sí:
 
 - `single-bet`: `mus.heads-up-single-hand/v1`;
 - `raises-to-eight`: `mus.heads-up-single-hand.raises-to-eight/v1`;
-- `ordago`: `mus.heads-up-single-hand.ordago-with-mus/v7-muses-1` por defecto.
+- `ordago`: `mus.heads-up-single-hand.ordago-with-mus/v9-muses-1` por defecto.
 
-La compilación con dos muses usa el sufijo `v7-muses-2`, por lo que sus
+La compilación con dos muses usa el sufijo `v9-muses-2`, por lo que sus
 checkpoints no se mezclan con los del límite predeterminado.
 
 Al cargar un checkpoint de `raises-to-eight` hay que volver a indicar

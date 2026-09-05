@@ -25,10 +25,10 @@
 
 #if MUS_GAME_MAX_MUSES == 1
 #define MUS_ORDAGO_STRATEGY_SCHEMA_ID                                   \
-    "mus.heads-up-single-hand.ordago-with-mus/v7-muses-1"
+    "mus.heads-up-single-hand.ordago-with-mus/v9-muses-1"
 #else
 #define MUS_ORDAGO_STRATEGY_SCHEMA_ID                                   \
-    "mus.heads-up-single-hand.ordago-with-mus/v7-muses-2"
+    "mus.heads-up-single-hand.ordago-with-mus/v9-muses-2"
 #endif
 
 #define MUS_SINGLE_BET_WAGER 2
@@ -36,6 +36,11 @@
 #define MUS_RAISES_TO_EIGHT_MAX_WAGER 8
 #define MUS_ORDAGO_MIN_WAGER 2
 #define MUS_ORDAGO_WAGER 40
+/* Explicit game-tree cap, including the opening numeric wager. */
+#define MUS_ORDAGO_MAX_NUMERIC_WAGERS 5
+#define MUS_ORDAGO_WAGER_ACTION_COUNT 4
+#define MUS_ORDAGO_WAGER_ACTION_MASK_COUNT                              \
+    (1U << MUS_ORDAGO_WAGER_ACTION_COUNT)
 
 typedef enum {
     MUS_CLASS_PITOS,
@@ -147,6 +152,8 @@ typedef struct {
     uint8_t current_wager;
     /* Amount covered before the current offer. */
     uint8_t previous_wager;
+    /* Numeric wager actions already used by each player in this lance. */
+    uint8_t used_wager_action_masks[MUS_GAME_PLAYER_COUNT];
     /* Settled numeric wager total from completed lances, capped at ordago. */
     uint8_t prior_wager_total;
     /* Points already resolved by completed lances in the ordago format. */
@@ -271,6 +278,9 @@ typedef struct {
     Player bettor;
     uint8_t current_wager;
     uint8_t previous_wager;
+    /* Derived from used_wager_action_masks; it is not encoded separately. */
+    uint8_t numeric_wager_count;
+    uint8_t used_wager_action_masks[MUS_GAME_PLAYER_COUNT];
     bool current_wager_is_ordago;
 } MusOrdagoInformationSet;
 

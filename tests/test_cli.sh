@@ -96,10 +96,13 @@ grep -Eq 'subir_a_(4|8)=' "$tmp_dir/raises-strategy.txt"
     --export-strategy "$tmp_dir/ordago-strategy.txt" \
     >"$tmp_dir/ordago.out"
 grep -q 'report iterations=2' "$tmp_dir/ordago.out"
-grep -Eq 'schema=mus.heads-up-single-hand.ordago-with-mus/v7-muses-[12]' \
+grep -Eq 'schema=mus.heads-up-single-hand.ordago-with-mus/v9-muses-[12]' \
     "$tmp_dir/ordago-strategy.txt"
 grep -q 'envidar_' "$tmp_dir/ordago-strategy.txt"
 grep -q 'ordago=' "$tmp_dir/ordago-strategy.txt"
+grep -q 'envites=' "$tmp_dir/ordago-strategy.txt"
+grep -q 'usados_j0=' "$tmp_dir/ordago-strategy.txt"
+grep -q 'usados_j1=' "$tmp_dir/ordago-strategy.txt"
 grep -q 'cambiar_' "$tmp_dir/ordago-strategy.txt"
 
 # Exercises repeated hidden histories while another worker updates their

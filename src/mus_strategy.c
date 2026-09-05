@@ -278,12 +278,20 @@ static Status write_ordago_node(const InfoNode *node,
             return CFR_STATUS_IO_ERROR;
     } else if ((information.current_wager_is_ordago
                     ? fprintf(writer->stream,
-                              " actual=ordago cubierto=%u",
-                              information.previous_wager)
+                              " actual=ordago cubierto=%u envites=%u"
+                              " usados_j0=%u usados_j1=%u",
+                              information.previous_wager,
+                              information.numeric_wager_count,
+                              information.used_wager_action_masks[0],
+                              information.used_wager_action_masks[1])
                     : fprintf(writer->stream,
-                              " actual=%u cubierto=%u",
+                              " actual=%u cubierto=%u envites=%u"
+                              " usados_j0=%u usados_j1=%u",
                               information.current_wager,
-                              information.previous_wager)) < 0) {
+                              information.previous_wager,
+                              information.numeric_wager_count,
+                              information.used_wager_action_masks[0],
+                              information.used_wager_action_masks[1])) < 0) {
         return CFR_STATUS_IO_ERROR;
     }
     for (size_t index = 0; index < expected_action_count; index += 1) {

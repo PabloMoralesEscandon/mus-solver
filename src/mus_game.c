@@ -21,6 +21,8 @@
 #define MUS_ORDAGO_DISCARD_ROUND_RADIX                                  \
     (MUS_ORDAGO_DISCARD_COUNT_RADIX * MUS_ORDAGO_DISCARD_COUNT_RADIX)
 #define MUS_ORDAGO_WAGER_RADIX (MUS_ORDAGO_WAGER + 1)
+#define MUS_ORDAGO_WAGER_ACTION_MASK_RADIX                              \
+    MUS_ORDAGO_WAGER_ACTION_MASK_COUNT
 #define MUS_ORDAGO_SCORE_RADIX (MUS_ORDAGO_WAGER + 1)
 #define MUS_ORDAGO_TOTAL_WAGER_RADIX (MUS_ORDAGO_WAGER + 1)
 #define MUS_ORDAGO_SITUATION_COUNT                                      \
@@ -532,6 +534,8 @@ static void start_betting(MusGameModel *model, MusGamePhase phase) {
     model->bettor = CFR_PLAYER_0;
     model->current_wager = 0;
     model->previous_wager = 0;
+    memset(model->used_wager_action_masks, 0,
+           sizeof(model->used_wager_action_masks));
     model->current_wager_is_ordago = false;
     model->current_strength = MUS_LANCE_STRENGTH_NONE;
 }
@@ -842,11 +846,49 @@ static bool wager_is_valid(const MusGameFormat *format, uint8_t wager) {
     return wager == 2 || wager == 4 || wager == 8;
 }
 
-static bool ordago_increment_is_valid(uint8_t increment) {
+static bool ordago_initial_increment_is_valid(uint8_t increment) {
     return increment == 2 || increment == 4 || increment == 7 ||
            increment == 10;
 }
 
+static bool ordago_response_increment_is_valid(uint8_t increment) {
+    return increment == 2 || increment == 4 || increment == 10;
+}
+
+static uint8_t ordago_wager_action_bit(uint8_t increment) {
+    switch (increment) {
+    case 2:
+        return 1U << 0;
+    case 4:
+        return 1U << 1;
+    case 7:
+        return 1U << 2;
+    case 10:
+        return 1U << 3;
+    default:
+        return 0;
+    }
+}
+
+static bool ordago_wager_action_is_unused(uint8_t used_action_mask,
+                                           uint8_t increment) {
+    const uint8_t action_bit = ordago_wager_action_bit(increment);
+
+    return action_bit != 0 && (used_action_mask & action_bit) == 0;
+}
+
+static uint8_t ordago_numeric_wager_count(
+    const uint8_t used_action_masks[MUS_GAME_PLAYER_COUNT]) {
+    unsigned int count = 0;
+
+    for (int player = 0; player < MUS_GAME_PLAYER_COUNT; player += 1) {
+        for (int bit = 0; bit < MUS_ORDAGO_WAGER_ACTION_COUNT; bit += 1)
+            count += (used_action_masks[player] >> bit) & 1U;
+    }
+    return (uint8_t)count;
+}
+
+/* This makes every reachable numeric-wager sequence non-decreasing. */
 static uint8_t ordago_minimum_response_increment(uint8_t current_wager,
                                                   uint8_t previous_wager) {
     if (previous_wager == 1)
@@ -913,11 +955,15 @@ static bool ordago_response_increment_is_legal(int max_settled_score,
                                                 int prior_wager_total,
                                                 uint8_t current_wager,
                                                 uint8_t previous_wager,
+                                                uint8_t numeric_wager_count,
+                                                uint8_t used_action_mask,
                                                 uint8_t increment) {
     const uint8_t minimum = ordago_minimum_response_increment(
         current_wager, previous_wager);
 
-    return minimum > 0 && ordago_increment_is_valid(increment) &&
+    return numeric_wager_count < MUS_ORDAGO_MAX_NUMERIC_WAGERS &&
+           minimum > 0 && ordago_response_increment_is_valid(increment) &&
+           ordago_wager_action_is_unused(used_action_mask, increment) &&
            increment >= minimum &&
            ordago_numeric_budget_allows(max_settled_score,
                                         prior_wager_total,
@@ -931,17 +977,140 @@ static bool ordago_offer_is_valid(uint8_t wager, uint8_t previous_wager,
                previous_wager <= MUS_ORDAGO_WAGER;
     }
     if (previous_wager == 1)
-        return ordago_increment_is_valid(wager);
+        return ordago_initial_increment_is_valid(wager);
     return previous_wager >= MUS_ORDAGO_MIN_WAGER &&
            previous_wager < wager && wager <= MUS_ORDAGO_WAGER &&
-           ordago_increment_is_valid((uint8_t)(wager - previous_wager));
+           ordago_response_increment_is_valid(
+               (uint8_t)(wager - previous_wager));
+}
+
+static bool ordago_numeric_wager_count_is_valid(
+    uint8_t previous_wager, bool is_ordago, uint8_t numeric_wager_count) {
+    if (numeric_wager_count > MUS_ORDAGO_MAX_NUMERIC_WAGERS)
+        return false;
+    if (previous_wager == 1)
+        return numeric_wager_count == (is_ordago ? 0 : 1);
+    if (is_ordago)
+        return numeric_wager_count >= 1;
+    return numeric_wager_count >= 2;
+}
+
+static bool ordago_wager_action_masks_are_valid(
+    const uint8_t used_action_masks[MUS_GAME_PLAYER_COUNT],
+    uint8_t active_wager, Player last_numeric_player,
+    uint8_t latest_numeric_increment) {
+    static const uint8_t increments[MUS_ORDAGO_WAGER_ACTION_COUNT] = {
+        2, 4, 7, 10,
+    };
+    uint8_t expected_masks[MUS_GAME_PLAYER_COUNT] = {0};
+    unsigned int action_count = 0;
+    unsigned int wager_total = 0;
+    uint8_t last_increment = 0;
+    Player first_numeric_player;
+    uint8_t numeric_wager_count;
+
+    if (used_action_masks == NULL ||
+        used_action_masks[0] >= MUS_ORDAGO_WAGER_ACTION_MASK_COUNT ||
+        used_action_masks[1] >= MUS_ORDAGO_WAGER_ACTION_MASK_COUNT) {
+        return false;
+    }
+    numeric_wager_count =
+        ordago_numeric_wager_count(used_action_masks);
+    if (numeric_wager_count > MUS_ORDAGO_MAX_NUMERIC_WAGERS)
+        return false;
+    if (numeric_wager_count == 0) {
+        return active_wager == 0 && latest_numeric_increment == 0 &&
+               used_action_masks[0] == 0 && used_action_masks[1] == 0;
+    }
+    if (!player_is_valid(last_numeric_player))
+        return false;
+    first_numeric_player = numeric_wager_count % 2 == 0
+                               ? (Player)(1 - last_numeric_player)
+                               : last_numeric_player;
+    /*
+     * Numeric increments are non-decreasing because the minimum response is
+     * the preceding increment. Therefore, ascending value order is also the
+     * chronological order and can reconstruct ownership from the masks.
+     */
+    for (int increment_index = 0;
+         increment_index < MUS_ORDAGO_WAGER_ACTION_COUNT;
+         increment_index += 1) {
+        const uint8_t increment = increments[increment_index];
+        const uint8_t action_bit = 1U << increment_index;
+
+        for (int occurrence = 0; occurrence < MUS_GAME_PLAYER_COUNT;
+             occurrence += 1) {
+            Player player;
+
+            if ((used_action_masks[occurrence] & action_bit) == 0)
+                continue;
+            if (action_count > 0 &&
+                !ordago_response_increment_is_valid(increment)) {
+                return false;
+            }
+            player = action_count % 2 == 0
+                         ? first_numeric_player
+                         : (Player)(1 - first_numeric_player);
+            expected_masks[player] |= action_bit;
+            action_count += 1;
+            wager_total += increment;
+            last_increment = increment;
+        }
+    }
+    return action_count == numeric_wager_count &&
+           wager_total == active_wager &&
+           (latest_numeric_increment == 0 ||
+            last_increment == latest_numeric_increment) &&
+           expected_masks[0] == used_action_masks[0] &&
+           expected_masks[1] == used_action_masks[1];
+}
+
+static Player ordago_last_numeric_player(Player current_player,
+                                         Player bettor,
+                                         bool current_wager_is_ordago) {
+    return current_wager_is_ordago ? current_player : bettor;
+}
+
+static bool ordago_wager_action_history_is_valid(
+    uint8_t current_wager, uint8_t previous_wager,
+    Player current_player, Player bettor, bool current_wager_is_ordago,
+    const uint8_t used_action_masks[MUS_GAME_PLAYER_COUNT]) {
+    uint8_t active_wager;
+    uint8_t latest_numeric_increment;
+    Player last_numeric_player;
+    const uint8_t numeric_wager_count =
+        ordago_numeric_wager_count(used_action_masks);
+
+    if (numeric_wager_count == 0) {
+        return ordago_wager_action_masks_are_valid(
+            used_action_masks, 0, CFR_PLAYER_0, 0);
+    }
+    if (!player_is_valid(current_player) || !player_is_valid(bettor) ||
+        current_wager == 0 || previous_wager == 0 ||
+        (!current_wager_is_ordago && previous_wager >= current_wager)) {
+        return false;
+    }
+    active_wager = (uint8_t)ordago_active_numeric_wager(
+        current_wager, previous_wager, current_wager_is_ordago);
+    last_numeric_player = ordago_last_numeric_player(
+        current_player, bettor, current_wager_is_ordago);
+    latest_numeric_increment =
+        current_wager_is_ordago
+            ? 0
+            : (previous_wager == 1
+                   ? current_wager
+                   : (uint8_t)(current_wager - previous_wager));
+    return ordago_wager_action_masks_are_valid(
+        used_action_masks, active_wager, last_numeric_player,
+        latest_numeric_increment);
 }
 
 static Status collect_ordago_betting_actions_unchecked(
     MusBetStage bet_stage, int max_settled_score, int prior_wager_total,
-    uint8_t current_wager, uint8_t previous_wager,
-    bool current_wager_is_ordago, Action *actions, size_t capacity,
-    size_t *required_count) {
+    uint8_t current_wager, uint8_t previous_wager, Player current_player,
+    const uint8_t used_action_masks[MUS_GAME_PLAYER_COUNT],
+    bool current_wager_is_ordago,
+    Action *actions, size_t capacity, size_t *required_count) {
     static const Action wager_actions[4] = {
         MUS_ACTION_BET_TWO, MUS_ACTION_BET_FOUR,
         MUS_ACTION_BET_SEVEN, MUS_ACTION_BET_TEN,
@@ -949,6 +1118,8 @@ static Status collect_ordago_betting_actions_unchecked(
     static const uint8_t increments[4] = {2, 4, 7, 10};
     Action temporary[7];
     size_t count = 0;
+    const uint8_t numeric_wager_count =
+        ordago_numeric_wager_count(used_action_masks);
 
     if (bet_stage == MUS_BET_RESPONSE) {
         temporary[count++] = MUS_ACTION_REJECT;
@@ -957,7 +1128,9 @@ static Status collect_ordago_betting_actions_unchecked(
             for (int index = 0; index < 4; index += 1) {
                 if (ordago_response_increment_is_legal(
                         max_settled_score, prior_wager_total, current_wager,
-                        previous_wager, increments[index])) {
+                        previous_wager, numeric_wager_count,
+                        used_action_masks[current_player],
+                        increments[index])) {
                     temporary[count++] = wager_actions[index];
                 }
             }
@@ -968,6 +1141,9 @@ static Status collect_ordago_betting_actions_unchecked(
         for (int index = 0; index < 4; index += 1) {
             if (ordago_numeric_budget_allows(
                     max_settled_score, prior_wager_total, 0,
+                    increments[index]) &&
+                ordago_wager_action_is_unused(
+                    used_action_masks[current_player],
                     increments[index])) {
                 temporary[count++] = wager_actions[index];
             }
@@ -983,12 +1159,16 @@ static Status collect_ordago_betting_actions_unchecked(
 
 static Status collect_ordago_betting_actions(
     MusBetStage bet_stage, int max_settled_score, int prior_wager_total,
-    uint8_t current_wager, uint8_t previous_wager,
-    bool current_wager_is_ordago, Action *actions, size_t capacity,
-    size_t *required_count) {
+    uint8_t current_wager, uint8_t previous_wager, Player current_player,
+    Player bettor,
+    const uint8_t used_action_masks[MUS_GAME_PLAYER_COUNT],
+    bool current_wager_is_ordago,
+    Action *actions, size_t capacity, size_t *required_count) {
     if (actions == NULL || required_count == NULL ||
         max_settled_score < 0 || max_settled_score > MUS_ORDAGO_WAGER ||
         prior_wager_total < 0 || prior_wager_total > MUS_ORDAGO_WAGER ||
+        !player_is_valid(current_player) || !player_is_valid(bettor) ||
+        used_action_masks == NULL ||
         bet_stage < MUS_BET_FIRST_TO_ACT ||
         bet_stage > MUS_BET_RESPONSE) {
         return CFR_STATUS_INVALID_ARGUMENT;
@@ -996,9 +1176,18 @@ static Status collect_ordago_betting_actions(
     if (bet_stage == MUS_BET_RESPONSE) {
         const int active_wager = ordago_active_numeric_wager(
             current_wager, previous_wager, current_wager_is_ordago);
+        const uint8_t numeric_wager_count =
+            ordago_numeric_wager_count(used_action_masks);
 
-        if (!ordago_offer_is_valid(current_wager, previous_wager,
+        if (current_player == bettor ||
+            !ordago_offer_is_valid(current_wager, previous_wager,
                                    current_wager_is_ordago) ||
+            !ordago_numeric_wager_count_is_valid(
+                previous_wager, current_wager_is_ordago,
+                numeric_wager_count) ||
+            !ordago_wager_action_history_is_valid(
+                current_wager, previous_wager, current_player, bettor,
+                current_wager_is_ordago, used_action_masks) ||
             (active_wager > 0 &&
              !ordago_numeric_budget_allows(
                  max_settled_score, prior_wager_total, active_wager, 0))) {
@@ -1006,14 +1195,15 @@ static Status collect_ordago_betting_actions(
         }
     } else {
         if (current_wager != 0 || previous_wager != 0 ||
+            used_action_masks[0] != 0 || used_action_masks[1] != 0 ||
             current_wager_is_ordago) {
             return CFR_STATUS_INVALID_ARGUMENT;
         }
     }
     return collect_ordago_betting_actions_unchecked(
         bet_stage, max_settled_score, prior_wager_total, current_wager,
-        previous_wager, current_wager_is_ordago, actions, capacity,
-        required_count);
+        previous_wager, current_player, used_action_masks,
+        current_wager_is_ordago, actions, capacity, required_count);
 }
 
 static bool outcome_wager_is_valid(const MusGameFormat *format,
@@ -1099,8 +1289,17 @@ static Status validate_model(const MusGameModel *model,
     }
     if (format->ordago_with_mus &&
         (ordago_prior_wager_total(model) > MUS_ORDAGO_WAGER ||
+         !ordago_wager_action_history_is_valid(
+             model->current_wager, model->previous_wager,
+             (Player)model->current_player, (Player)model->bettor,
+             model->current_wager_is_ordago,
+             model->used_wager_action_masks) ||
          ordago_prior_wager_total(model) !=
              recompute_ordago_prior_wager_total(model)))
+        return CFR_STATUS_INVALID_ARGUMENT;
+    if (!format->ordago_with_mus &&
+        (model->used_wager_action_masks[0] != 0 ||
+         model->used_wager_action_masks[1] != 0))
         return CFR_STATUS_INVALID_ARGUMENT;
     if (model->mus_count > MUS_GAME_MAX_MUSES)
         return CFR_STATUS_INVALID_ARGUMENT;
@@ -1239,10 +1438,17 @@ static Status validate_model(const MusGameModel *model,
                 const int active_wager = ordago_active_numeric_wager(
                     model->current_wager, model->previous_wager,
                     model->current_wager_is_ordago);
+                const uint8_t numeric_wager_count =
+                    ordago_numeric_wager_count(
+                        model->used_wager_action_masks);
 
                 if (!ordago_offer_is_valid(
                         model->current_wager, model->previous_wager,
                         model->current_wager_is_ordago) ||
+                    !ordago_numeric_wager_count_is_valid(
+                        model->previous_wager,
+                        model->current_wager_is_ordago,
+                        numeric_wager_count) ||
                     (active_wager > 0 &&
                      !ordago_numeric_budget_allows(
                          ordago_max_settled_score(model),
@@ -1262,6 +1468,8 @@ static Status validate_model(const MusGameModel *model,
         }
         if (model->bet_stage != MUS_BET_RESPONSE &&
             (model->current_wager != 0 || model->previous_wager != 0 ||
+             model->used_wager_action_masks[0] != 0 ||
+             model->used_wager_action_masks[1] != 0 ||
              model->current_wager_is_ordago ||
              model->current_strength != MUS_LANCE_STRENGTH_NONE)) {
             return CFR_STATUS_INVALID_ARGUMENT;
@@ -1849,6 +2057,8 @@ static Status mus_trusted_legal_actions(const void *context,
             mus->model.bet_stage, ordago_max_settled_score(&mus->model),
             ordago_prior_wager_total(&mus->model),
             mus->model.current_wager, mus->model.previous_wager,
+            (Player)mus->model.current_player,
+            mus->model.used_wager_action_masks,
             mus->model.current_wager_is_ordago, actions, capacity,
             required_count);
     }
@@ -1905,10 +2115,18 @@ static bool player_action_is_legal(const MusGameModel *model,
                      ordago_response_increment_is_legal(
                          max_settled_score, prior_wager_total,
                          model->current_wager, model->previous_wager,
+                         ordago_numeric_wager_count(
+                             model->used_wager_action_masks),
+                         model->used_wager_action_masks[
+                             model->current_player],
                          ordago_wager)));
         }
         return action == MUS_ACTION_PASS || action == MUS_ACTION_ORDAGO ||
-               (ordago_increment_is_valid(ordago_wager) &&
+               (ordago_initial_increment_is_valid(ordago_wager) &&
+                ordago_wager_action_is_unused(
+                    model->used_wager_action_masks[
+                        model->current_player],
+                    ordago_wager) &&
                 ordago_numeric_budget_allows(
                     max_settled_score, prior_wager_total, 0,
                     ordago_wager));
@@ -2101,6 +2319,10 @@ static Status apply_to_model(
             model->current_wager = wager;
             if (format->ordago_with_mus) {
                 model->previous_wager = 1;
+                if (action != MUS_ACTION_ORDAGO) {
+                    model->used_wager_action_masks[CFR_PLAYER_0] |=
+                        ordago_wager_action_bit(ordago_wager);
+                }
                 model->current_wager_is_ordago =
                     action == MUS_ACTION_ORDAGO;
                 model->current_strength =
@@ -2121,6 +2343,10 @@ static Status apply_to_model(
             model->current_wager = wager;
             if (format->ordago_with_mus) {
                 model->previous_wager = 1;
+                if (action != MUS_ACTION_ORDAGO) {
+                    model->used_wager_action_masks[CFR_PLAYER_1] |=
+                        ordago_wager_action_bit(ordago_wager);
+                }
                 model->current_wager_is_ordago =
                     action == MUS_ACTION_ORDAGO;
                 model->current_strength =
@@ -2135,6 +2361,7 @@ static Status apply_to_model(
         if (action == MUS_ACTION_RAISE_DOUBLE ||
             (format->ordago_with_mus && ordago_wager > 0)) {
             const Player previous_bettor = model->bettor;
+            const Player raising_player = model->current_player;
             const uint8_t next_wager =
                 format->ordago_with_mus
                     ? (action == MUS_ACTION_ORDAGO
@@ -2146,6 +2373,10 @@ static Status apply_to_model(
             model->current_player = previous_bettor;
             if (format->ordago_with_mus) {
                 model->previous_wager = model->current_wager;
+                if (action != MUS_ACTION_ORDAGO) {
+                    model->used_wager_action_masks[raising_player] |=
+                        ordago_wager_action_bit(ordago_wager);
+                }
                 model->current_wager_is_ordago =
                     action == MUS_ACTION_ORDAGO;
                 model->current_strength = MUS_LANCE_STRENGTH_BOTH;
@@ -2858,6 +3089,11 @@ static InfoSetKey ordago_information_set_key(
         if (model->bet_stage == MUS_BET_RESPONSE) {
             key = key * MUS_ORDAGO_WAGER_RADIX + model->current_wager;
             key = key * MUS_ORDAGO_WAGER_RADIX + model->previous_wager;
+            for (int player = 0; player < MUS_GAME_PLAYER_COUNT;
+                 player += 1) {
+                key = key * MUS_ORDAGO_WAGER_ACTION_MASK_RADIX +
+                      model->used_wager_action_masks[player];
+            }
             key = key * 2 + model->current_wager_is_ordago;
         }
     }
@@ -3369,6 +3605,16 @@ Status mus_ordago_game_information_set_decode(
         if (information_set->bet_stage == MUS_BET_RESPONSE) {
             information_set->current_wager_is_ordago = (bool)(key % 2);
             key /= 2;
+            for (int player = MUS_GAME_PLAYER_COUNT - 1; player >= 0;
+                 player -= 1) {
+                information_set->used_wager_action_masks[player] =
+                    (uint8_t)(key %
+                              MUS_ORDAGO_WAGER_ACTION_MASK_RADIX);
+                key /= MUS_ORDAGO_WAGER_ACTION_MASK_RADIX;
+            }
+            information_set->numeric_wager_count =
+                ordago_numeric_wager_count(
+                    information_set->used_wager_action_masks);
             information_set->previous_wager =
                 (uint8_t)(key % MUS_ORDAGO_WAGER_RADIX);
             key /= MUS_ORDAGO_WAGER_RADIX;
@@ -3389,7 +3635,20 @@ Status mus_ordago_game_information_set_decode(
              !ordago_offer_is_valid(
                  information_set->current_wager,
                  information_set->previous_wager,
-                 information_set->current_wager_is_ordago))) {
+                 information_set->current_wager_is_ordago)) ||
+            (information_set->bet_stage == MUS_BET_RESPONSE &&
+             !ordago_numeric_wager_count_is_valid(
+                 information_set->previous_wager,
+                 information_set->current_wager_is_ordago,
+                 information_set->numeric_wager_count)) ||
+            (information_set->bet_stage == MUS_BET_RESPONSE &&
+             !ordago_wager_action_history_is_valid(
+                 information_set->current_wager,
+                 information_set->previous_wager,
+                 information_set->player,
+                 information_set->bettor,
+                 information_set->current_wager_is_ordago,
+                 information_set->used_wager_action_masks))) {
             return CFR_STATUS_INVALID_ARGUMENT;
         }
         if (information_set->bet_stage == MUS_BET_RESPONSE) {
@@ -3475,7 +3734,9 @@ Status mus_ordago_game_information_set_legal_actions(
         information_set->bet_stage, information_set->max_settled_score,
         information_set->prior_wager_total,
         information_set->current_wager,
-        information_set->previous_wager,
+        information_set->previous_wager, information_set->player,
+        information_set->bettor,
+        information_set->used_wager_action_masks,
         information_set->current_wager_is_ordago, actions, capacity,
         required_count);
 }

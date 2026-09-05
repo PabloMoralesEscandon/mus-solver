@@ -140,6 +140,17 @@ static MusOrdagoInformationSet ordago_information(
     return information;
 }
 
+static uint8_t ordago_test_numeric_wager_count(
+    const uint8_t used_action_masks[MUS_GAME_PLAYER_COUNT]) {
+    unsigned int count = 0;
+
+    for (int player = 0; player < MUS_GAME_PLAYER_COUNT; player += 1) {
+        for (int bit = 0; bit < MUS_ORDAGO_WAGER_ACTION_COUNT; bit += 1)
+            count += (used_action_masks[player] >> bit) & 1U;
+    }
+    return (uint8_t)count;
+}
+
 typedef struct {
     size_t player_0_compositions;
     size_t joint_deals;
@@ -682,30 +693,33 @@ static void test_ordago_mus_discards_bets_and_infosets(void) {
     CHECK(cfr_game_legal_actions(ordago_game(), ordago_game_state(&state),
                                  actions, MUS_GAME_MAX_LEGAL_ACTIONS,
                                  &count) == CFR_STATUS_SUCCESS);
-    CHECK(count == 7 && actions[0] == MUS_ACTION_REJECT &&
+    CHECK(count == 6 && actions[0] == MUS_ACTION_REJECT &&
           actions[1] == MUS_ACTION_ACCEPT &&
           actions[2] == MUS_ACTION_BET_TWO &&
           actions[3] == MUS_ACTION_BET_FOUR &&
-          actions[4] == MUS_ACTION_BET_SEVEN &&
-          actions[5] == MUS_ACTION_BET_TEN &&
-          actions[6] == MUS_ACTION_ORDAGO);
-    ordago_apply(&state, MUS_ACTION_BET_SEVEN);
-    CHECK(state.model.current_wager == 9);
+          actions[4] == MUS_ACTION_BET_TEN &&
+          actions[5] == MUS_ACTION_ORDAGO);
+    CHECK(cfr_game_apply_action(ordago_game(), ordago_game_state(&state),
+                                MUS_ACTION_BET_SEVEN) ==
+          CFR_STATUS_ILLEGAL_ACTION);
+    ordago_apply(&state, MUS_ACTION_BET_TEN);
+    CHECK(state.model.current_wager == 12);
     CHECK(state.model.previous_wager == 2);
     CHECK(cfr_game_legal_actions(ordago_game(), ordago_game_state(&state),
                                  actions, MUS_GAME_MAX_LEGAL_ACTIONS,
                                  &count) == CFR_STATUS_SUCCESS);
-    CHECK(count == 5 && actions[0] == MUS_ACTION_REJECT &&
+    CHECK(count == 4 && actions[0] == MUS_ACTION_REJECT &&
           actions[1] == MUS_ACTION_ACCEPT &&
-          actions[2] == MUS_ACTION_BET_SEVEN &&
-          actions[3] == MUS_ACTION_BET_TEN &&
-          actions[4] == MUS_ACTION_ORDAGO);
+          actions[2] == MUS_ACTION_BET_TEN &&
+          actions[3] == MUS_ACTION_ORDAGO);
     CHECK(cfr_game_apply_action(ordago_game(), ordago_game_state(&state),
                                 MUS_ACTION_BET_FOUR) ==
           CFR_STATUS_ILLEGAL_ACTION);
     ordago_apply(&state, MUS_ACTION_ORDAGO);
     CHECK(state.model.current_wager == MUS_ORDAGO_WAGER);
-    CHECK(state.model.previous_wager == 9);
+    CHECK(state.model.previous_wager == 12);
+    CHECK(ordago_test_numeric_wager_count(
+              state.model.used_wager_action_masks) == 2);
     CHECK(state.model.current_wager_is_ordago);
     CHECK(cfr_game_information_set_key(ordago_game(),
                                        ordago_game_state(&state), &key) ==
@@ -715,12 +729,13 @@ static void test_ordago_mus_discards_bets_and_infosets(void) {
     CHECK(decoded.bet_stage == MUS_BET_RESPONSE);
     CHECK(decoded.bettor == CFR_PLAYER_0);
     CHECK(decoded.current_wager == MUS_ORDAGO_WAGER);
-    CHECK(decoded.previous_wager == 9);
+    CHECK(decoded.previous_wager == 12);
+    CHECK(decoded.numeric_wager_count == 2);
     CHECK(decoded.current_wager_is_ordago);
     ordago_apply(&state, MUS_ACTION_REJECT);
     CHECK(state.model.outcomes[0] == MUS_LANCE_FIRST_BET_REJECTED);
     CHECK(state.model.outcome_wagers[0] == MUS_ORDAGO_WAGER);
-    CHECK(state.model.outcome_previous_wagers[0] == 9);
+    CHECK(state.model.outcome_previous_wagers[0] == 12);
     while (state.model.phase != MUS_PHASE_MUS_PLAYER_0 ||
            state.model.mus_count != 0) {
         CHECK(cfr_game_undo_action(ordago_game(), ordago_game_state(&state)) ==
@@ -735,6 +750,7 @@ static void test_ordago_no_mus_scoring_and_export(void) {
     const uint8_t knights[MUS_GAME_CLASS_COUNT] = {0, 0, 0, 0, 0, 0, 4, 0};
     MusOrdagoGameState state;
     MusOrdagoGameState betting_state;
+    MusOrdagoGameState ordago_response_state;
     MusOrdagoGameState budget_state;
     MusOrdagoGameState discard_state;
     InfoStore store = {0};
@@ -747,6 +763,7 @@ static void test_ordago_no_mus_scoring_and_export(void) {
     bool found_mus = false;
     bool found_additive_response = false;
     bool found_filtered_response = false;
+    bool found_ordago_response = false;
     bool found_global_budget_response = false;
     bool found_canonical_discards = false;
 
@@ -776,11 +793,18 @@ static void test_ordago_no_mus_scoring_and_export(void) {
     ordago_apply(&betting_state, MUS_ACTION_NO_MUS);
     ordago_apply(&betting_state, MUS_ACTION_BET_TWO);
     key = ordago_information_key(&betting_state);
-    CHECK(cfr_info_store_get_or_create(&store, key, 7, &node) ==
+    CHECK(cfr_info_store_get_or_create(&store, key, 6, &node) ==
           CFR_STATUS_SUCCESS);
     ordago_apply(&betting_state, MUS_ACTION_BET_FOUR);
     key = ordago_information_key(&betting_state);
-    CHECK(cfr_info_store_get_or_create(&store, key, 6, &node) ==
+    CHECK(cfr_info_store_get_or_create(&store, key, 5, &node) ==
+          CFR_STATUS_SUCCESS);
+    ordago_deal(&ordago_response_state, kings, knights);
+    ordago_apply(&ordago_response_state, MUS_ACTION_NO_MUS);
+    ordago_apply(&ordago_response_state, MUS_ACTION_BET_TWO);
+    ordago_apply(&ordago_response_state, MUS_ACTION_ORDAGO);
+    key = ordago_information_key(&ordago_response_state);
+    CHECK(cfr_info_store_get_or_create(&store, key, 2, &node) ==
           CFR_STATUS_SUCCESS);
     ordago_deal(&budget_state, kings, knights);
     ordago_apply(&budget_state, MUS_ACTION_NO_MUS);
@@ -790,7 +814,7 @@ static void test_ordago_no_mus_scoring_and_export(void) {
     ordago_apply(&budget_state, MUS_ACTION_ACCEPT);
     ordago_apply(&budget_state, MUS_ACTION_BET_TWO);
     key = ordago_information_key(&budget_state);
-    CHECK(cfr_info_store_get_or_create(&store, key, 6, &node) ==
+    CHECK(cfr_info_store_get_or_create(&store, key, 5, &node) ==
           CFR_STATUS_SUCCESS);
     ordago_deal(&discard_state, kings, knights);
     ordago_apply(&discard_state, MUS_ACTION_MUS);
@@ -816,25 +840,33 @@ static void test_ordago_no_mus_scoring_and_export(void) {
                 found_mus = true;
             }
             if (strstr(line, "fase=grande") != NULL &&
-                strstr(line, "actual=2 cubierto=1") != NULL &&
+                strstr(line, "actual=2 cubierto=1 envites=1"
+                             " usados_j0=1 usados_j1=0") != NULL &&
                 strstr(line, "envidar_2=") != NULL) {
                 found_additive_response = true;
             }
             if (strstr(line, "fase=grande") != NULL &&
-                strstr(line, "actual=6 cubierto=2") != NULL &&
+                strstr(line, "actual=6 cubierto=2 envites=2"
+                             " usados_j0=1 usados_j1=2") != NULL &&
                 strstr(line, "envidar_2=") == NULL &&
                 strstr(line, "envidar_4=") != NULL &&
-                strstr(line, "envidar_7=") != NULL &&
+                strstr(line, "envidar_7=") == NULL &&
                 strstr(line, "envidar_10=") != NULL) {
                 found_filtered_response = true;
+            }
+            if (strstr(line, "fase=grande") != NULL &&
+                strstr(line, "actual=ordago cubierto=2 envites=1"
+                             " usados_j0=1 usados_j1=0") != NULL) {
+                found_ordago_response = true;
             }
             if (strstr(line, "fase=pares") != NULL &&
                 strstr(line, "tantos_maximos=10") != NULL &&
                 strstr(line, "acumulado_previo=20") != NULL &&
-                strstr(line, "actual=2 cubierto=1") != NULL &&
+                strstr(line, "actual=2 cubierto=1 envites=1"
+                             " usados_j0=1 usados_j1=0") != NULL &&
                 strstr(line, "envidar_2=") != NULL &&
                 strstr(line, "envidar_4=") != NULL &&
-                strstr(line, "envidar_7=") != NULL &&
+                strstr(line, "envidar_7=") == NULL &&
                 strstr(line, "envidar_10=") == NULL) {
                 found_global_budget_response = true;
             }
@@ -849,6 +881,7 @@ static void test_ordago_no_mus_scoring_and_export(void) {
         CHECK(found_mus);
         CHECK(found_additive_response);
         CHECK(found_filtered_response);
+        CHECK(found_ordago_response);
         CHECK(found_global_budget_response);
         CHECK(found_canonical_discards);
         fclose(text_file);
@@ -856,64 +889,291 @@ static void test_ordago_no_mus_scoring_and_export(void) {
     CHECK(cfr_info_store_destroy(&store) == CFR_STATUS_SUCCESS);
 }
 
+static void check_ordago_betting_tree_round_trip(
+    MusOrdagoGameState *state, MusGamePhase lance, size_t *visited) {
+    Action model_actions[MUS_GAME_MAX_LEGAL_ACTIONS] = {0};
+    Action decoded_actions[MUS_GAME_MAX_LEGAL_ACTIONS] = {0};
+    MusOrdagoInformationSet information = {0};
+    InfoSetKey key = -1;
+    size_t model_count = 0;
+    size_t decoded_count = 0;
+
+    CHECK(state != NULL && visited != NULL);
+    if (state == NULL || visited == NULL)
+        return;
+    CHECK(state->model.phase == lance);
+    CHECK(cfr_game_information_set_key(
+              ordago_game(), ordago_game_state(state), &key) ==
+          CFR_STATUS_SUCCESS);
+    CHECK(mus_ordago_game_information_set_decode(key, &information) ==
+          CFR_STATUS_SUCCESS);
+    CHECK(information.phase == state->model.phase);
+    CHECK(information.player == (Player)state->model.current_player);
+    CHECK(information.bet_stage == state->model.bet_stage);
+    CHECK(information.bettor == (Player)state->model.bettor);
+    CHECK(information.current_wager == state->model.current_wager);
+    CHECK(information.previous_wager == state->model.previous_wager);
+    CHECK(information.current_wager_is_ordago ==
+          state->model.current_wager_is_ordago);
+    CHECK(information.numeric_wager_count ==
+          ordago_test_numeric_wager_count(
+              state->model.used_wager_action_masks));
+    CHECK(memcmp(information.used_wager_action_masks,
+                 state->model.used_wager_action_masks,
+                 sizeof(information.used_wager_action_masks)) == 0);
+    CHECK(information.prior_wager_total ==
+          state->model.prior_wager_total);
+    CHECK(information.max_settled_score ==
+          (state->model.settled_scores[0] >
+                   state->model.settled_scores[1]
+               ? state->model.settled_scores[0]
+               : state->model.settled_scores[1]));
+    CHECK(cfr_game_legal_actions(
+              ordago_game(), ordago_game_state(state), model_actions,
+              MUS_GAME_MAX_LEGAL_ACTIONS, &model_count) ==
+          CFR_STATUS_SUCCESS);
+    CHECK(mus_ordago_game_information_set_legal_actions(
+              &information, decoded_actions,
+              MUS_GAME_MAX_LEGAL_ACTIONS, &decoded_count) ==
+          CFR_STATUS_SUCCESS);
+    CHECK(decoded_count == model_count);
+    CHECK(memcmp(model_actions, decoded_actions,
+                 model_count * sizeof(*model_actions)) == 0);
+    *visited += 1;
+
+    for (size_t action_index = 0; action_index < model_count;
+         action_index += 1) {
+        const Status apply_status = cfr_game_apply_action(
+            ordago_game(), ordago_game_state(state),
+            model_actions[action_index]);
+
+        CHECK(apply_status == CFR_STATUS_SUCCESS);
+        if (apply_status != CFR_STATUS_SUCCESS)
+            continue;
+        if (state->model.phase == lance) {
+            check_ordago_betting_tree_round_trip(
+                state, lance, visited);
+        }
+        CHECK(cfr_game_undo_action(
+                  ordago_game(), ordago_game_state(state)) ==
+              CFR_STATUS_SUCCESS);
+    }
+}
+
+static void test_ordago_betting_tree_round_trip(void) {
+    const uint8_t kings[MUS_GAME_CLASS_COUNT] = {0, 0, 0, 0, 0, 0, 0, 4};
+    const uint8_t knights[MUS_GAME_CLASS_COUNT] = {0, 0, 0, 0, 0, 0, 4, 0};
+    MusOrdagoGameState state;
+    size_t visited = 0;
+
+    ordago_deal(&state, kings, knights);
+    ordago_apply(&state, MUS_ACTION_NO_MUS);
+    check_ordago_betting_tree_round_trip(
+        &state, MUS_PHASE_GRANDE, &visited);
+    CHECK(visited > 20);
+}
+
+static void test_other_formats_reject_ordago_wager_masks(void) {
+    const uint8_t kings[MUS_GAME_CLASS_COUNT] = {0, 0, 0, 0, 0, 0, 0, 4};
+    const uint8_t knights[MUS_GAME_CLASS_COUNT] = {0, 0, 0, 0, 0, 0, 4, 0};
+    MusGameState state;
+    Action actions[MUS_GAME_MAX_LEGAL_ACTIONS] = {0};
+    size_t count = 0;
+
+    deal(&state, kings, knights);
+    CHECK(cfr_game_legal_actions(game(), game_state(&state), actions,
+                                 MUS_GAME_MAX_LEGAL_ACTIONS,
+                                 &count) == CFR_STATUS_SUCCESS);
+    state.model.used_wager_action_masks[CFR_PLAYER_0] = 1;
+    CHECK(cfr_game_legal_actions(game(), game_state(&state), actions,
+                                 MUS_GAME_MAX_LEGAL_ACTIONS,
+                                 &count) == CFR_STATUS_INVALID_ARGUMENT);
+    state.model.used_wager_action_masks[CFR_PLAYER_0] = 0;
+    CHECK(cfr_game_legal_actions(game(), game_state(&state), actions,
+                                 MUS_GAME_MAX_LEGAL_ACTIONS,
+                                 &count) == CFR_STATUS_SUCCESS);
+}
+
 static void test_ordago_additive_wagers(void) {
     const uint8_t kings[MUS_GAME_CLASS_COUNT] = {0, 0, 0, 0, 0, 0, 0, 4};
     const uint8_t knights[MUS_GAME_CLASS_COUNT] = {0, 0, 0, 0, 0, 0, 4, 0};
     const uint8_t matched[MUS_GAME_CLASS_COUNT] = {1, 1, 0, 0, 0, 0, 1, 1};
     MusOrdagoGameState state;
+    MusOrdagoGameState short_history;
+    MusOrdagoGameState long_history;
     MusOrdagoInformationSet information;
     Action actions[MUS_GAME_MAX_LEGAL_ACTIONS] = {0};
     Action decoded_actions[MUS_GAME_MAX_LEGAL_ACTIONS] = {0};
     size_t count = 0;
     size_t decoded_count = 0;
+    InfoSetKey short_key;
+    InfoSetKey long_key;
 
     ordago_deal(&state, kings, knights);
     ordago_apply(&state, MUS_ACTION_NO_MUS);
     ordago_apply(&state, MUS_ACTION_BET_TWO);
-    ordago_apply(&state, MUS_ACTION_BET_TWO);
-    CHECK(state.model.current_wager == 4);
-    CHECK(state.model.previous_wager == 2);
-    CHECK(!state.model.current_wager_is_ordago);
-    information = ordago_information(&state);
-    CHECK(information.current_wager == 4);
-    CHECK(information.previous_wager == 2);
-    CHECK(information.prior_wager_total == 0);
-    CHECK(!information.current_wager_is_ordago);
-
-    ordago_deal(&state, kings, knights);
-    ordago_apply(&state, MUS_ACTION_NO_MUS);
-    ordago_apply(&state, MUS_ACTION_BET_FOUR);
     CHECK(cfr_game_legal_actions(ordago_game(), ordago_game_state(&state),
                                  actions, MUS_GAME_MAX_LEGAL_ACTIONS,
                                  &count) == CFR_STATUS_SUCCESS);
     CHECK(count == 6 && actions[0] == MUS_ACTION_REJECT &&
           actions[1] == MUS_ACTION_ACCEPT &&
-          actions[2] == MUS_ACTION_BET_FOUR &&
-          actions[3] == MUS_ACTION_BET_SEVEN &&
+          actions[2] == MUS_ACTION_BET_TWO &&
+          actions[3] == MUS_ACTION_BET_FOUR &&
           actions[4] == MUS_ACTION_BET_TEN &&
           actions[5] == MUS_ACTION_ORDAGO);
-    CHECK(cfr_game_apply_action(ordago_game(), ordago_game_state(&state),
-                                MUS_ACTION_BET_TWO) ==
-          CFR_STATUS_ILLEGAL_ACTION);
-    ordago_apply(&state, MUS_ACTION_BET_FOUR);
-    ordago_apply(&state, MUS_ACTION_BET_SEVEN);
-    CHECK(state.model.current_wager == 15);
-    CHECK(state.model.previous_wager == 8);
+    ordago_apply(&state, MUS_ACTION_BET_TWO);
+    CHECK(state.model.current_wager == 4);
+    CHECK(state.model.previous_wager == 2);
+    CHECK(state.model.used_wager_action_masks[CFR_PLAYER_0] == 1);
+    CHECK(state.model.used_wager_action_masks[CFR_PLAYER_1] == 1);
+    CHECK(!state.model.current_wager_is_ordago);
     CHECK(cfr_game_legal_actions(ordago_game(), ordago_game_state(&state),
                                  actions, MUS_GAME_MAX_LEGAL_ACTIONS,
                                  &count) == CFR_STATUS_SUCCESS);
     CHECK(count == 5 && actions[0] == MUS_ACTION_REJECT &&
           actions[1] == MUS_ACTION_ACCEPT &&
-          actions[2] == MUS_ACTION_BET_SEVEN &&
+          actions[2] == MUS_ACTION_BET_FOUR &&
           actions[3] == MUS_ACTION_BET_TEN &&
           actions[4] == MUS_ACTION_ORDAGO);
+    CHECK(cfr_game_apply_action(ordago_game(), ordago_game_state(&state),
+                                MUS_ACTION_BET_TWO) ==
+          CFR_STATUS_ILLEGAL_ACTION);
+    information = ordago_information(&state);
+    CHECK(information.current_wager == 4);
+    CHECK(information.previous_wager == 2);
+    CHECK(information.numeric_wager_count == 2);
+    CHECK(information.used_wager_action_masks[CFR_PLAYER_0] == 1);
+    CHECK(information.used_wager_action_masks[CFR_PLAYER_1] == 1);
+    CHECK(information.prior_wager_total == 0);
+    CHECK(!information.current_wager_is_ordago);
+
+    ordago_deal(&state, kings, knights);
+    ordago_apply(&state, MUS_ACTION_NO_MUS);
+    ordago_apply(&state, MUS_ACTION_PASS);
+    ordago_apply(&state, MUS_ACTION_BET_SEVEN);
+    CHECK(state.model.current_player == CFR_PLAYER_0);
+    CHECK(state.model.current_wager == 7);
+    CHECK(ordago_test_numeric_wager_count(
+              state.model.used_wager_action_masks) == 1);
+    CHECK(state.model.used_wager_action_masks[CFR_PLAYER_0] == 0);
+    CHECK(state.model.used_wager_action_masks[CFR_PLAYER_1] == 4);
+    CHECK(cfr_game_legal_actions(ordago_game(), ordago_game_state(&state),
+                                 actions, MUS_GAME_MAX_LEGAL_ACTIONS,
+                                 &count) == CFR_STATUS_SUCCESS);
+    CHECK(count == 4 && actions[0] == MUS_ACTION_REJECT &&
+          actions[1] == MUS_ACTION_ACCEPT &&
+          actions[2] == MUS_ACTION_BET_TEN &&
+          actions[3] == MUS_ACTION_ORDAGO);
+    CHECK(cfr_game_apply_action(ordago_game(), ordago_game_state(&state),
+                                MUS_ACTION_BET_SEVEN) ==
+          CFR_STATUS_ILLEGAL_ACTION);
+    CHECK(cfr_game_apply_action(ordago_game(), ordago_game_state(&state),
+                                MUS_ACTION_BET_FOUR) ==
+          CFR_STATUS_ILLEGAL_ACTION);
+    ordago_apply(&state, MUS_ACTION_BET_TEN);
+    CHECK(state.model.current_wager == 17);
+    CHECK(ordago_test_numeric_wager_count(
+              state.model.used_wager_action_masks) == 2);
+
+    ordago_deal(&state, kings, knights);
+    ordago_apply(&state, MUS_ACTION_NO_MUS);
+    ordago_apply(&state, MUS_ACTION_BET_TWO);
+    ordago_apply(&state, MUS_ACTION_BET_TWO);
+    ordago_apply(&state, MUS_ACTION_BET_FOUR);
+    ordago_apply(&state, MUS_ACTION_BET_FOUR);
+    ordago_apply(&state, MUS_ACTION_BET_TEN);
+    CHECK(state.model.current_wager == 22);
+    CHECK(state.model.previous_wager == 12);
+    CHECK(ordago_test_numeric_wager_count(
+              state.model.used_wager_action_masks) ==
+          MUS_ORDAGO_MAX_NUMERIC_WAGERS);
+    CHECK(state.model.used_wager_action_masks[CFR_PLAYER_0] == 11);
+    CHECK(state.model.used_wager_action_masks[CFR_PLAYER_1] == 3);
+    CHECK(cfr_game_legal_actions(ordago_game(), ordago_game_state(&state),
+                                 actions, MUS_GAME_MAX_LEGAL_ACTIONS,
+                                 &count) == CFR_STATUS_SUCCESS);
+    CHECK(count == 3 && actions[0] == MUS_ACTION_REJECT &&
+          actions[1] == MUS_ACTION_ACCEPT &&
+          actions[2] == MUS_ACTION_ORDAGO);
+    CHECK(cfr_game_apply_action(ordago_game(), ordago_game_state(&state),
+                                MUS_ACTION_BET_TWO) ==
+          CFR_STATUS_ILLEGAL_ACTION);
+    CHECK(cfr_game_apply_action(ordago_game(), ordago_game_state(&state),
+                                MUS_ACTION_BET_TEN) ==
+          CFR_STATUS_ILLEGAL_ACTION);
+    information = ordago_information(&state);
+    CHECK(information.numeric_wager_count ==
+          MUS_ORDAGO_MAX_NUMERIC_WAGERS);
+    CHECK(information.used_wager_action_masks[CFR_PLAYER_0] == 11);
+    CHECK(information.used_wager_action_masks[CFR_PLAYER_1] == 3);
+    CHECK(mus_ordago_game_information_set_legal_actions(
+              &information, decoded_actions,
+              MUS_GAME_MAX_LEGAL_ACTIONS, &decoded_count) ==
+          CFR_STATUS_SUCCESS);
+    CHECK(decoded_count == count);
+    CHECK(memcmp(actions, decoded_actions,
+                 count * sizeof(*actions)) == 0);
+
+    ordago_deal(&short_history, kings, knights);
+    ordago_deal(&long_history, kings, knights);
+    ordago_apply(&short_history, MUS_ACTION_NO_MUS);
+    ordago_apply(&long_history, MUS_ACTION_NO_MUS);
+    ordago_apply(&short_history, MUS_ACTION_BET_TEN);
+    ordago_apply(&short_history, MUS_ACTION_BET_TEN);
+    ordago_apply(&long_history, MUS_ACTION_BET_TWO);
+    ordago_apply(&long_history, MUS_ACTION_BET_FOUR);
+    ordago_apply(&long_history, MUS_ACTION_BET_FOUR);
+    ordago_apply(&long_history, MUS_ACTION_BET_TEN);
+    CHECK(short_history.model.current_wager == 20);
+    CHECK(long_history.model.current_wager == 20);
+    CHECK(short_history.model.previous_wager == 10);
+    CHECK(long_history.model.previous_wager == 10);
+    CHECK(short_history.model.current_player ==
+          long_history.model.current_player);
+    CHECK(ordago_test_numeric_wager_count(
+              short_history.model.used_wager_action_masks) == 2);
+    CHECK(ordago_test_numeric_wager_count(
+              long_history.model.used_wager_action_masks) == 4);
+    short_key = ordago_information_key(&short_history);
+    long_key = ordago_information_key(&long_history);
+    CHECK(short_key != long_key);
+
+    ordago_deal(&state, kings, knights);
+    ordago_apply(&state, MUS_ACTION_NO_MUS);
+    ordago_apply(&state, MUS_ACTION_BET_FOUR);
+    CHECK(cfr_game_legal_actions(ordago_game(), ordago_game_state(&state),
+                                 actions, MUS_GAME_MAX_LEGAL_ACTIONS,
+                                 &count) == CFR_STATUS_SUCCESS);
+    CHECK(count == 5 && actions[0] == MUS_ACTION_REJECT &&
+          actions[1] == MUS_ACTION_ACCEPT &&
+          actions[2] == MUS_ACTION_BET_FOUR &&
+          actions[3] == MUS_ACTION_BET_TEN &&
+          actions[4] == MUS_ACTION_ORDAGO);
+    CHECK(cfr_game_apply_action(ordago_game(), ordago_game_state(&state),
+                                MUS_ACTION_BET_TWO) ==
+          CFR_STATUS_ILLEGAL_ACTION);
+    ordago_apply(&state, MUS_ACTION_BET_FOUR);
+    CHECK(cfr_game_apply_action(ordago_game(), ordago_game_state(&state),
+                                MUS_ACTION_BET_SEVEN) ==
+          CFR_STATUS_ILLEGAL_ACTION);
+    ordago_apply(&state, MUS_ACTION_BET_TEN);
+    CHECK(state.model.current_wager == 18);
+    CHECK(state.model.previous_wager == 8);
+    CHECK(ordago_test_numeric_wager_count(
+              state.model.used_wager_action_masks) == 3);
+    CHECK(cfr_game_legal_actions(ordago_game(), ordago_game_state(&state),
+                                 actions, MUS_GAME_MAX_LEGAL_ACTIONS,
+                                 &count) == CFR_STATUS_SUCCESS);
+    CHECK(count == 4 && actions[0] == MUS_ACTION_REJECT &&
+          actions[1] == MUS_ACTION_ACCEPT &&
+          actions[2] == MUS_ACTION_BET_TEN &&
+          actions[3] == MUS_ACTION_ORDAGO);
     CHECK(cfr_game_apply_action(ordago_game(), ordago_game_state(&state),
                                 MUS_ACTION_BET_FOUR) ==
           CFR_STATUS_ILLEGAL_ACTION);
 
     ordago_deal(&state, kings, knights);
     ordago_apply(&state, MUS_ACTION_NO_MUS);
-    ordago_apply(&state, MUS_ACTION_BET_TEN);
     ordago_apply(&state, MUS_ACTION_BET_TEN);
     ordago_apply(&state, MUS_ACTION_BET_TEN);
     CHECK(cfr_game_legal_actions(ordago_game(), ordago_game_state(&state),
@@ -927,7 +1187,7 @@ static void test_ordago_additive_wagers(void) {
           CFR_STATUS_ILLEGAL_ACTION);
     ordago_apply(&state, MUS_ACTION_ORDAGO);
     CHECK(state.model.current_wager == MUS_ORDAGO_WAGER);
-    CHECK(state.model.previous_wager == 30);
+    CHECK(state.model.previous_wager == 20);
     CHECK(state.model.current_wager_is_ordago);
 
     ordago_deal(&state, kings, knights);
@@ -937,6 +1197,8 @@ static void test_ordago_additive_wagers(void) {
     information = ordago_information(&state);
     CHECK(information.max_settled_score == 10);
     CHECK(information.prior_wager_total == 10);
+    CHECK(state.model.used_wager_action_masks[CFR_PLAYER_0] == 0);
+    CHECK(state.model.used_wager_action_masks[CFR_PLAYER_1] == 0);
     ordago_apply(&state, MUS_ACTION_BET_TEN);
     ordago_apply(&state, MUS_ACTION_ACCEPT);
     CHECK(state.model.phase == MUS_PHASE_PARES);
@@ -980,12 +1242,11 @@ static void test_ordago_additive_wagers(void) {
     CHECK(cfr_game_legal_actions(ordago_game(), ordago_game_state(&state),
                                  actions, MUS_GAME_MAX_LEGAL_ACTIONS,
                                  &count) == CFR_STATUS_SUCCESS);
-    CHECK(count == 6 && actions[0] == MUS_ACTION_REJECT &&
+    CHECK(count == 5 && actions[0] == MUS_ACTION_REJECT &&
           actions[1] == MUS_ACTION_ACCEPT &&
           actions[2] == MUS_ACTION_BET_TWO &&
           actions[3] == MUS_ACTION_BET_FOUR &&
-          actions[4] == MUS_ACTION_BET_SEVEN &&
-          actions[5] == MUS_ACTION_ORDAGO);
+          actions[4] == MUS_ACTION_ORDAGO);
     CHECK(cfr_game_apply_action(ordago_game(), ordago_game_state(&state),
                                 MUS_ACTION_BET_TEN) ==
           CFR_STATUS_ILLEGAL_ACTION);
@@ -1011,11 +1272,14 @@ static void test_ordago_additive_wagers(void) {
     ordago_deal(&state, kings, knights);
     ordago_apply(&state, MUS_ACTION_NO_MUS);
     ordago_apply(&state, MUS_ACTION_BET_TWO);
-    ordago_apply(&state, MUS_ACTION_BET_SEVEN);
+    ordago_apply(&state, MUS_ACTION_BET_TWO);
+    ordago_apply(&state, MUS_ACTION_BET_FOUR);
+    ordago_apply(&state, MUS_ACTION_BET_FOUR);
     ordago_apply(&state, MUS_ACTION_BET_TEN);
-    ordago_apply(&state, MUS_ACTION_BET_TEN);
-    ordago_apply(&state, MUS_ACTION_BET_TEN);
-    CHECK(state.model.current_wager == MUS_ORDAGO_WAGER - 1);
+    CHECK(state.model.current_wager == 22);
+    CHECK(ordago_test_numeric_wager_count(
+              state.model.used_wager_action_masks) ==
+          MUS_ORDAGO_MAX_NUMERIC_WAGERS);
     ordago_apply(&state, MUS_ACTION_ACCEPT);
     while (state.model.phase != MUS_PHASE_TERMINAL) {
         ordago_apply(&state, MUS_ACTION_PASS);
@@ -1267,10 +1531,14 @@ static void test_ordago_public_pairs_and_scoring(void) {
     ordago_deal(&capped, game_31_medias, game_34_medias);
     ordago_apply(&capped, MUS_ACTION_NO_MUS);
     ordago_apply(&capped, MUS_ACTION_BET_TWO);
-    ordago_apply(&capped, MUS_ACTION_BET_SEVEN);
-    for (int raise = 0; raise < 3; raise += 1)
-        ordago_apply(&capped, MUS_ACTION_BET_TEN);
-    CHECK(capped.model.current_wager == MUS_ORDAGO_WAGER - 1);
+    ordago_apply(&capped, MUS_ACTION_BET_FOUR);
+    ordago_apply(&capped, MUS_ACTION_BET_FOUR);
+    ordago_apply(&capped, MUS_ACTION_BET_TEN);
+    ordago_apply(&capped, MUS_ACTION_BET_TEN);
+    CHECK(capped.model.current_wager == 30);
+    CHECK(ordago_test_numeric_wager_count(
+              capped.model.used_wager_action_masks) ==
+          MUS_ORDAGO_MAX_NUMERIC_WAGERS);
     ordago_apply(&capped, MUS_ACTION_ACCEPT);
     while (capped.model.phase != MUS_PHASE_TERMINAL) {
         ordago_apply(&capped, MUS_ACTION_PASS);
@@ -1281,7 +1549,7 @@ static void test_ordago_public_pairs_and_scoring(void) {
                                     ordago_game_state(&capped),
                                     CFR_PLAYER_0, &utility) ==
           CFR_STATUS_SUCCESS);
-    CHECK(utility == MUS_ORDAGO_WAGER);
+    CHECK(utility == 36.0);
 }
 
 static void test_ordago_decoder_rejects_invalid_keys(void) {
@@ -1317,18 +1585,49 @@ static void test_ordago_decoder_rejects_invalid_keys(void) {
     payload = payload * 41;
     payload = payload * 41 + 40;
     payload = payload * 41 + 30;
+    payload = payload * MUS_ORDAGO_WAGER_ACTION_MASK_COUNT + 11;
+    payload = payload * MUS_ORDAGO_WAGER_ACTION_MASK_COUNT + 10;
     payload = payload * 2 + 1;
     key = payload * situation_count + grande_situation + 2;
     CHECK(mus_ordago_game_information_set_decode(key, &information) ==
           CFR_STATUS_SUCCESS);
     CHECK(information.current_wager_is_ordago);
     CHECK(information.previous_wager == 30);
+    CHECK(information.numeric_wager_count == 5);
+    CHECK(information.used_wager_action_masks[CFR_PLAYER_0] == 11);
+    CHECK(information.used_wager_action_masks[CFR_PLAYER_1] == 10);
+
+    payload = 0;
+    payload = payload * 41;
+    payload = payload * 41;
+    payload = payload * 41 + 9;
+    payload = payload * 41 + 2;
+    payload = payload * MUS_ORDAGO_WAGER_ACTION_MASK_COUNT + 1;
+    payload = payload * MUS_ORDAGO_WAGER_ACTION_MASK_COUNT + 4;
+    payload = payload * 2;
+    key = payload * situation_count + grande_situation + 2;
+    CHECK(mus_ordago_game_information_set_decode(key, &information) ==
+          CFR_STATUS_INVALID_ARGUMENT);
+
+    payload = 0;
+    payload = payload * 41;
+    payload = payload * 41;
+    payload = payload * 41 + 2;
+    payload = payload * 41 + 1;
+    payload = payload * MUS_ORDAGO_WAGER_ACTION_MASK_COUNT + 1;
+    payload = payload * MUS_ORDAGO_WAGER_ACTION_MASK_COUNT;
+    payload = payload * 2;
+    key = payload * situation_count + grande_situation + 2;
+    CHECK(mus_ordago_game_information_set_decode(key, &information) ==
+          CFR_STATUS_INVALID_ARGUMENT);
 
     payload = 0;
     payload = payload * 41;
     payload = payload * 41;
     payload = payload * 41 + 2;
     payload = payload * 41 + 2;
+    payload = payload * MUS_ORDAGO_WAGER_ACTION_MASK_COUNT + 1;
+    payload = payload * MUS_ORDAGO_WAGER_ACTION_MASK_COUNT + 1;
     payload = payload * 2;
     key = payload * situation_count + grande_situation + 2;
     CHECK(mus_ordago_game_information_set_decode(key, &information) ==
@@ -1341,6 +1640,8 @@ static void test_ordago_decoder_rejects_invalid_keys(void) {
     payload = payload * 41 + 20;
     payload = payload * 41 + 10;
     payload = payload * 41 + 1;
+    payload = payload * MUS_ORDAGO_WAGER_ACTION_MASK_COUNT + 8;
+    payload = payload * MUS_ORDAGO_WAGER_ACTION_MASK_COUNT + 8;
     payload = payload * 2;
     key = payload * situation_count + chica_player_0_response_situation;
     CHECK(mus_ordago_game_information_set_decode(key, &information) ==
@@ -1800,6 +2101,8 @@ int main(void) {
     test_raises_to_eight_actions_infosets_and_undo();
     test_ordago_mus_discards_bets_and_infosets();
     test_ordago_no_mus_scoring_and_export();
+    test_ordago_betting_tree_round_trip();
+    test_other_formats_reject_ordago_wager_masks();
     test_ordago_additive_wagers();
     test_ordago_abstract_hands_and_strengths();
     test_ordago_public_pairs_and_scoring();
