@@ -139,6 +139,9 @@ static MusOrdagoInformationSet ordago_information(
 
     CHECK(mus_ordago_game_information_set_decode(key, &information) ==
           CFR_STATUS_SUCCESS);
+    InfoSetKey encoded = -1;
+    CHECK(mus_ordago_game_information_set_encode(&information, &encoded) == CFR_STATUS_SUCCESS);
+    CHECK(encoded == key);
     return information;
 }
 

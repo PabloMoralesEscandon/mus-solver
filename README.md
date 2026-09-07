@@ -571,7 +571,32 @@ lectura en orden de clave utilizada por el exportador.
 
 ## Fuera de alcance
 
-Estos formatos no incluyen partidas completas a 40 tantos, rotación de la
-mano, parejas, señas, consulta de una jugada aislada ni una interfaz para jugar
-contra la estrategia. `ordago` representa el órdago aceptado como el final de
-la mano por 40 tantos; no modela el marcador previo de una partida.
+Los formatos históricos no incluyen partidas completas a 40 tantos ni rotación
+de la mano. `ordago-score` incorpora el marcador y la continuación con cambio
+de mano descritos arriba. No se incluyen parejas, señas ni un motor de partida
+interactivo. La consulta de decisiones y su integración con un motor externo
+se describen en el adaptador siguiente.
+`ordago` representa el órdago aceptado como el final de la mano por 40 tantos;
+no modela el marcador previo de una partida.
+
+## Adaptador para jugar contra humanos
+
+El ejecutable `build/release/mus-bot` y la API `mus_adapter_*` utilizan un
+checkpoint `ordago` para responder a observaciones de partidas reales de dos
+jugadores. Admiten envites arbitrarios y repetidos mediante interpolación y
+mezcla de estados próximos, con ajustes sencillos por marcador y un máximo de
+un mus. El motor externo conserva las reglas, las acciones legales y el tanteo.
+El adaptador utiliza estrategias `ordago`; no carga las políticas ni las tablas
+de continuación de `ordago-score`.
+
+El CLI requiere la biblioteca de desarrollo de json-c y `pkg-config`, además
+de las dependencias del solver. Con `--strategy` consulta las filas necesarias
+del exportador de texto ordenado directamente en disco, sin cargar toda la
+estrategia en RAM. Recibe una observación JSON por línea:
+
+```sh
+build/release/mus-bot --strategy mus-ordago-100m.txt --seed 17
+```
+
+El [contrato del adaptador](docs/adapter.md) documenta el protocolo, la API,
+las aproximaciones, los diagnósticos y el benchmark reproducible.
