@@ -3827,6 +3827,46 @@ Status mus_score_game_information_set_decode(
     return decode_ordago_information_set(key, target, information_set);
 }
 
+Status mus_score_information_set_from_ordago(
+    const MusScoreGame *game, InfoSetKey source_key,
+    unsigned int earned_a, unsigned int earned_b, InfoSetKey *result) {
+    if (game == NULL || !mus_score_game_matches(&game->game) ||
+        game->continuation == NULL || result == NULL ||
+        game->continuation->target == 0 || game->continuation->target > MUS_ORDAGO_WAGER ||
+        game->initial_scores[0] >= game->continuation->target ||
+        game->initial_scores[1] >= game->continuation->target ||
+        earned_a >= MUS_ORDAGO_WAGER || earned_b >= MUS_ORDAGO_WAGER)
+        return CFR_STATUS_INVALID_ARGUMENT;
+    MusOrdagoInformationSet information;
+    Status status = mus_ordago_game_information_set_decode(source_key, &information);
+    if (status != CFR_STATUS_SUCCESS)
+        return status;
+    const bool betting = phase_is_betting(information.phase);
+    const unsigned int maximum = earned_a > earned_b ? earned_a : earned_b;
+    if (maximum != (betting ? information.max_settled_score : 0U))
+        return CFR_STATUS_INVALID_ARGUMENT;
+    const unsigned int a = game->initial_scores[0] + earned_a;
+    const unsigned int b = game->initial_scores[1] + earned_b;
+    if (a >= game->continuation->target || b >= game->continuation->target)
+        return CFR_STATUS_NOT_FOUND;
+    InfoSetKey key = source_key;
+    if (betting) {
+        /* Keep the public history and the complete wager suffix unchanged. */
+        InfoSetKey suffix_radix = MUS_ORDAGO_SITUATION_COUNT * MUS_ORDAGO_TOTAL_WAGER_RADIX;
+        if (information.bet_stage == MUS_BET_RESPONSE)
+            suffix_radix *= (InfoSetKey)MUS_ORDAGO_WAGER_RADIX * MUS_ORDAGO_WAGER_RADIX *
+                MUS_ORDAGO_WAGER_ACTION_MASK_RADIX * MUS_ORDAGO_WAGER_ACTION_MASK_RADIX * 2;
+        const InfoSetKey prefix = source_key / suffix_radix / MUS_ORDAGO_SCORE_RADIX;
+        key = ((prefix * MUS_ORDAGO_SCORE_RADIX + a) * MUS_ORDAGO_SCORE_RADIX + b) *
+                  suffix_radix + source_key % suffix_radix;
+    }
+    status = mus_score_game_information_set_decode(key, game->continuation->target,
+                                                   &information);
+    if (status == CFR_STATUS_SUCCESS)
+        *result = key;
+    return status;
+}
+
 /* Each score cell uses a separate store and a distinct checkpoint schema. */
 bool mus_score_game_matches(const Game *game) {
     return game != NULL && game->context == &MUS_SCORE_FORMAT &&

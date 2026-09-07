@@ -314,6 +314,11 @@ Status mus_score_train(MusScoreTable *table, unsigned int minimum_sum,
                                           mus_game_state_as_game_state(state), &store, seed);
             if (status == CFR_STATUS_SUCCESS && options->reserve_information_sets != 0)
                 status = cfr_info_store_reserve(&store, options->reserve_information_sets);
+            if (options->preload_stats != NULL)
+                *options->preload_stats = (MusScorePreloadStats){0};
+            if (status == CFR_STATUS_SUCCESS && options->preload != NULL)
+                status = mus_score_preload_ordago(&game, options->preload, &store,
+                                                  options->preload_stats);
             if (status == CFR_STATUS_SUCCESS)
                 status = cfr_trainer_run(&trainer, options->iterations);
             MusScoreCell cell = {.ready = true, .iterations = options->iterations,

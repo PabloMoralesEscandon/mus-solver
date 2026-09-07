@@ -4,6 +4,7 @@
 
 #include <errno.h>
 #include <inttypes.h>
+#include <math.h>
 #include <pthread.h>
 #include <sched.h>
 #include <stdbool.h>
@@ -62,6 +63,10 @@ typedef struct {
     bool score_set;
     bool target_set;
     bool evaluation_samples_set;
+    const char *preload_ordago_path;
+    bool preload_ordago_compressed;
+    double preload_weight;
+    bool preload_weight_set;
 } CliOptions;
 
 static bool print_usage(FILE *stream, const char *program) {
@@ -108,6 +113,10 @@ static bool print_usage(FILE *stream, const char *program) {
                "  --evaluation-samples N Manos para evaluar cada celda (10000).\n"
                "                          En ordago-score, --iterations se aplica\n"
                "                          a cada celda pendiente; se guarda por diagonal.\n"
+               "  --preload-ordago FILE   Precarga la estrategia media de ordago.\n"
+               "  --preload-ordago-compressed FILE\n"
+               "                          Precarga desde un checkpoint Zstandard.\n"
+               "  --preload-weight X     Peso inicial por nodo (1 por defecto).\n"
                "  --help, -h             Muestra esta ayuda.\n",
                program, program, program, program) >= 0;
 }
@@ -142,6 +151,16 @@ static bool parse_seed(const char *text, uint64_t *value_out) {
     return true;
 }
 
+static bool parse_positive_double(const char *text, double *result) {
+    char *end;
+    errno = 0;
+    const double value = strtod(text, &end);
+    if (errno != 0 || end == text || *end != '\0' || !isfinite(value) || value <= 0)
+        return false;
+    *result = value;
+    return true;
+}
+
 static bool option_value(int argc, char *argv[], int *index,
                          const char **value_out) {
     if (*index + 1 >= argc)
@@ -153,7 +172,8 @@ static bool option_value(int argc, char *argv[], int *index,
 
 static bool parse_options(int argc, char *argv[], CliOptions *options) {
     *options = (CliOptions){.threads = 1, .score_target = 40,
-                            .evaluation_samples = 10000};
+                            .evaluation_samples = 10000,
+                            .preload_weight = MUS_SCORE_PRELOAD_DEFAULT_WEIGHT};
     for (int index = 1; index < argc; index += 1) {
         const char *argument = argv[index];
         const char *value = NULL;
@@ -270,6 +290,20 @@ static bool parse_options(int argc, char *argv[], CliOptions *options) {
                 !parse_size(value, &options->evaluation_samples))
                 return false;
             options->evaluation_samples_set = true;
+        } else if (strcmp(argument, "--preload-ordago") == 0 ||
+                   strcmp(argument, "--preload-ordago-compressed") == 0) {
+            if (options->preload_ordago_path != NULL ||
+                !option_value(argc, argv, &index, &options->preload_ordago_path) ||
+                options->preload_ordago_path[0] == '\0')
+                return false;
+            options->preload_ordago_compressed =
+                strcmp(argument, "--preload-ordago-compressed") == 0;
+        } else if (strcmp(argument, "--preload-weight") == 0) {
+            if (options->preload_weight_set ||
+                !option_value(argc, argv, &index, &value) ||
+                !parse_positive_double(value, &options->preload_weight))
+                return false;
+            options->preload_weight_set = true;
         } else if (strcmp(argument, "--evaluate") == 0) {
             if (options->evaluate)
                 return false;
@@ -286,11 +320,14 @@ static bool parse_options(int argc, char *argv[], CliOptions *options) {
                options->score_a < options->score_target &&
                options->score_b < options->score_target &&
                options->load_path == NULL && options->save_path == NULL &&
+               (options->preload_ordago_path == NULL || options->iterations_set) &&
+               (!options->preload_weight_set || options->preload_ordago_path != NULL) &&
                options->threads == 1 && !options->report_every_set &&
                (options->iterations_set || options->evaluate || options->export_path != NULL);
     }
     if (options->continuation_dir != NULL || options->score_set ||
-        options->target_set || options->evaluation_samples_set)
+        options->target_set || options->evaluation_samples_set ||
+        options->preload_ordago_path != NULL || options->preload_weight_set)
         return false;
     if (!options->iterations_set && !options->evaluate &&
         !(options->load_path != NULL && options->export_path != NULL))
@@ -752,15 +789,30 @@ static char *score_cell_path(const char *directory, unsigned int a, unsigned int
     return score_path(directory, name);
 }
 
+typedef struct {
+    const CliOptions *options;
+    const MusScorePreloadStats *preload_stats;
+} ScorePersistence;
+
 static Status save_score_cell(const MusScoreGame *game, const Trainer *trainer,
                                const MusScoreCell *cell, void *context) {
-    const CliOptions *options = context;
+    const ScorePersistence *persistence = context;
+    const CliOptions *options = persistence->options;
     char *path = score_cell_path(options->continuation_dir,
                                 game->initial_scores[0], game->initial_scores[1]);
     if (path == NULL)
         return CFR_STATUS_OUT_OF_MEMORY;
     Status status = save_checkpoint(path, trainer, true);
     free(path);
+    if (status == CFR_STATUS_SUCCESS && persistence->preload_stats != NULL) {
+        const MusScorePreloadStats *stats = persistence->preload_stats;
+        if (printf("score-preload score=%u:%u source_nodes=%zu imported_nodes=%zu "
+                   "existing_nodes=%zu expanded_action_nodes=%zu\n",
+                   game->initial_scores[0], game->initial_scores[1],
+                   stats->source_nodes, stats->imported_nodes, stats->existing_nodes,
+                   stats->expanded_action_nodes) < 0)
+            status = CFR_STATUS_IO_ERROR;
+    }
     if (status == CFR_STATUS_SUCCESS &&
         printf("score-cell score=%u:%u target=%u iterations=%zu "
                "evaluation_samples=%zu value=%.17g win_probability=%.17g\n",
@@ -773,7 +825,7 @@ static Status save_score_cell(const MusScoreGame *game, const Trainer *trainer,
 }
 
 static Status save_score_diagonal(const MusScoreTable *table, void *context) {
-    const CliOptions *options = context;
+    const CliOptions *options = ((const ScorePersistence *)context)->options;
     char *path = score_path(options->continuation_dir, "values.txt");
     char *temporary = score_path(options->continuation_dir, "values.txt.tmp");
     if (path == NULL || temporary == NULL) {
@@ -862,12 +914,45 @@ static int run_score(const CliOptions *options) {
     MusGameState state;
     MusScoreGame game;
     Trainer trainer;
+    InfoStore preload_store = {0};
+    MusGameState *preload_state = NULL;
+    Trainer preload_trainer;
+    MusScorePreloadStats preload_stats;
+    const MusScorePreloadOptions preload = {
+        .source = &preload_trainer, .weight = options->preload_weight,
+        .uniform_mix = MUS_SCORE_PRELOAD_DEFAULT_UNIFORM_MIX,
+    };
+    ScorePersistence persistence = {
+        .options = options,
+        .preload_stats = options->preload_ordago_path == NULL ? NULL : &preload_stats,
+    };
     char *path = score_path(options->continuation_dir, "values.txt");
     char *lock_path = score_path(options->continuation_dir, "training.lock");
     bool locked = false;
     if (path == NULL || lock_path == NULL) {
         status = CFR_STATUS_OUT_OF_MEMORY;
         goto done;
+    }
+    if (options->preload_ordago_path != NULL) {
+        preload_state = malloc(sizeof(*preload_state));
+        status = preload_state == NULL ? CFR_STATUS_OUT_OF_MEMORY
+                                        : mus_ordago_game_state_init(preload_state);
+        if (status == CFR_STATUS_SUCCESS)
+            status = load_checkpoint(options->preload_ordago_path, mus_ordago_game_descriptor(),
+                                      mus_game_state_as_game_state(preload_state), &preload_store,
+                                      &preload_trainer, options->preload_ordago_compressed);
+        if (status != CFR_STATUS_SUCCESS) {
+            fprintf(stderr, "error: no se pudo precargar '%s': %s\n",
+                    options->preload_ordago_path, status_name(status));
+            goto done;
+        }
+        if (printf("score-preload-source path=%s schema=%s source_iterations=%zu "
+                   "weight=%.17g uniform_mix=%.17g\n",
+                   options->preload_ordago_path, preload_trainer.game->strategy_schema_id,
+                   preload_trainer.training_iterations, preload.weight, preload.uniform_mix) < 0) {
+            status = CFR_STATUS_IO_ERROR;
+            goto done;
+        }
     }
     if (options->iterations_set) {
         if (mkdir(options->continuation_dir, 0777) != 0 && errno != EEXIST) {
@@ -933,10 +1018,12 @@ static int run_score(const CliOptions *options) {
             .evaluation_samples = options->evaluation_samples,
             .seed = options->seed,
             .reserve_information_sets = options->reserve_information_sets,
+            .preload = options->preload_ordago_path == NULL ? NULL : &preload,
+            .preload_stats = persistence.preload_stats == NULL ? NULL : &preload_stats,
         };
         status = mus_score_train(&table, options->score_a + options->score_b,
                                   &training, save_score_cell, save_score_diagonal,
-                                  (void *)options);
+                                  &persistence);
         if (status != CFR_STATUS_SUCCESS)
             goto done;
     }
@@ -995,6 +1082,8 @@ static int run_score(const CliOptions *options) {
             status = export_strategy(options->export_path, &trainer, CLI_FORMAT_ORDAGO_SCORE);
     }
 done:
+    (void)cfr_info_store_destroy(&preload_store);
+    free(preload_state);
     if (store_initialized)
         (void)cfr_info_store_destroy(&store);
     if (locked)

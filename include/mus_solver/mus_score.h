@@ -31,10 +31,33 @@ typedef struct {
 } MusScoreGame;
 
 typedef struct {
+    /* Borrow an ordago trainer whose store remains unchanged during preload. */
+    const Trainer *source;
+    /* Synthetic regret and average-strategy mass per imported node. */
+    double weight;
+    /* Mix with a uniform policy so newly legal actions have positive mass. */
+    double uniform_mix;
+} MusScorePreloadOptions;
+
+#define MUS_SCORE_PRELOAD_DEFAULT_WEIGHT 1.0
+#define MUS_SCORE_PRELOAD_DEFAULT_UNIFORM_MIX 0.05
+
+typedef struct {
+    size_t source_nodes;
+    size_t imported_nodes;
+    size_t existing_nodes;
+    size_t expanded_action_nodes;
+} MusScorePreloadStats;
+
+typedef struct {
     size_t iterations;
     size_t evaluation_samples;
     uint64_t seed;
     size_t reserve_information_sets;
+    /* Optional ordago prior, applied separately to each missing score cell. */
+    const MusScorePreloadOptions *preload;
+    /* Optional output for the most recent cell, available in save_cell. */
+    MusScorePreloadStats *preload_stats;
 } MusScoreTrainingOptions;
 
 /* Save the strategy before the coordinator publishes its value. */
@@ -53,6 +76,23 @@ bool mus_score_game_matches(const Game *game);
 Status mus_score_game_state_init(MusGameState *state, const MusScoreGame *game);
 Status mus_score_game_information_set_decode(
     InfoSetKey key, unsigned int target, MusOrdagoInformationSet *information);
+/* Convert an ordago key using the points earned in this hand. The maximum
+ * earned score must match the aggregate in the source key. Mus and discard
+ * keys require zero earned points. Terminal destinations return NOT_FOUND.
+ * An error preserves result. No continuation values are needed. */
+Status mus_score_information_set_from_ordago(
+    const MusScoreGame *game, InfoSetKey source_key,
+    unsigned int earned_a, unsigned int earned_b, InfoSetKey *result);
+/* Import average policies into missing nodes of an initialized store.
+ * Enumerate score splits consistent with each source key's aggregate score.
+ * Map probabilities by action identity and seed synthetic positive regrets.
+ * Do not copy source regrets, iteration counters, RNG, or continuation values.
+ * Existing nodes are preserved. Requires exclusive access to destination.
+ * An error may leave completed imports; stats reports those imports. */
+Status mus_score_preload_ordago(const MusScoreGame *game,
+                               const MusScorePreloadOptions *options,
+                               InfoStore *destination,
+                               MusScorePreloadStats *stats);
 Status mus_score_terminal_utility(const MusGameState *state, Player player,
                                   Utility *utility);
 /* Generates a schema with the cell identity and all higher continuations. */

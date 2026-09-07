@@ -2177,6 +2177,192 @@ static void score_deal(const MusScoreGame *game, MusGameState *state,
 static const uint8_t SCORE_HAND_A[8] = {1, 1, 1, 1, 0, 0, 0, 0};
 static const uint8_t SCORE_HAND_B[8] = {1, 1, 0, 0, 1, 1, 0, 0};
 
+static void test_score_preload_key_mapping(void) {
+    MusScoreTable table;
+    MusScoreGame score;
+    MusGameState old_state, new_state;
+    unsigned int random = 7, decisions = 0;
+    bool phases[MUS_PHASE_REDRAW_PLAYER_1 + 1] = {0};
+    CHECK(mus_score_table_init(&table, 40) == CFR_STATUS_SUCCESS);
+    /* Compare converted keys against keys of independently advanced states. */
+    for (unsigned int hand = 0; hand < 128; hand += 1) {
+        CHECK(mus_score_game_init(&score, &table, hand % 9, hand % 5) == CFR_STATUS_SUCCESS);
+        CHECK(mus_ordago_game_state_init(&old_state) == CFR_STATUS_SUCCESS);
+        CHECK(mus_score_game_state_init(&new_state, &score) == CFR_STATUS_SUCCESS);
+        for (unsigned int step = 0; step < 256 && new_state.model.phase != MUS_PHASE_TERMINAL;
+             step += 1) {
+            Actor actor;
+            CHECK(cfr_game_current_actor(ordago_game(), game_state(&old_state), &actor) ==
+                  CFR_STATUS_SUCCESS);
+            if (actor.kind == CFR_ACTOR_PLAYER) {
+                InfoSetKey original, converted, expected;
+                CHECK(cfr_game_information_set_key(ordago_game(), game_state(&old_state),
+                                                    &original) == CFR_STATUS_SUCCESS);
+                CHECK(mus_score_information_set_from_ordago(&score, original,
+                          (unsigned int)old_state.model.settled_scores[0],
+                          (unsigned int)old_state.model.settled_scores[1], &converted) ==
+                      CFR_STATUS_SUCCESS);
+                CHECK(cfr_game_information_set_key(&score.game, game_state(&new_state),
+                                                    &expected) == CFR_STATUS_SUCCESS);
+                CHECK(converted == expected);
+                decisions += 1;
+                phases[old_state.model.phase] = true;
+            }
+            Action actions[MUS_GAME_MAX_LEGAL_ACTIONS];
+            size_t count = 0;
+            CHECK(cfr_game_legal_actions(ordago_game(), game_state(&old_state), actions,
+                                          MUS_GAME_MAX_LEGAL_ACTIONS, &count) == CFR_STATUS_SUCCESS);
+            if (count == 0)
+                break;
+            random = random * 1664525U + 1013904223U;
+            const Action action = actions[(random >> 16) % count];
+            ordago_apply(&old_state, action);
+            score_apply(&score, &new_state, action);
+        }
+        CHECK(new_state.model.phase == MUS_PHASE_TERMINAL);
+    }
+    const uint8_t kings_31[8] = {1, 0, 0, 0, 0, 0, 0, 3};
+    const uint8_t jacks_31[8] = {1, 0, 0, 0, 0, 3, 0, 0};
+    for (int sample = 0; sample < 2; sample += 1) {
+        const uint8_t *a = sample == 0 ? kings_31 : SCORE_HAND_A;
+        const uint8_t *b = sample == 0 ? jacks_31 : SCORE_HAND_B;
+        ordago_deal(&old_state, a, b);
+        ordago_apply(&old_state, MUS_ACTION_NO_MUS);
+        score_deal(&score, &new_state, a, b);
+        while (new_state.model.phase != MUS_PHASE_TERMINAL) {
+            InfoSetKey converted, expected;
+            CHECK(mus_score_information_set_from_ordago(&score, ordago_information_key(&old_state),
+                      (unsigned int)old_state.model.settled_scores[0],
+                      (unsigned int)old_state.model.settled_scores[1], &converted) == CFR_STATUS_SUCCESS);
+            CHECK(cfr_game_information_set_key(&score.game, game_state(&new_state), &expected) ==
+                  CFR_STATUS_SUCCESS);
+            CHECK(converted == expected);
+            phases[old_state.model.phase] = true;
+            ordago_apply(&old_state, MUS_ACTION_PASS);
+            score_apply(&score, &new_state, MUS_ACTION_PASS);
+        }
+    }
+    CHECK(decisions > 500);
+    CHECK(phases[MUS_PHASE_MUS_PLAYER_0] && phases[MUS_PHASE_MUS_PLAYER_1]);
+    CHECK(phases[MUS_PHASE_DISCARD_PLAYER_0] && phases[MUS_PHASE_DISCARD_PLAYER_1]);
+    CHECK(phases[MUS_PHASE_GRANDE] && phases[MUS_PHASE_CHICA]);
+    CHECK(phases[MUS_PHASE_PARES] && phases[MUS_PHASE_JUEGO] && phases[MUS_PHASE_PUNTO]);
+    InfoSetKey unchanged = -7;
+    CHECK(mus_score_information_set_from_ordago(NULL, 0, 0, 0, &unchanged) ==
+          CFR_STATUS_INVALID_ARGUMENT);
+    CHECK(mus_score_information_set_from_ordago(&score, -1, 0, 0, &unchanged) ==
+          CFR_STATUS_INVALID_ARGUMENT);
+    CHECK(mus_score_information_set_from_ordago(&score, 0, 1, 0, &unchanged) ==
+          CFR_STATUS_INVALID_ARGUMENT);
+    CHECK(unchanged == -7);
+}
+
+static void test_score_preload_policy(void) {
+    MusScoreTable table;
+    MusScoreGame score;
+    MusGameState old_state, new_state;
+    InfoStore source_store = {0}, destination = {0};
+    Trainer source;
+    CHECK(mus_score_table_init(&table, 40) == CFR_STATUS_SUCCESS);
+    CHECK(mus_score_game_init(&score, &table, 2, 5) == CFR_STATUS_SUCCESS);
+    CHECK(cfr_info_store_init(&source_store) == CFR_STATUS_SUCCESS);
+    CHECK(cfr_info_store_init(&destination) == CFR_STATUS_SUCCESS);
+    ordago_deal(&old_state, SCORE_HAND_B, SCORE_HAND_A);
+    ordago_apply(&old_state, MUS_ACTION_NO_MUS);
+    score_deal(&score, &new_state, SCORE_HAND_B, SCORE_HAND_A);
+    const Action history[] = {MUS_ACTION_BET_TWO, MUS_ACTION_BET_FOUR,
+        MUS_ACTION_BET_FOUR, MUS_ACTION_BET_TEN, MUS_ACTION_BET_TEN, MUS_ACTION_ACCEPT};
+    for (size_t i = 0; i < sizeof(history) / sizeof(history[0]); i += 1) {
+        ordago_apply(&old_state, history[i]);
+        score_apply(&score, &new_state, history[i]);
+    }
+    CHECK(old_state.model.settled_scores[0] == 30);
+    CHECK(old_state.model.phase == MUS_PHASE_CHICA);
+    const InfoSetKey source_key = ordago_information_key(&old_state);
+    InfoSetKey target_key;
+    CHECK(cfr_game_information_set_key(&score.game, game_state(&new_state), &target_key) ==
+          CFR_STATUS_SUCCESS);
+    InfoNode *node;
+    CHECK(cfr_info_store_get_or_create(&source_store, source_key, 2, &node) == CFR_STATUS_SUCCESS);
+    const Probability old_average[2] = {0, 1}; /* Pass, ordago. */
+    CHECK(cfr_info_node_accumulate_strategy(node, old_average, 2, 1) == CFR_STATUS_SUCCESS);
+    CHECK(cfr_info_node_add_regret(node, 0, 1234) == CFR_STATUS_SUCCESS);
+    CHECK(cfr_info_node_add_regret(node, 1, -987) == CFR_STATUS_SUCCESS);
+    CHECK(mus_ordago_game_state_init(&old_state) == CFR_STATUS_SUCCESS);
+    CHECK(cfr_trainer_init_mccfr(&source, ordago_game(), game_state(&old_state),
+                                 &source_store, 123) == CFR_STATUS_SUCCESS);
+    source.training_iterations = 123456;
+    const uint64_t original_rng = source.mccfr_rng.state;
+    FILE *before = tmpfile(), *after = tmpfile();
+    CHECK(before != NULL && after != NULL);
+    if (before != NULL)
+        CHECK(cfr_checkpoint_write(before, &source) == CFR_STATUS_SUCCESS);
+    MusScorePreloadOptions options = {.source = &source, .weight = 2, .uniform_mix = 0.12};
+    MusScorePreloadStats stats;
+    CHECK(mus_score_preload_ordago(&score, &options, &destination, &stats) == CFR_STATUS_SUCCESS);
+    CHECK(stats.source_nodes == 1 && stats.imported_nodes == 61 && stats.existing_nodes == 0);
+    CHECK(stats.expanded_action_nodes == 61);
+    CHECK(cfr_info_store_find(&destination, target_key, &node) == CFR_STATUS_SUCCESS);
+    CHECK(node->action_count == 6);
+    Probability current[16], average[16];
+    CHECK(cfr_info_node_current_strategy(node, current, 16) == CFR_STATUS_SUCCESS);
+    CHECK(cfr_info_node_average_strategy(node, average, 16) == CFR_STATUS_SUCCESS);
+    for (size_t i = 0; i < 6; i += 1) {
+        const double expected = i == 5 ? 0.9 : 0.02;
+        CHECK(fabs(average[i] - expected) < 1e-12);
+        CHECK(fabs(current[i] - expected) < 1e-12);
+        CHECK(fabs(node->regret_sums[i] - 2 * expected) < 1e-12);
+    }
+    /* Existing learning survives a repeated preload, including negative regrets. */
+    CHECK(cfr_info_node_add_regret(node, 0, -8) == CFR_STATUS_SUCCESS);
+    const double existing_regret = node->regret_sums[0];
+    CHECK(mus_score_preload_ordago(&score, &options, &destination, &stats) == CFR_STATUS_SUCCESS);
+    CHECK(stats.imported_nodes == 0 && stats.existing_nodes == 61);
+    CHECK(node->regret_sums[0] == existing_regret);
+    CHECK(source.training_iterations == 123456 && source.mccfr_rng.state == original_rng);
+    if (after != NULL)
+        CHECK(cfr_checkpoint_write(after, &source) == CFR_STATUS_SUCCESS);
+    if (before != NULL && after != NULL)
+        CHECK(streams_equal(before, after));
+    if (before != NULL) fclose(before);
+    if (after != NULL) fclose(after);
+
+    /* A cell near the target imports only nonterminal score splits. */
+    CHECK(cfr_info_store_destroy(&destination) == CFR_STATUS_SUCCESS);
+    CHECK(cfr_info_store_init(&destination) == CFR_STATUS_SUCCESS);
+    CHECK(mus_score_game_init(&score, &table, 39, 39) == CFR_STATUS_SUCCESS);
+    CHECK(mus_score_preload_ordago(&score, &options, &destination, &stats) == CFR_STATUS_SUCCESS);
+    CHECK(stats.imported_nodes == 0);
+    InfoSetKey untouched = -1;
+    CHECK(mus_score_information_set_from_ordago(&score, source_key, 30, 0, &untouched) ==
+          CFR_STATUS_NOT_FOUND);
+    CHECK(untouched == -1);
+    CHECK(mus_score_information_set_from_ordago(&score, source_key, 29, 0, &untouched) ==
+          CFR_STATUS_INVALID_ARGUMENT);
+    CHECK(mus_score_preload_ordago(&score, &options, &source_store, NULL) ==
+          CFR_STATUS_INVALID_ARGUMENT);
+    options.weight = NAN;
+    CHECK(mus_score_preload_ordago(&score, &options, &destination, NULL) == CFR_STATUS_INVALID_ARGUMENT);
+    options.weight = 1;
+    options.uniform_mix = 0;
+    CHECK(mus_score_preload_ordago(&score, &options, &destination, NULL) == CFR_STATUS_INVALID_ARGUMENT);
+    options.uniform_mix = 0.05;
+    source.game = cfr_kuhn_poker_descriptor();
+    CHECK(mus_score_preload_ordago(&score, &options, &destination, NULL) == CFR_STATUS_INCOMPATIBLE_GAME);
+    source.game = ordago_game();
+    Game wrong_schema = *source.game;
+    wrong_schema.strategy_schema_id = "old-ordago-schema";
+    source.game = &wrong_schema;
+    CHECK(mus_score_preload_ordago(&score, &options, &destination, NULL) == CFR_STATUS_INCOMPATIBLE_GAME);
+    source.game = ordago_game();
+    CHECK(cfr_info_store_destroy(&source_store) == CFR_STATUS_SUCCESS);
+    CHECK(cfr_info_store_init(&source_store) == CFR_STATUS_SUCCESS);
+    CHECK(cfr_info_store_get_or_create(&source_store, source_key, 3, &node) == CFR_STATUS_SUCCESS);
+    CHECK(mus_score_preload_ordago(&score, &options, &destination, NULL) == CFR_STATUS_FORMAT_ERROR);
+    CHECK(cfr_info_store_destroy(&source_store) == CFR_STATUS_SUCCESS);
+    CHECK(cfr_info_store_destroy(&destination) == CFR_STATUS_SUCCESS);
+}
+
 static void score_pass_to_end(const MusScoreGame *game, MusGameState *state) {
     size_t count = 0;
     while (state->model.phase != MUS_PHASE_TERMINAL && count < 8) {
@@ -2732,6 +2918,8 @@ static void test_score_training_and_persistence(void) {
 }
 
 int main(void) {
+    test_score_preload_key_mapping();
+    test_score_preload_policy();
     test_score_wager_menus_and_settlement();
     test_score_reduced_match_scoring_cases();
     test_score_export_rejects_foreign_games();

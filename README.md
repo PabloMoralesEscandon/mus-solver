@@ -207,7 +207,7 @@ build/release/mus-solver \
 El coordinador resuelve las diagonales desde `2 × (objetivo - 1)` hasta la suma
 del marcador solicitado. Calcula todos los marcadores de esas diagonales;
 `0:0` a 40 requiere 1.600 celdas. Esto puede costar mucho más que entrenar una
-mano aislada. Se mantiene un solo almacén CFR en memoria y se libera después
+mano aislada. Se mantiene un solo almacén CFR de destino en memoria y se libera después
 de guardar cada estrategia. La tabla permanece inmutable durante el
 entrenamiento y la evaluación de cada diagonal, y sus valores se publican
 juntos al terminarla.
@@ -222,6 +222,80 @@ No utiliza `--report-every`, `--load`, `--save` ni sus
 variantes comprimidas; la persistencia se gestiona con `--continuation`.
 `--reserve-information-sets` permite reservar capacidad por celda; sin esa
 opción el almacén crece según las necesidades.
+
+### Precarga desde `ordago` sin marcador
+
+Puede reutilizarse la **estrategia media** de un checkpoint de `ordago` como
+política inicial de cada celda pendiente:
+
+```sh
+build/release/mus-solver \
+    --format ordago-score --target 5 --score 0:0 \
+    --preload-ordago-compressed ordago.cfr.zst \
+    --preload-weight 1 \
+    --iterations 100 --evaluation-samples 10000 --seed 7 \
+    --continuation marcador-5-precargado
+```
+
+Para checkpoints sin compresión se usa `--preload-ordago ordago.cfr`.
+La carga valida el esquema de `ordago`, incluida la configuración de uno o dos
+muses. No acepta exportaciones de texto, otros formatos de juego ni checkpoints
+de `ordago-score/v1`.
+
+La precarga transforma las claves y empareja las probabilidades por **acción**.
+Mus y descartes conservan sus claves dentro del almacén de cada celda. En los
+lances, el formato antiguo guarda el máximo de tantos ganados durante la mano,
+sin distinguir su reparto. Se crean las combinaciones de marcadores compatibles
+con ese máximo y con el marcador inicial, excluyendo las que ya terminan la
+partida. Algunas combinaciones pueden ser inalcanzables; esos nodos no intervienen
+en los recorridos. Las situaciones sin política anterior empiezan uniformes.
+
+La política inicial es `0,95 × política transferida + 0,05 × uniforme`, con
+probabilidad positiva también para los envites que antes no estaban permitidos.
+`--preload-weight` fija la masa inicial por nodo, tanto de estrategia media como
+de regrets positivos **sintéticos**; el valor predeterminado es 1. No se copian
+los regrets antiguos, su escala de utilidad, las iteraciones, el estado aleatorio
+ni los valores de continuación. El contador de entrenamiento nuevo empieza en
+cero. Un peso mayor mantiene más influencia de la política anterior; no garantiza
+mejor convergencia. El entrenamiento vuelve a optimizar la utilidad de partida.
+
+El checkpoint de origen se carga una vez y permanece en memoria junto al almacén
+de la celda activa. La expansión puede crear hasta `2 × máximo + 1` nodos por
+nodo de origen en un lance, antes de excluir marcadores terminales. Por tanto,
+la precarga puede consumir bastante más memoria que empezar sin ella. No cambia
+el checkpoint de origen ni sobrescribe nodos existentes al usar el helper.
+
+`score-preload-source` muestra el origen, esquema, iteraciones antiguas y peso.
+`score-preload` informa por celda de los nodos importados y de los que incorporan
+acciones nuevas. Para reproducir una ejecución interrumpida, conserva el origen
+y repite las opciones de precarga: `values.txt` no almacena esa configuración.
+Las celdas ya publicadas se mantienen. Los checkpoints de destino son autónomos;
+su evaluación, exportación y reanudación con la API CFR no necesitan el origen.
+La precarga no cambia el esquema de reglas `ordago-score/v2`.
+
+La API de [mus_score.h](include/mus_solver/mus_score.h) ofrece
+`mus_score_information_set_from_ordago()` para convertir una clave y
+`mus_score_preload_ordago()` para inicializar un almacén ya creado. También
+puede aplicarse automáticamente desde el coordinador, con una tabla inicializada
+y los callbacks de persistencia habituales:
+
+```c
+MusScorePreloadOptions prior = {
+    .source = &ordago_trainer, /* Cargado con cfr_checkpoint_read[_zstd]. */
+    .weight = MUS_SCORE_PRELOAD_DEFAULT_WEIGHT,
+    .uniform_mix = MUS_SCORE_PRELOAD_DEFAULT_UNIFORM_MIX,
+};
+MusScoreTrainingOptions training = {
+    .iterations = 100,
+    .evaluation_samples = 10000,
+    .seed = 7,
+    .preload = &prior,
+};
+Status status = mus_score_train(&table, 0, &training,
+                                save_cell, save_diagonal, context);
+```
+
+### Persistencia y evaluación
 
 El directorio contiene:
 
