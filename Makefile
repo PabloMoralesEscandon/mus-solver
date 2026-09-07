@@ -22,7 +22,7 @@ LTO_BUILD_DIR ?= build/lto
 RELEASE_DIR := $(BUILD_DIR)/release
 DEBUG_DIR := $(BUILD_DIR)/debug
 
-MUS_SOURCES := src/mus_game.c src/mus_evaluation.c src/mus_strategy.c
+MUS_SOURCES := src/mus_game.c src/mus_evaluation.c src/mus_strategy.c src/mus_score.c
 SIMULATOR_SOURCES := Simulador-Mus/src/cartas.c \
 	Simulador-Mus/src/baraja_espanola.c Simulador-Mus/src/mus.c
 LIB_SOURCES := $(MUS_SOURCES) $(SIMULATOR_SOURCES)

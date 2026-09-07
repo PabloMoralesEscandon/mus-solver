@@ -157,4 +157,68 @@ if "$solver" --load "$tmp_dir/continuous.cfr" --iterations 1 \
     exit 1
 fi
 
+# Train consecutive diagonals, then resume the remaining score cells.
+"$solver" --format ordago-score --target 3 --score 1:1 --iterations 2 \
+    --seed 7 --evaluation-samples 50 --continuation "$tmp_dir/score" \
+    >"$tmp_dir/score-partial.out"
+grep -q 'score-cell score=1:1 target=3 iterations=2' "$tmp_dir/score-partial.out"
+test -f "$tmp_dir/score/score-01-01.cfr.zst"
+test ! -f "$tmp_dir/score/score-00-00.cfr.zst"
+cp "$tmp_dir/score/score-01-01.cfr.zst" "$tmp_dir/preserved.cfr.zst"
+"$solver" --format ordago-score --target 3 --score 0:0 --iterations 2 \
+    --seed 7 --evaluation-samples 50 --continuation "$tmp_dir/score" \
+    --evaluate --export-strategy "$tmp_dir/score-strategy.txt" \
+    >"$tmp_dir/score-resumed.out"
+grep -q 'evaluation scope=score-average-policy score=0:0 samples=50' \
+    "$tmp_dir/score-resumed.out"
+grep -q 'schema=mus.ordago-score/v1' "$tmp_dir/score-strategy.txt"
+grep -q 'marcador:0-0/objetivo:3' "$tmp_dir/score-strategy.txt"
+cmp "$tmp_dir/preserved.cfr.zst" "$tmp_dir/score/score-01-01.cfr.zst"
+"$solver" --format ordago-score --target 3 --iterations 2 --seed 7 \
+    --evaluation-samples 50 --continuation "$tmp_dir/score-continuous" \
+    >"$tmp_dir/score-continuous.out"
+cmp "$tmp_dir/score/values.txt" "$tmp_dir/score-continuous/values.txt"
+for checkpoint in "$tmp_dir/score/"*.zst; do
+    name=${checkpoint##*/}
+    cmp "$checkpoint" "$tmp_dir/score-continuous/$name"
+done
+"$solver" --format ordago-score --target 3 --continuation "$tmp_dir/score" \
+    --export-strategy "$tmp_dir/score-reloaded.txt" >"$tmp_dir/score-reloaded.out"
+cmp "$tmp_dir/score-strategy.txt" "$tmp_dir/score-reloaded.txt"
+# The normal target uses the same continuation and checkpoint workflow.
+"$solver" --format ordago-score --score 37:36 --iterations 2 --seed 7 \
+    --evaluation-samples 50 --continuation "$tmp_dir/score-40" \
+    --export-strategy "$tmp_dir/score-40.txt" >"$tmp_dir/score-40.out"
+grep -q 'marcador:37-36/objetivo:40' "$tmp_dir/score-40.txt"
+
+if "$solver" --format ordago-score --target 5 --continuation "$tmp_dir/score" \
+    --evaluate >"$tmp_dir/score-wrong-target.out" 2>"$tmp_dir/score-wrong-target.err"; then
+    echo "cargar una tabla con otro objetivo debio fallar" >&2
+    exit 1
+fi
+if "$solver" --format ordago-score --target 3 --score 3:0 \
+    --continuation "$tmp_dir/score" --evaluate \
+    >"$tmp_dir/score-terminal.out" 2>"$tmp_dir/score-terminal.err"; then
+    echo "un marcador inicial terminal debio fallar" >&2
+    exit 1
+fi
+if "$solver" --format ordago --score 0:0 --iterations 1 \
+    >"$tmp_dir/score-old-format.out" 2>"$tmp_dir/score-old-format.err"; then
+    echo "las opciones de marcador requieren ordago-score" >&2
+    exit 1
+fi
+# A checkpoint from a different score must not load in the selected cell.
+cp "$tmp_dir/score/score-01-01.cfr.zst" "$tmp_dir/score/score-00-00.cfr.zst"
+if "$solver" --format ordago-score --target 3 --continuation "$tmp_dir/score" \
+    --evaluate >"$tmp_dir/score-mixed.out" 2>"$tmp_dir/score-mixed.err"; then
+    echo "cargar un checkpoint de otro marcador debio fallar" >&2
+    exit 1
+fi
+rm "$tmp_dir/score/score-01-01.cfr.zst"
+if "$solver" --format ordago-score --target 3 --continuation "$tmp_dir/score" \
+    --iterations 1 >"$tmp_dir/score-missing.out" 2>"$tmp_dir/score-missing.err"; then
+    echo "una tabla sin sus estrategias debio fallar" >&2
+    exit 1
+fi
+
 echo "Todas las pruebas de CLI pasaron."

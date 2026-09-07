@@ -15,6 +15,7 @@
 #include "mus_solver/mus_evaluation.h"
 #include "mus_solver/mus_game.h"
 #include "mus_solver/mus_strategy.h"
+#include "mus_solver/mus_score.h"
 #include "../app/reservation_internal.h"
 
 static int failures;
@@ -2159,7 +2160,389 @@ static void test_ordago_reservation_limits(void) {
     CHECK(mus_cli_ordago_reservation(SIZE_MAX) == 35400000);
 }
 
+static void score_apply(const MusScoreGame *game, MusGameState *state, Action action) {
+    CHECK(cfr_game_apply_action(&game->game, game_state(state), action) == CFR_STATUS_SUCCESS);
+}
+
+static void score_deal(const MusScoreGame *game, MusGameState *state,
+                       const uint8_t a[8], const uint8_t b[8]) {
+    CHECK(mus_score_game_state_init(state, game) == CFR_STATUS_SUCCESS);
+    for (int c = 0; c < 7; c += 1)
+        score_apply(game, state, a[c]);
+    for (int c = 0; c < 7; c += 1)
+        score_apply(game, state, b[c]);
+    score_apply(game, state, MUS_ACTION_NO_MUS);
+}
+
+static const uint8_t SCORE_HAND_A[8] = {1, 1, 1, 1, 0, 0, 0, 0};
+static const uint8_t SCORE_HAND_B[8] = {1, 1, 0, 0, 1, 1, 0, 0};
+
+static void score_pass_to_end(const MusScoreGame *game, MusGameState *state) {
+    size_t count = 0;
+    while (state->model.phase != MUS_PHASE_TERMINAL && count < 8) {
+        score_apply(game, state, MUS_ACTION_PASS);
+        count += 1;
+    }
+    CHECK(state->model.phase == MUS_PHASE_TERMINAL);
+}
+
+static void test_score_utilities_and_order(void) {
+    MusScoreTable table;
+    MusScoreGame game;
+    MusGameState state;
+    Utility u0 = 9, u1 = 9;
+    CHECK(mus_score_table_init(&table, 40) == CFR_STATUS_SUCCESS);
+    CHECK(mus_score_game_init(&game, &table, 35, 18) == CFR_STATUS_SUCCESS);
+    score_deal(&game, &state, SCORE_HAND_A, SCORE_HAND_B);
+    score_pass_to_end(&game, &state);
+    CHECK(state.model.settled_scores[0] == 1);
+    CHECK(state.model.settled_scores[1] == 2);
+    CHECK(cfr_game_terminal_utility(&game.game, game_state(&state), 0, &u0) ==
+          CFR_STATUS_NOT_FOUND);
+    CHECK(u0 == 9);
+    table.cells[20][36] = (MusScoreCell){.ready = true, .value = -0.84,
+                                       .iterations = 1, .evaluation_samples = 1};
+    CHECK(cfr_game_terminal_utility(&game.game, game_state(&state), 0, &u0) ==
+          CFR_STATUS_SUCCESS);
+    CHECK(cfr_game_terminal_utility(&game.game, game_state(&state), 1, &u1) ==
+          CFR_STATUS_SUCCESS);
+    CHECK(fabs(u0 - 0.84) < 1e-12 && u0 + u1 == 0);
+    table.cells[20][36].value = 2;
+    CHECK(mus_score_terminal_utility(&state, 0, &u0) == CFR_STATUS_NUMERIC_ERROR);
+    state.model.settled_scores[0] = 0;
+    state.model.settled_scores[1] = 0;
+    CHECK(mus_score_terminal_utility(&state, 0, &u0) == CFR_STATUS_INVALID_ARGUMENT);
+
+    CHECK(mus_score_game_init(&game, &table, 39, 39) == CFR_STATUS_SUCCESS);
+    score_deal(&game, &state, SCORE_HAND_A, SCORE_HAND_B);
+    score_apply(&game, &state, MUS_ACTION_PASS);
+    MusGameModel before = state.model;
+    score_apply(&game, &state, MUS_ACTION_PASS);
+    CHECK(state.model.phase == MUS_PHASE_TERMINAL);
+    CHECK(state.model.settled_scores[0] == 0 && state.model.settled_scores[1] == 1);
+    CHECK(state.model.outcomes[1] == MUS_LANCE_UNRESOLVED);
+    CHECK(cfr_game_terminal_utility(&game.game, game_state(&state), 0, &u0) ==
+          CFR_STATUS_SUCCESS && u0 == -1);
+    CHECK(cfr_game_terminal_utility(&game.game, game_state(&state), 1, &u1) ==
+          CFR_STATUS_SUCCESS && u1 == 1);
+    CHECK(cfr_game_undo_action(&game.game, game_state(&state)) == CFR_STATUS_SUCCESS);
+    CHECK(memcmp(&before, &state.model, sizeof(before)) == 0);
+
+    /* An accepted ordago replaces all points from earlier lances. */
+    CHECK(mus_score_game_init(&game, &table, 35, 18) == CFR_STATUS_SUCCESS);
+    score_deal(&game, &state, SCORE_HAND_A, SCORE_HAND_B);
+    score_apply(&game, &state, MUS_ACTION_PASS);
+    score_apply(&game, &state, MUS_ACTION_PASS);
+    score_apply(&game, &state, MUS_ACTION_ORDAGO);
+    score_apply(&game, &state, MUS_ACTION_ACCEPT);
+    CHECK(state.model.settled_scores[0] == 40 && state.model.settled_scores[1] == 0);
+    CHECK(cfr_game_terminal_utility(&game.game, game_state(&state), 0, &u0) ==
+          CFR_STATUS_SUCCESS && u0 == 1);
+
+    /* Rejecting an ordago covers the preceding numeric total. */
+    score_deal(&game, &state, SCORE_HAND_A, SCORE_HAND_B);
+    score_apply(&game, &state, MUS_ACTION_BET_TWO);
+    score_apply(&game, &state, MUS_ACTION_ORDAGO);
+    score_apply(&game, &state, MUS_ACTION_REJECT);
+    CHECK(state.model.phase == MUS_PHASE_CHICA);
+    CHECK(state.model.settled_scores[1] == 2);
+    CHECK(state.model.prior_wager_total == 2);
+    score_pass_to_end(&game, &state);
+    table.cells[21][36] = (MusScoreCell){.ready = true, .value = -0.52,
+                                       .iterations = 1, .evaluation_samples = 1};
+    CHECK(cfr_game_terminal_utility(&game.game, game_state(&state), 0, &u0) ==
+          CFR_STATUS_SUCCESS && u0 == 0.52);
+
+    CHECK(mus_score_game_init(&game, &table, 0, 39) == CFR_STATUS_SUCCESS);
+    score_deal(&game, &state, SCORE_HAND_A, SCORE_HAND_B);
+    score_apply(&game, &state, MUS_ACTION_PASS);
+    score_apply(&game, &state, MUS_ACTION_ORDAGO);
+    score_apply(&game, &state, MUS_ACTION_REJECT);
+    CHECK(state.model.settled_scores[1] == 1);
+    CHECK(cfr_game_terminal_utility(&game.game, game_state(&state), 0, &u0) ==
+          CFR_STATUS_SUCCESS && u0 == -1);
+
+    /* Pares skipped after chica can end the match before juego. */
+    const uint8_t pair[8] = {2, 1, 0, 0, 1, 0, 0, 0};
+    CHECK(mus_score_game_init(&game, &table, 38, 0) == CFR_STATUS_SUCCESS);
+    score_deal(&game, &state, pair, SCORE_HAND_B);
+    for (int i = 0; i < 4; i += 1)
+        score_apply(&game, &state, MUS_ACTION_PASS);
+    CHECK(state.model.phase == MUS_PHASE_TERMINAL);
+    CHECK(state.model.settled_scores[0] == 2);
+    CHECK(!state.model.game_revealed);
+    CHECK(cfr_game_validate_state(&game.game, game_state(&state)) == CFR_STATUS_SUCCESS);
+}
+
+static void check_score_actions(const MusScoreGame *game, MusGameState *state) {
+    InfoSetKey key;
+    Action actual[16], decoded[16], trusted[16];
+    size_t a, b, c;
+    MusOrdagoInformationSet info;
+    CHECK(cfr_game_information_set_key(&game->game, game_state(state), &key) ==
+          CFR_STATUS_SUCCESS);
+    CHECK(key >= 0);
+    CHECK(mus_score_game_information_set_decode(key, game->continuation->target, &info) ==
+          CFR_STATUS_SUCCESS);
+    CHECK(info.score_enabled);
+    CHECK(cfr_game_legal_actions(&game->game, game_state(state), actual, 16, &a) ==
+          CFR_STATUS_SUCCESS);
+    CHECK(mus_ordago_game_information_set_legal_actions(&info, decoded, 16, &b) ==
+          CFR_STATUS_SUCCESS);
+    CHECK(game->game.trusted_operations->legal_actions(game->game.context,
+          game_state(state), trusted, 16, &c) == CFR_STATUS_SUCCESS);
+    CHECK(a == b && b == c && memcmp(actual, decoded, a * sizeof(Action)) == 0 &&
+          memcmp(actual, trusted, a * sizeof(Action)) == 0);
+}
+
+static double score_full_match(unsigned int target, unsigned int a, unsigned int b);
+
+/* Exhaustive perfect-information subgame: fixed hands and no mus. */
+static double score_exhaustive_hand(const MusScoreGame *game, MusGameState *state,
+                                    bool continue_full_match) {
+    if (state->model.phase == MUS_PHASE_TERMINAL) {
+        if (continue_full_match) {
+            const unsigned int target = state->model.score_target;
+            const unsigned int a = state->model.initial_scores[0] + state->model.settled_scores[0];
+            const unsigned int b = state->model.initial_scores[1] + state->model.settled_scores[1];
+            if (a >= target)
+                return 1;
+            if (b >= target)
+                return -1;
+            return -score_full_match(target, b, a);
+        }
+        Utility value = 10;
+        CHECK(cfr_game_terminal_utility(&game->game, game_state(state), 0, &value) ==
+              CFR_STATUS_SUCCESS);
+        return value;
+    }
+    check_score_actions(game, state);
+    Action actions[16];
+    size_t count;
+    CHECK(cfr_game_legal_actions(&game->game, game_state(state), actions, 16, &count) ==
+          CFR_STATUS_SUCCESS);
+    const bool maximize = state->model.current_player == 0;
+    double best = maximize ? -2 : 2;
+    MusGameModel before = state->model;
+    const size_t undo_count = state->undo_count;
+    for (size_t i = 0; i < count; i += 1) {
+        CHECK(game->game.trusted_operations->apply_action(game->game.context,
+              game_state(state), actions[i]) == CFR_STATUS_SUCCESS);
+        CHECK(cfr_game_validate_state(&game->game, game_state(state)) == CFR_STATUS_SUCCESS);
+        const double value = score_exhaustive_hand(game, state, continue_full_match);
+        if ((maximize && value > best) || (!maximize && value < best))
+            best = value;
+        CHECK(game->game.trusted_operations->undo_action(game->game.context,
+              game_state(state)) == CFR_STATUS_SUCCESS);
+        CHECK(memcmp(&before, &state->model, sizeof(before)) == 0);
+        CHECK(state->undo_count == undo_count);
+    }
+    return best;
+}
+
+static double score_full_match(unsigned int target, unsigned int a, unsigned int b) {
+    MusScoreTable table;
+    MusScoreGame game;
+    MusGameState state;
+    CHECK(mus_score_table_init(&table, target) == CFR_STATUS_SUCCESS);
+    CHECK(mus_score_game_init(&game, &table, a, b) == CFR_STATUS_SUCCESS);
+    score_deal(&game, &state, SCORE_HAND_A, SCORE_HAND_B);
+    return score_exhaustive_hand(&game, &state, true);
+}
+
+static void test_score_keys_and_full_match(void) {
+    MusScoreTable table;
+    MusScoreGame game, other;
+    MusGameState state;
+    InfoSetKey key_a, key_b;
+    Action actions[16];
+    size_t count;
+    CHECK(mus_score_table_init(&table, 40) == CFR_STATUS_SUCCESS);
+    CHECK(mus_score_game_init(&game, &table, 37, 18) == CFR_STATUS_SUCCESS);
+    score_deal(&game, &state, SCORE_HAND_A, SCORE_HAND_B);
+    check_score_actions(&game, &state);
+    CHECK(cfr_game_information_set_key(&game.game, game_state(&state), &key_a) ==
+          CFR_STATUS_SUCCESS);
+    CHECK(cfr_game_legal_actions(&game.game, game_state(&state), actions, 16, &count) ==
+          CFR_STATUS_SUCCESS);
+    CHECK(count == 3 && actions[1] == MUS_ACTION_BET_TWO);
+    CHECK(mus_score_game_init(&other, &table, 37, 19) == CFR_STATUS_SUCCESS);
+    score_deal(&other, &state, SCORE_HAND_A, SCORE_HAND_B);
+    CHECK(cfr_game_information_set_key(&other.game, game_state(&state), &key_b) ==
+          CFR_STATUS_SUCCESS);
+    CHECK(key_a != key_b && strcmp(game.schema, other.schema) != 0);
+    CHECK(mus_score_game_init(&other, &table, 38, 19) == CFR_STATUS_SUCCESS);
+    score_deal(&other, &state, SCORE_HAND_A, SCORE_HAND_B);
+    CHECK(cfr_game_legal_actions(&other.game, game_state(&state), actions, 16, &count) ==
+          CFR_STATUS_SUCCESS);
+    CHECK(count == 2 && actions[1] == MUS_ACTION_ORDAGO);
+    CHECK(cfr_game_validate_state(ordago_game(), game_state(&state)) ==
+          CFR_STATUS_INVALID_ARGUMENT);
+    MusGameModel before = state.model;
+    CHECK(cfr_game_apply_action(&other.game, game_state(&state), MUS_ACTION_BET_TWO) ==
+          CFR_STATUS_ILLEGAL_ACTION);
+    CHECK(memcmp(&before, &state.model, sizeof(before)) == 0);
+
+    CHECK(mus_score_table_init(&table, 3) == CFR_STATUS_SUCCESS);
+    for (int sum = 4; sum >= 0; sum -= 1) {
+        for (int a = 0; a < 3; a += 1) {
+            const int b = sum - a;
+            if (b < 0 || b >= 3)
+                continue;
+            CHECK(mus_score_game_init(&game, &table, (unsigned int)a, (unsigned int)b) ==
+                  CFR_STATUS_SUCCESS);
+            score_deal(&game, &state, SCORE_HAND_A, SCORE_HAND_B);
+            const double value = score_exhaustive_hand(&game, &state, false);
+            const double full = score_full_match(3, (unsigned int)a, (unsigned int)b);
+            CHECK(fabs(value - full) < 1e-12);
+            table.cells[a][b] = (MusScoreCell){.ready = true, .value = value,
+                                             .iterations = 1, .evaluation_samples = 1};
+        }
+    }
+}
+
+typedef struct {
+    unsigned int cells;
+    unsigned int diagonals;
+    FILE *checkpoint;
+    char schema[256];
+} ScoreTestSave;
+
+static Status test_score_save_cell(const MusScoreGame *game, const Trainer *trainer,
+                                   const MusScoreCell *cell, void *context) {
+    ScoreTestSave *saved = context;
+    const unsigned int a = game->initial_scores[0], b = game->initial_scores[1];
+    const MusScoreTable *table = game->continuation;
+    for (unsigned int x = 0; x < table->target; x += 1) {
+        for (unsigned int y = 0; y < table->target; y += 1) {
+            if (x + y == a + b)
+                CHECK(!table->cells[x][y].ready);
+            if (x + y > a + b)
+                CHECK(table->cells[x][y].ready);
+        }
+    }
+    CHECK(cell->value >= -1 && cell->value <= 1);
+    CHECK(trainer->training_iterations == 2);
+    const MusGameState *state = (const MusGameState *)trainer->state;
+    CHECK(state->undo_count == 0 && state->model.phase == MUS_PHASE_DEAL_PLAYER_0);
+    double evaluated = 10;
+    const uint64_t seed = 7U + a * MUS_ORDAGO_WAGER + b;
+    CHECK(mus_score_evaluate(game, trainer->store, 50,
+          seed ^ UINT64_C(0xd1b54a32d192ed03), &evaluated) == CFR_STATUS_SUCCESS);
+    CHECK(evaluated == cell->value);
+    FILE *text = tmpfile();
+    CHECK(text != NULL);
+    if (text != NULL) {
+        CHECK(mus_score_strategy_write_text(text, trainer) == CFR_STATUS_SUCCESS);
+        fclose(text);
+    }
+    if (a == 1 && b == 1) {
+        saved->checkpoint = tmpfile();
+        CHECK(saved->checkpoint != NULL);
+        if (saved->checkpoint != NULL)
+            CHECK(cfr_checkpoint_write(saved->checkpoint, trainer) == CFR_STATUS_SUCCESS);
+        memcpy(saved->schema, game->schema, sizeof(saved->schema));
+    }
+    saved->cells += 1;
+    return CFR_STATUS_SUCCESS;
+}
+
+static Status test_score_save_diagonal(const MusScoreTable *table, void *context) {
+    ScoreTestSave *saved = context;
+    FILE *file = tmpfile();
+    MusScoreTable loaded;
+    CHECK(file != NULL);
+    if (file != NULL) {
+        CHECK(mus_score_table_write(file, table) == CFR_STATUS_SUCCESS);
+        rewind(file);
+        CHECK(mus_score_table_read(file, &loaded) == CFR_STATUS_SUCCESS);
+        CHECK(loaded.target == table->target);
+        for (int a = 0; a < table->target; a += 1) {
+            for (int b = 0; b < table->target; b += 1) {
+                CHECK(loaded.cells[a][b].ready == table->cells[a][b].ready);
+                CHECK(loaded.cells[a][b].value == table->cells[a][b].value);
+                CHECK(loaded.cells[a][b].training_seed == table->cells[a][b].training_seed);
+            }
+        }
+        fclose(file);
+    }
+    saved->diagonals += 1;
+    return CFR_STATUS_SUCCESS;
+}
+
+static Status fail_score_diagonal(const MusScoreGame *game, const Trainer *trainer,
+                                  const MusScoreCell *cell, void *context) {
+    (void)trainer;
+    (void)cell;
+    (void)context;
+    return game->initial_scores[0] == 2 && game->initial_scores[1] == 1
+               ? CFR_STATUS_IO_ERROR : CFR_STATUS_SUCCESS;
+}
+
+static void test_score_training_and_persistence(void) {
+    MusScoreTable table;
+    ScoreTestSave saved = {0};
+    const MusScoreTrainingOptions options = {.iterations = 2, .evaluation_samples = 50,
+                                             .seed = 7};
+    CHECK(mus_score_table_init(&table, 3) == CFR_STATUS_SUCCESS);
+    CHECK(mus_score_train(&table, 0, &options, fail_score_diagonal, NULL, NULL) ==
+          CFR_STATUS_IO_ERROR);
+    CHECK(table.cells[2][2].ready);
+    CHECK(!table.cells[1][2].ready && !table.cells[2][1].ready);
+    CHECK(mus_score_table_init(&table, 3) == CFR_STATUS_SUCCESS);
+    CHECK(mus_score_train(&table, 2, &options, test_score_save_cell,
+                          test_score_save_diagonal, &saved) == CFR_STATUS_SUCCESS);
+    CHECK(saved.cells == 6 && saved.diagonals == 3);
+    CHECK(mus_score_train(&table, 0, &options, test_score_save_cell,
+                          test_score_save_diagonal, &saved) == CFR_STATUS_SUCCESS);
+    CHECK(saved.cells == 9 && saved.diagonals == 5);
+    CHECK(mus_score_train(&table, 0, &options, test_score_save_cell,
+                          test_score_save_diagonal, &saved) == CFR_STATUS_SUCCESS);
+    CHECK(saved.cells == 9 && saved.diagonals == 5);
+    MusScoreGame game;
+    MusGameState state;
+    InfoStore store = {0};
+    Trainer trainer;
+    CHECK(mus_score_game_init(&game, &table, 1, 1) == CFR_STATUS_SUCCESS);
+    CHECK(strcmp(game.schema, saved.schema) == 0);
+    CHECK(mus_score_game_state_init(&state, &game) == CFR_STATUS_SUCCESS);
+    if (saved.checkpoint != NULL) {
+        rewind(saved.checkpoint);
+        CHECK(cfr_checkpoint_read(saved.checkpoint, &game.game, game_state(&state),
+                                   &store, &trainer) == CFR_STATUS_SUCCESS);
+        CHECK(cfr_trainer_run(&trainer, 1) == CFR_STATUS_SUCCESS);
+        CHECK(cfr_info_store_destroy(&store) == CFR_STATUS_SUCCESS);
+        table.cells[2][2].value = table.cells[2][2].value == 1 ? 0 : 1;
+        CHECK(mus_score_game_init(&game, &table, 1, 1) == CFR_STATUS_SUCCESS);
+        CHECK(strcmp(game.schema, saved.schema) != 0);
+        rewind(saved.checkpoint);
+        CHECK(cfr_checkpoint_read(saved.checkpoint, &game.game, game_state(&state),
+                                   &store, &trainer) == CFR_STATUS_INCOMPATIBLE_GAME);
+        rewind(saved.checkpoint);
+        CHECK(mus_ordago_game_state_init(&state) == CFR_STATUS_SUCCESS);
+        CHECK(cfr_checkpoint_read(saved.checkpoint, ordago_game(), game_state(&state),
+                                   &store, &trainer) == CFR_STATUS_INCOMPATIBLE_GAME);
+        fclose(saved.checkpoint);
+    }
+    table.cells[2][2].ready = false;
+    CHECK(mus_score_train(&table, 0, &options, NULL, NULL, NULL) ==
+          CFR_STATUS_INVALID_ARGUMENT);
+    FILE *file = tmpfile();
+    CHECK(file != NULL);
+    if (file != NULL) {
+        CHECK(mus_score_table_write(file, &table) == CFR_STATUS_INVALID_ARGUMENT);
+        fputs(MUS_SCORE_SCHEMA_ID " base=" MUS_ORDAGO_STRATEGY_SCHEMA_ID
+              " target=3 orientation=mano utility=signed-one\n2 2 nan 1 1 0\n", file);
+        rewind(file);
+        CHECK(mus_score_table_read(file, &table) == CFR_STATUS_FORMAT_ERROR);
+        fclose(file);
+    }
+}
+
 int main(void) {
+    test_score_utilities_and_order();
+    test_score_keys_and_full_match();
+    test_score_training_and_persistence();
     test_ordago_reservation_limits();
     test_apply_undo_and_contract();
     test_cached_hand_summary_validation();

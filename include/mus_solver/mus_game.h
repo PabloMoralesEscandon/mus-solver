@@ -136,7 +136,12 @@ typedef enum {
 #define MUS_ACTION_DISCARD_MASK_VALUE(action)                                 \
     ((unsigned int)((action) - MUS_ACTION_DISCARD_MASK_0))
 
+typedef struct MusScoreTable MusScoreTable;
+
 typedef struct {
+    /* Zero target selects the historical single-hand formats. */
+    uint8_t score_target;
+    uint8_t initial_scores[MUS_GAME_PLAYER_COUNT];
     uint8_t phase;
     uint8_t hands[MUS_GAME_PLAYER_COUNT][MUS_GAME_CLASS_COUNT];
     uint8_t deal_class;
@@ -198,6 +203,8 @@ typedef struct {
 
 typedef struct {
     MusGameModel model;
+    /* The continuation table stays immutable during a traversal. */
+    const MusScoreTable *continuation;
     MusHandSummary hand_summaries[MUS_GAME_PLAYER_COUNT];
     MusOrdagoHandCodes ordago_hand_codes[MUS_GAME_PLAYER_COUNT];
     /* Private undo storage. Betting entries contain only phase and the
@@ -277,7 +284,9 @@ typedef struct {
     Player mus_stop_player;
     MusLanceStrength previous_strengths[MUS_GAME_LANCE_COUNT - 1];
     uint8_t previous_strength_count;
-    /* Highest score already settled for either player. */
+    bool score_enabled;
+    uint8_t scores[MUS_GAME_PLAYER_COUNT];
+    /* Budget offset for score games; highest settled score otherwise. */
     uint8_t max_settled_score;
     /* Settled numeric wager total from completed lances. */
     uint8_t prior_wager_total;

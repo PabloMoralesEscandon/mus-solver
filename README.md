@@ -1,8 +1,10 @@
 # Solver simplificado de mus para dos jugadores
 
-Solver en C17 de una única mano de mus para dos jugadores. Entrena una
-estrategia mediante external-sampling MCCFR, guarda checkpoints reanudables y
-calcula valor, mejores respuestas y explotabilidad exactos bajo demanda.
+Solver en C17 de mus para dos jugadores. Entrena estrategias mediante
+external-sampling MCCFR y guarda checkpoints reanudables. Los formatos
+históricos resuelven una mano aislada; `ordago-score` incorpora el marcador de
+la partida mediante una tabla de continuación. Las métricas disponibles
+dependen del formato.
 
 ## Formatos de reglas
 
@@ -11,7 +13,7 @@ calcula valor, mejores respuestas y explotabilidad exactos bajo demanda.
   equivalencias del mus: tres = rey y dos = as.
 - Se juegan en orden grande, chica, pares y juego o punto.
 - Los formatos históricos no tienen fase de mus ni descartes. El formato
-  `ordago` descrito más abajo sí los incorpora.
+  `ordago` y su nueva variante `ordago-score` sí los incorporan.
 - El formato `single-bet` conserva la primera versión: en cada lance se puede
   pasar o envidar 2 y, ante el envite, solo se puede querer o no querer.
 - El formato `raises-to-eight` añade respuestas y subidas en todos los lances.
@@ -68,8 +70,12 @@ calcula valor, mejores respuestas y explotabilidad exactos bajo demanda.
   suma al valor intrínseco de pares, juego y punto. En `ordago`, el tanteo total
   de cada jugador se limita a 40 para que una resolución ordinaria nunca supere
   el valor de un órdago querido.
-- La utilidad del jugador 0 es sus tantos menos los del jugador 1; la utilidad
-  contraria es su opuesto.
+- En los tres formatos históricos, la utilidad del jugador 0 es sus tantos
+  menos los del jugador 1; la utilidad contraria es su opuesto.
+- `ordago-score` parte de las reglas y abstracciones actuales de `ordago`, añade
+  el marcador inicial y optimiza una utilidad de partida en `[-1, 1]`. Se
+  selecciona como una cuarta opción; `single-bet` sigue siendo el valor
+  predeterminado.
 
 Al no querer el envite inicial se concede una piedra. Si se rechaza una subida
 a 4 u 8, se concede el último envite ya cubierto: 2 o 4 piedras. Si se quiere,
@@ -140,6 +146,121 @@ Los artefactos principales son:
 `make dependencies` ejecuta además las baterías independientes de `C-CFR` y
 `Simulador-Mus`.
 
+## Variante con marcador: `ordago-score`
+
+Implementa el diseño de [TABLA_DE_CONTINUACION_CFR.md](TABLA_DE_CONTINUACION_CFR.md).
+Cada celda `a–b` tiene su propio almacén CFR. El árbol conserva una sola mano,
+con mus, descartes y los envites de `ordago`. El jugador 0 representa siempre
+la mano y el jugador 1 el postre.
+
+El modelo conserva el marcador inicial y los tantos resueltos durante la mano.
+Se mantiene el orden de tanteo de la implementación actual: grande, chica,
+pares y juego o punto, incluidos los lances sin negociación. La partida termina
+en cuanto un jugador alcanza el objetivo; no se resuelven los lances restantes.
+Un órdago querido decide la partida y sustituye el tanteo de la mano. Un órdago
+rechazado concede el total cubierto, o una piedra si era apertura; se conserva
+el tanteo intrínseco de pares, juego y punto de la versión de origen.
+
+Las utilidades son `+1/-1` cuando termina la partida. Si continúa desde `a'–b'`,
+la utilidad del jugador 0 es `-V[b'][a']`: el siguiente reparto pasa la mano al
+contrario. No se añade la diferencia de tantos a ese valor. La legalidad de los
+envites usa el mayor marcador absoluto, el acumulado de envites y el objetivo.
+Los conjuntos de información incluyen ambos marcadores durante los lances.
+El marcador inicial y el objetivo identifican el almacén y el checkpoint de
+cada celda, también durante mus y descartes.
+
+Prueba pequeña con una partida a cinco tantos:
+
+```sh
+build/release/mus-solver \
+    --format ordago-score --target 5 --score 0:0 \
+    --iterations 100 --evaluation-samples 10000 --seed 7 \
+    --continuation marcador-5 \
+    --evaluate --export-strategy marcador-5-0-0.txt
+```
+
+El directorio padre de `--continuation` debe existir. El solver crea el
+directorio final si es necesario. Para una partida normal, el objetivo
+predeterminado es 40:
+
+```sh
+build/release/mus-solver \
+    --format ordago-score --score 35:18 \
+    --iterations 1000 --evaluation-samples 10000 --seed 7 \
+    --continuation marcador-40
+```
+
+`--iterations` es el número de iteraciones **por celda pendiente**.
+El coordinador resuelve las diagonales desde `2 × (objetivo - 1)` hasta la suma
+del marcador solicitado. Calcula todos los marcadores de esas diagonales;
+`0:0` a 40 requiere 1.600 celdas. Esto puede costar mucho más que entrenar una
+mano aislada. Se mantiene un solo almacén CFR en memoria y se libera después
+de guardar cada estrategia. La tabla permanece inmutable durante el
+entrenamiento y la evaluación de cada diagonal, y sus valores se publican
+juntos al terminarla.
+
+Esta primera implementación ejecuta las celdas secuencialmente y acepta
+`--threads 1`. Emite un informe `score-cell` por celda y un `score-table` para
+el marcador solicitado. No utiliza `--report-every`, `--load`, `--save` ni sus
+variantes comprimidas; la persistencia se gestiona con `--continuation`.
+`--reserve-information-sets` permite reservar capacidad por celda; sin esa
+opción el almacén crece según las necesidades.
+
+El directorio contiene:
+
+- `values.txt`: valores, objetivo, versión de reglas y abstracción, orientación,
+  escala de utilidad, iteraciones, muestras de evaluación y semilla por celda.
+- `score-AA-BB.cfr.zst`: checkpoint CFR de cada marcador, con la estrategia
+  media y los acumuladores necesarios para reanudar el entrenamiento mediante
+  la API de C-CFR.
+- `training.lock`: bloqueo mientras se ejecuta un entrenamiento. Si un proceso
+  termina abruptamente, hay que comprobar que ya no se ejecuta antes de borrar
+  este archivo y reanudar.
+
+Repetir el comando con el mismo directorio conserva las diagonales terminadas
+y completa las pendientes. Una diagonal interrumpida se vuelve a entrenar.
+Las celdas ya publicadas no reciben iteraciones adicionales, porque sus
+estrategias y valores son continuaciones fijas de las anteriores. Para cambiar
+el entrenamiento completo se utiliza otro directorio. Los checkpoints tienen
+un esquema distinto del de `ordago`, que incluye objetivo, marcador y una
+huella de las continuaciones superiores. No se pueden intercambiar entre
+marcadores, objetivos, versiones de mus o tablas distintas.
+
+Al comenzar otra mano puede seleccionarse su estrategia guardada:
+
+```sh
+build/release/mus-solver \
+    --format ordago-score --target 5 --score 2:1 \
+    --continuation marcador-5 \
+    --evaluate --evaluation-samples 10000 \
+    --export-strategy marcador-5-2-1.txt
+```
+
+La evaluación recorre manos completas muestreadas con la **estrategia media**,
+con política uniforme en los conjuntos no visitados. Usa un flujo aleatorio
+separado y no modifica los arrepentimientos. El valor guardado es una estimación
+Monte Carlo de esa política, no la utilidad de la última iteración ni una
+medida de explotabilidad. `win_probability = (value + 1) / 2`. El error de
+muestreo de las continuaciones se propaga hacia marcadores anteriores. Sigue
+aplicándose la limitación de recuerdo imperfecto de la abstracción de `ordago`;
+el entrenamiento no garantiza un equilibrio.
+
+La API está en `include/mus_solver/mus_score.h`: permite leer la tabla, crear
+un `MusScoreGame` para el marcador actual, inicializar el estado y cargar el
+checkpoint correspondiente mediante C-CFR. Al terminar la mano, si nadie ha
+alcanzado el objetivo, se suman los tantos resueltos al marcador inicial y se
+intercambian los jugadores antes de cargar la siguiente celda. El descriptor,
+la tabla y el estado deben permanecer vivos mientras el entrenador los use;
+cada almacén pertenece a un único marcador.
+
+Las pruebas comprueban signos, suma cero, órdagos, fin anticipado, tanteo de
+lances sin negociación, acciones legales, aplicación y deshacer, persistencia
+y publicación por diagonales. Un subjuego a tres tantos, con reparto fijo,
+cartas conocidas y sin mus, compara exhaustivamente la tabla con el árbol de
+la partida completa. Las pruebas de entrenamiento y CLI cubren además mus,
+descartes y la selección de marcadores a 40. Estas comprobaciones no equivalen
+a resolver exhaustivamente el juego completo de información imperfecta.
+
 ## Entrenamiento
 
 Entrenamiento nuevo, reproducible y con informes periódicos:
@@ -163,7 +284,7 @@ build/release/mus-solver \
     --save mus-1m-parallel.cfr
 ```
 
-`--iterations` siempre indica el total global: cada bloque se distribuye de la
+En los tres formatos históricos, `--iterations` indica el total global: cada bloque se distribuye de la
 forma más uniforme posible entre los hilos. Cada hilo mantiene el `Trainer`, el
 estado raíz y el flujo aleatorio independientes que exige C-CFR, y todos
 actualizan un único `InfoStore` concurrente. El hilo principal también entrena,

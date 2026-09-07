@@ -5,12 +5,15 @@
 #include "cfr/info_node.h"
 #include "cfr/info_store.h"
 #include "mus_solver/mus_game.h"
+#include "mus_solver/mus_score.h"
 #include "mus_solver/mus_strategy.h"
 
 typedef struct {
     FILE *stream;
     bool raises_to_eight;
     bool ordago;
+    unsigned int score_target;
+    uint8_t initial_scores[2];
 } StrategyWriter;
 
 static const char *variant_name(TrainerVariant variant) {
@@ -174,8 +177,10 @@ static Status write_ordago_node(const InfoNode *node,
     size_t expected_action_count;
     Status status;
 
-    status = mus_ordago_game_information_set_decode(node->key,
-                                                     &information);
+    status = writer->score_target != 0
+                 ? mus_score_game_information_set_decode(node->key, writer->score_target,
+                                                          &information)
+                 : mus_ordago_game_information_set_decode(node->key, &information);
     if (status != CFR_STATUS_SUCCESS)
         return status;
     status = mus_ordago_game_information_set_legal_actions(
@@ -200,6 +205,14 @@ static Status write_ordago_node(const InfoNode *node,
                 node->key, (int)information.player,
                 information.player == CFR_PLAYER_0 ? "mano" : "postre") < 0)
         return CFR_STATUS_IO_ERROR;
+    if (writer->score_target != 0) {
+        const bool exact = information.hand_kind == MUS_ORDAGO_HAND_EXACT;
+        const unsigned int a = exact ? writer->initial_scores[0] : information.scores[0];
+        const unsigned int b = exact ? writer->initial_scores[1] : information.scores[1];
+        if (fprintf(writer->stream, "marcador:%u-%u/objetivo:%u cartas=",
+                    a, b, writer->score_target) < 0)
+            return CFR_STATUS_IO_ERROR;
+    }
     if (write_ordago_hand(writer->stream, &information) !=
         CFR_STATUS_SUCCESS)
         return CFR_STATUS_IO_ERROR;
@@ -266,8 +279,10 @@ static Status write_ordago_node(const InfoNode *node,
         return fputc('\n', writer->stream) == EOF ? CFR_STATUS_IO_ERROR
                                                    : CFR_STATUS_SUCCESS;
     }
+    const unsigned int max_score = information.max_settled_score -
+        (writer->score_target == 0 ? 0U : MUS_ORDAGO_WAGER - writer->score_target);
     if (fprintf(writer->stream, " tantos_maximos=%u acumulado_previo=%u",
-                information.max_settled_score,
+                max_score,
                 information.prior_wager_total) < 0)
         return CFR_STATUS_IO_ERROR;
     if (information.bet_stage != MUS_BET_RESPONSE) {
@@ -451,6 +466,12 @@ static Status write_strategy(FILE *stream, const Trainer *trainer,
         trainer->store == NULL || trainer->game != expected_game) {
         return CFR_STATUS_INVALID_ARGUMENT;
     }
+    if (ordago && trainer->state != NULL) {
+        const MusGameState *root = (const MusGameState *)trainer->state;
+        writer.score_target = root->model.score_target;
+        writer.initial_scores[0] = root->model.initial_scores[0];
+        writer.initial_scores[1] = root->model.initial_scores[1];
+    }
     status = cfr_info_store_get_stats(trainer->store, &stats);
     if (status != CFR_STATUS_SUCCESS)
         return status;
@@ -488,4 +509,11 @@ Status mus_ordago_strategy_write_text(FILE *stream, const Trainer *trainer) {
 
 Status mus_strategy_write_text(FILE *stream, const Trainer *trainer) {
     return mus_single_bet_strategy_write_text(stream, trainer);
+}
+
+Status mus_score_strategy_write_text(FILE *stream, const Trainer *trainer) {
+    if (trainer == NULL || trainer->state == NULL ||
+        ((const MusGameState *)trainer->state)->model.score_target == 0)
+        return CFR_STATUS_INVALID_ARGUMENT;
+    return write_strategy(stream, trainer, trainer->game, false, true);
 }

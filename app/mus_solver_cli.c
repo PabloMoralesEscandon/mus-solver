@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <sys/stat.h>
 
 #include "cfr/checkpoint.h"
 #include "cfr/info_store.h"
@@ -16,6 +17,7 @@
 #include "mus_solver/mus_evaluation.h"
 #include "mus_solver/mus_game.h"
 #include "mus_solver/mus_strategy.h"
+#include "mus_solver/mus_score.h"
 #include "reservation_internal.h"
 
 enum { EXIT_RUNTIME_ERROR = 1, EXIT_USAGE_ERROR = 2 };
@@ -23,7 +25,8 @@ enum { EXIT_RUNTIME_ERROR = 1, EXIT_USAGE_ERROR = 2 };
 typedef enum {
     CLI_FORMAT_SINGLE_BET,
     CLI_FORMAT_RAISES_TO_EIGHT,
-    CLI_FORMAT_ORDAGO
+    CLI_FORMAT_ORDAGO,
+    CLI_FORMAT_ORDAGO_SCORE
 } CliFormat;
 
 typedef struct {
@@ -46,6 +49,14 @@ typedef struct {
     bool save_compressed;
     bool evaluate;
     bool help;
+    const char *continuation_dir;
+    size_t score_target;
+    size_t evaluation_samples;
+    unsigned int score_a;
+    unsigned int score_b;
+    bool score_set;
+    bool target_set;
+    bool evaluation_samples_set;
 } CliOptions;
 
 static bool print_usage(FILE *stream, const char *program) {
@@ -69,11 +80,12 @@ static bool print_usage(FILE *stream, const char *program) {
                "Opciones:\n"
                "  --iterations N         Iteraciones MCCFR nuevas.\n"
                "  --report-every N       Frecuencia de informes de entrenamiento.\n"
-               "  --threads N            Hilos de entrenamiento (1 por defecto).\n"
+               "  --threads N            Hilos de entrenamiento (1 por defecto;\n"
+               "                          ordago-score admite 1).\n"
                "  --seed N               Semilla de un entrenamiento nuevo (0 por "
                "defecto).\n"
                "  --format FORMAT        single-bet (por defecto) o "
-               "raises-to-eight u ordago.\n"
+               "raises-to-eight, ordago u ordago-score.\n"
                "  --reserve-information-sets N\n"
                "                          Sustituye la reserva automatica de "
                "ordago.\n"
@@ -85,6 +97,12 @@ static bool print_usage(FILE *stream, const char *program) {
                "un diagnostico acotado.\n"
                "  --export-strategy FILE Exporta la estrategia con etiquetas de "
                "mus.\n"
+               "  --continuation DIR     Tabla y checkpoints de ordago-score.\n"
+               "  --score A:B            Marcador inicial (0:0 por defecto).\n"
+               "  --target N             Objetivo de ordago-score (40 por defecto).\n"
+               "  --evaluation-samples N Manos para evaluar cada celda (10000).\n"
+               "                          En ordago-score, --iterations se aplica\n"
+               "                          a cada celda pendiente; se guarda por diagonal.\n"
                "  --help, -h             Muestra esta ayuda.\n",
                program, program, program, program) >= 0;
 }
@@ -129,7 +147,8 @@ static bool option_value(int argc, char *argv[], int *index,
 }
 
 static bool parse_options(int argc, char *argv[], CliOptions *options) {
-    *options = (CliOptions){.threads = 1};
+    *options = (CliOptions){.threads = 1, .score_target = 40,
+                            .evaluation_samples = 10000};
     for (int index = 1; index < argc; index += 1) {
         const char *argument = argv[index];
         const char *value = NULL;
@@ -180,6 +199,8 @@ static bool parse_options(int argc, char *argv[], CliOptions *options) {
                 options->format = CLI_FORMAT_SINGLE_BET;
             } else if (strcmp(value, "raises-to-eight") == 0) {
                 options->format = CLI_FORMAT_RAISES_TO_EIGHT;
+            } else if (strcmp(value, "ordago-score") == 0) {
+                options->format = CLI_FORMAT_ORDAGO_SCORE;
             } else if (strcmp(value, "ordago") == 0) {
                 options->format = CLI_FORMAT_ORDAGO;
             } else {
@@ -213,6 +234,37 @@ static bool parse_options(int argc, char *argv[], CliOptions *options) {
                 !option_value(argc, argv, &index, &options->export_path)) {
                 return false;
             }
+        } else if (strcmp(argument, "--continuation") == 0) {
+            if (options->continuation_dir != NULL ||
+                !option_value(argc, argv, &index, &options->continuation_dir))
+                return false;
+        } else if (strcmp(argument, "--score") == 0) {
+            if (options->score_set || !option_value(argc, argv, &index, &value))
+                return false;
+            const char *separator = strchr(value, ':');
+            if (separator == NULL || separator == value || separator - value > 2)
+                return false;
+            char first[3] = {0};
+            memcpy(first, value, (size_t)(separator - value));
+            uint64_t a, b;
+            if (!parse_seed(first, &a) || !parse_seed(separator + 1, &b) ||
+                a >= MUS_ORDAGO_WAGER || b >= MUS_ORDAGO_WAGER)
+                return false;
+            options->score_a = (unsigned int)a;
+            options->score_b = (unsigned int)b;
+            options->score_set = true;
+        } else if (strcmp(argument, "--target") == 0) {
+            if (options->target_set || !option_value(argc, argv, &index, &value) ||
+                !parse_size(value, &options->score_target) ||
+                options->score_target > MUS_ORDAGO_WAGER)
+                return false;
+            options->target_set = true;
+        } else if (strcmp(argument, "--evaluation-samples") == 0) {
+            if (options->evaluation_samples_set ||
+                !option_value(argc, argv, &index, &value) ||
+                !parse_size(value, &options->evaluation_samples))
+                return false;
+            options->evaluation_samples_set = true;
         } else if (strcmp(argument, "--evaluate") == 0) {
             if (options->evaluate)
                 return false;
@@ -223,6 +275,18 @@ static bool parse_options(int argc, char *argv[], CliOptions *options) {
     }
     if (options->help)
         return true;
+    if (options->format == CLI_FORMAT_ORDAGO_SCORE) {
+        return options->continuation_dir != NULL &&
+               options->continuation_dir[0] != '\0' &&
+               options->score_a < options->score_target &&
+               options->score_b < options->score_target &&
+               options->load_path == NULL && options->save_path == NULL &&
+               options->threads == 1 && !options->report_every_set &&
+               (options->iterations_set || options->evaluate || options->export_path != NULL);
+    }
+    if (options->continuation_dir != NULL || options->score_set ||
+        options->target_set || options->evaluation_samples_set)
+        return false;
     if (!options->iterations_set && !options->evaluate &&
         !(options->load_path != NULL && options->export_path != NULL))
         return false;
@@ -609,7 +673,9 @@ static Status export_strategy(const char *path, const Trainer *trainer,
 
     if (stream == NULL)
         return CFR_STATUS_IO_ERROR;
-    if (format == CLI_FORMAT_RAISES_TO_EIGHT) {
+    if (format == CLI_FORMAT_ORDAGO_SCORE) {
+        status = mus_score_strategy_write_text(stream, trainer);
+    } else if (format == CLI_FORMAT_RAISES_TO_EIGHT) {
         status = mus_raises_to_eight_strategy_write_text(stream, trainer);
     } else if (format == CLI_FORMAT_ORDAGO) {
         status = mus_ordago_strategy_write_text(stream, trainer);
@@ -667,7 +733,205 @@ static bool print_evaluation(size_t iterations, CliFormat format,
                metrics->exploitability) >= 0;
 }
 
+static char *score_path(const char *directory, const char *name) {
+    const size_t size = strlen(directory) + strlen(name) + 2;
+    char *path = malloc(size);
+    if (path != NULL)
+        (void)snprintf(path, size, "%s/%s", directory, name);
+    return path;
+}
+
+static char *score_cell_path(const char *directory, unsigned int a, unsigned int b) {
+    char name[64];
+    (void)snprintf(name, sizeof(name), "score-%02u-%02u.cfr.zst", a, b);
+    return score_path(directory, name);
+}
+
+static Status save_score_cell(const MusScoreGame *game, const Trainer *trainer,
+                               const MusScoreCell *cell, void *context) {
+    const CliOptions *options = context;
+    char *path = score_cell_path(options->continuation_dir,
+                                game->initial_scores[0], game->initial_scores[1]);
+    if (path == NULL)
+        return CFR_STATUS_OUT_OF_MEMORY;
+    Status status = save_checkpoint(path, trainer, true);
+    free(path);
+    if (status == CFR_STATUS_SUCCESS &&
+        printf("score-cell score=%u:%u target=%u iterations=%zu "
+               "evaluation_samples=%zu value=%.17g win_probability=%.17g\n",
+               game->initial_scores[0], game->initial_scores[1],
+               game->continuation->target, cell->iterations, cell->evaluation_samples,
+               cell->value, (cell->value + 1) / 2) < 0)
+        status = CFR_STATUS_IO_ERROR;
+    (void)fflush(stdout);
+    return status;
+}
+
+static Status save_score_diagonal(const MusScoreTable *table, void *context) {
+    const CliOptions *options = context;
+    char *path = score_path(options->continuation_dir, "values.txt");
+    char *temporary = score_path(options->continuation_dir, "values.txt.tmp");
+    if (path == NULL || temporary == NULL) {
+        free(path);
+        free(temporary);
+        return CFR_STATUS_OUT_OF_MEMORY;
+    }
+    FILE *stream = fopen(temporary, "w");
+    Status status = stream == NULL ? CFR_STATUS_IO_ERROR
+                                  : mus_score_table_write(stream, table);
+    if (stream != NULL && fclose(stream) != 0)
+        status = CFR_STATUS_IO_ERROR;
+    if (status == CFR_STATUS_SUCCESS && rename(temporary, path) != 0)
+        status = CFR_STATUS_IO_ERROR;
+    free(path);
+    free(temporary);
+    return status;
+}
+
+static int run_score(const CliOptions *options) {
+    MusScoreTable table;
+    Status status = mus_score_table_init(&table, (unsigned int)options->score_target);
+    InfoStore store = {0};
+    bool store_initialized = false;
+    MusGameState state;
+    MusScoreGame game;
+    Trainer trainer;
+    char *path = score_path(options->continuation_dir, "values.txt");
+    char *lock_path = score_path(options->continuation_dir, "training.lock");
+    bool locked = false;
+    if (path == NULL || lock_path == NULL) {
+        status = CFR_STATUS_OUT_OF_MEMORY;
+        goto done;
+    }
+    if (options->iterations_set) {
+        if (mkdir(options->continuation_dir, 0777) != 0 && errno != EEXIST) {
+            status = CFR_STATUS_IO_ERROR;
+            goto done;
+        }
+        FILE *lock = fopen(lock_path, "wx");
+        if (lock == NULL) {
+            fprintf(stderr, "error: no se pudo crear '%s'; "
+                            "compruebe si hay otro entrenamiento\n", lock_path);
+            status = CFR_STATUS_IO_ERROR;
+            goto done;
+        }
+        locked = true;
+        if (fclose(lock) != 0) {
+            status = CFR_STATUS_IO_ERROR;
+            goto done;
+        }
+    }
+    FILE *stream = fopen(path, "r");
+    if (stream != NULL) {
+        status = mus_score_table_read(stream, &table);
+        if (fclose(stream) != 0)
+            status = CFR_STATUS_IO_ERROR;
+        if (status != CFR_STATUS_SUCCESS)
+            goto done;
+        if (table.target != options->score_target) {
+            status = CFR_STATUS_INCOMPATIBLE_GAME;
+            goto done;
+        }
+        for (unsigned int a = 0; a < table.target; a += 1) {
+            for (unsigned int b = 0; b < table.target; b += 1) {
+                if (!table.cells[a][b].ready)
+                    continue;
+                char *cell_path = score_cell_path(options->continuation_dir, a, b);
+                FILE *cell_file = cell_path == NULL ? NULL : fopen(cell_path, "rb");
+                free(cell_path);
+                if (cell_file == NULL) {
+                    status = CFR_STATUS_IO_ERROR;
+                    goto done;
+                }
+                if (fclose(cell_file) != 0) {
+                    status = CFR_STATUS_IO_ERROR;
+                    goto done;
+                }
+            }
+        }
+    } else if (errno != ENOENT || !options->iterations_set) {
+        status = CFR_STATUS_IO_ERROR;
+        goto done;
+    }
+    if (options->iterations_set) {
+        const MusScoreTrainingOptions training = {
+            .iterations = options->iterations,
+            .evaluation_samples = options->evaluation_samples,
+            .seed = options->seed,
+            .reserve_information_sets = options->reserve_information_sets,
+        };
+        status = mus_score_train(&table, options->score_a + options->score_b,
+                                  &training, save_score_cell, save_score_diagonal,
+                                  (void *)options);
+        if (status != CFR_STATUS_SUCCESS)
+            goto done;
+    }
+    const MusScoreCell *cell = &table.cells[options->score_a][options->score_b];
+    if (!cell->ready) {
+        status = CFR_STATUS_NOT_FOUND;
+        goto done;
+    }
+    if (printf("score-table score=%u:%u target=%u value=%.17g win_probability=%.17g\n",
+               options->score_a, options->score_b, table.target, cell->value,
+               (cell->value + 1) / 2) < 0) {
+        status = CFR_STATUS_IO_ERROR;
+        goto done;
+    }
+    if (options->evaluate || options->export_path != NULL) {
+        status = mus_score_game_init(&game, &table, options->score_a, options->score_b);
+        if (status == CFR_STATUS_SUCCESS)
+            status = mus_score_game_state_init(&state, &game);
+        if (status != CFR_STATUS_SUCCESS)
+            goto done;
+        char *cell_path = score_cell_path(options->continuation_dir, options->score_a,
+                                          options->score_b);
+        if (cell_path == NULL) {
+            status = CFR_STATUS_OUT_OF_MEMORY;
+            goto done;
+        }
+        status = load_checkpoint(cell_path, &game.game, mus_game_state_as_game_state(&state),
+                                  &store, &trainer, true);
+        free(cell_path);
+        if (status != CFR_STATUS_SUCCESS)
+            goto done;
+        store_initialized = true;
+        if (trainer.training_iterations != cell->iterations) {
+            status = CFR_STATUS_INCOMPATIBLE_GAME;
+            goto done;
+        }
+        if (options->evaluate) {
+            double value;
+            status = mus_score_evaluate(&game, &store, options->evaluation_samples,
+                                        options->seed, &value);
+            if (status != CFR_STATUS_SUCCESS)
+                goto done;
+            if (printf("evaluation scope=score-average-policy score=%u:%u "
+                       "samples=%zu profile_value_player_0=%.17g "
+                       "profile_value_player_1=%.17g win_probability=%.17g\n",
+                       options->score_a, options->score_b, options->evaluation_samples,
+                       value, -value, (value + 1) / 2) < 0) {
+                status = CFR_STATUS_IO_ERROR;
+                goto done;
+            }
+        }
+        if (options->export_path != NULL)
+            status = export_strategy(options->export_path, &trainer, CLI_FORMAT_ORDAGO_SCORE);
+    }
+done:
+    if (store_initialized)
+        (void)cfr_info_store_destroy(&store);
+    if (locked)
+        (void)remove(lock_path);
+    free(lock_path);
+    free(path);
+    if (status != CFR_STATUS_SUCCESS)
+        fprintf(stderr, "error: ordago-score: %s\n", status_name(status));
+    return status == CFR_STATUS_SUCCESS ? 0 : EXIT_RUNTIME_ERROR;
+}
+
 static int run(const CliOptions *options) {
+    if (options->format == CLI_FORMAT_ORDAGO_SCORE)
+        return run_score(options);
     MusGameState *states = NULL;
     InfoStore store = {0};
     Trainer *trainers = NULL;

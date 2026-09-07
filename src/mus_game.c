@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "mus_solver/mus_game.h"
+#include "mus_solver/mus_score.h"
 
 #define MUS_HAND_CODE_RADIX 390625
 #define MUS_INFORMATION_PHASE_COUNT 5
@@ -32,6 +33,7 @@
 typedef struct {
     bool raises_to_eight;
     bool ordago_with_mus;
+    bool score_enabled;
 } MusGameFormat;
 
 static const MusGameFormat MUS_SINGLE_BET_FORMAT = {
@@ -47,6 +49,11 @@ static const MusGameFormat MUS_RAISES_TO_EIGHT_FORMAT = {
 static const MusGameFormat MUS_ORDAGO_FORMAT = {
     .raises_to_eight = false,
     .ordago_with_mus = true,
+};
+
+static const MusGameFormat MUS_SCORE_FORMAT = {
+    .ordago_with_mus = true,
+    .score_enabled = true,
 };
 
 static const uint8_t CLASS_CAPACITIES[MUS_GAME_CLASS_COUNT] = {
@@ -195,6 +202,7 @@ static int compact_hand_code(const uint8_t hand[MUS_GAME_CLASS_COUNT]);
 static Status summarize_ordago_hand_codes(
     const MusGameModel *model,
     MusOrdagoHandCodes codes[MUS_GAME_PLAYER_COUNT]);
+static bool score_match_finished(const MusGameModel *model);
 static bool outcome_is_accepted(MusLanceOutcome outcome);
 static bool outcome_is_rejected(MusLanceOutcome outcome);
 static int outcome_bettor(MusLanceOutcome outcome);
@@ -301,6 +309,8 @@ static const MusGameFormat *game_format(const void *context) {
         return &MUS_RAISES_TO_EIGHT_FORMAT;
     if (context == &MUS_ORDAGO_FORMAT)
         return &MUS_ORDAGO_FORMAT;
+    if (context == &MUS_SCORE_FORMAT)
+        return &MUS_SCORE_FORMAT;
     return NULL;
 }
 
@@ -489,8 +499,7 @@ static Status mus_raises_to_eight_trusted_legal_actions(
 static Status mus_ordago_trusted_legal_actions(
     const void *context, const GameState *state, Action *actions,
     size_t capacity, size_t *required_count) {
-    (void)context;
-    return mus_trusted_legal_actions(&MUS_ORDAGO_FORMAT, state, actions,
+    return mus_trusted_legal_actions(context, state, actions,
                                      capacity, required_count);
 }
 
@@ -649,7 +658,10 @@ static Status recompute_ordago_settled_scores(
     scores[0] = 0;
     scores[1] = 0;
     for (int lance = 0; lance < MUS_GAME_LANCE_COUNT; lance += 1) {
-        if (settle_ordago_lance_score(model, summaries, lance, scores))
+        if (settle_ordago_lance_score(model, summaries, lance, scores) ||
+            (model->score_target != 0 &&
+             (model->initial_scores[0] + scores[0] >= model->score_target ||
+              model->initial_scores[1] + scores[1] >= model->score_target)))
             break;
     }
     return CFR_STATUS_SUCCESS;
@@ -712,6 +724,10 @@ static void advance_lance(
                 model, summaries, lance, model->settled_scores);
         }
     }
+    if (score_match_finished(model)) {
+        model->phase = MUS_PHASE_TERMINAL;
+        return;
+    }
     if (completed_phase == MUS_PHASE_GRANDE) {
         start_betting(model, MUS_PHASE_CHICA);
     } else if (completed_phase == MUS_PHASE_CHICA) {
@@ -732,7 +748,10 @@ static void advance_lance(
                 (void)settle_ordago_lance_score(
                     model, summaries, 2, model->settled_scores);
             }
-            prepare_final_lance(model, format, summaries);
+            if (score_match_finished(model))
+                model->phase = MUS_PHASE_TERMINAL;
+            else
+                prepare_final_lance(model, format, summaries);
         }
     } else if (completed_phase == MUS_PHASE_PARES) {
         prepare_final_lance(model, format, summaries);
@@ -932,9 +951,19 @@ static int ordago_prior_wager_total(const MusGameModel *model) {
 }
 
 static int ordago_max_settled_score(const MusGameModel *model) {
-    return model->settled_scores[0] > model->settled_scores[1]
-               ? model->settled_scores[0]
-               : model->settled_scores[1];
+    const int a = model->settled_scores[0] + model->initial_scores[0];
+    const int b = model->settled_scores[1] + model->initial_scores[1];
+    const int offset = model->score_target == 0 ? 0
+                          : MUS_ORDAGO_WAGER - model->score_target;
+    return (a > b ? a : b) + offset;
+}
+
+static bool score_match_finished(const MusGameModel *model) {
+    return model->score_target != 0 &&
+           (model->initial_scores[0] + model->settled_scores[0] >=
+                model->score_target ||
+            model->initial_scores[1] + model->settled_scores[1] >=
+                model->score_target);
 }
 
 static bool ordago_numeric_budget_allows(int max_settled_score,
@@ -1260,6 +1289,17 @@ static Status validate_model(const MusGameModel *model,
         !player_is_valid(model->bettor)) {
         return CFR_STATUS_INVALID_ARGUMENT;
     }
+    if (format->score_enabled) {
+        if (model->score_target == 0 || model->score_target > MUS_ORDAGO_WAGER ||
+            model->initial_scores[0] >= model->score_target ||
+            model->initial_scores[1] >= model->score_target)
+            return CFR_STATUS_INVALID_ARGUMENT;
+    } else if (model->score_target != 0 || model->initial_scores[0] != 0 ||
+               model->initial_scores[1] != 0) {
+        return CFR_STATUS_INVALID_ARGUMENT;
+    }
+    if (score_match_finished(model) && model->phase != MUS_PHASE_TERMINAL)
+        return CFR_STATUS_INVALID_ARGUMENT;
     for (int card_class = 0; card_class < MUS_GAME_CLASS_COUNT;
          card_class += 1) {
         if ((int)model->hands[0][card_class] +
@@ -1531,7 +1571,11 @@ static Status validate_state_data(const MusGameState *state,
                                   const MusGameFormat *format) {
     Status status;
 
-    if (state == NULL)
+    if (state == NULL || format == NULL)
+        return CFR_STATUS_INVALID_ARGUMENT;
+    if (format->score_enabled &&
+        (state->continuation == NULL ||
+         state->continuation->target != state->model.score_target))
         return CFR_STATUS_INVALID_ARGUMENT;
     status = validate_model(&state->model, format);
     if (status != CFR_STATUS_SUCCESS || phase_is_deal(state->model.phase) ||
@@ -1912,6 +1956,8 @@ static Status mus_trusted_terminal_utility(const void *context,
         game_format(context) == NULL) {
         return CFR_STATUS_INVALID_ARGUMENT;
     }
+    if (game_format(context)->score_enabled)
+        return mus_score_terminal_utility(mus, player, result);
     if (game_format(context)->ordago_with_mus) {
         const uint8_t *cached_scores = mus->model.settled_scores;
 
@@ -2530,7 +2576,8 @@ static void copy_ordago_betting_model(MusGameModel *target,
 }
 
 static Status apply_ordago_trusted_action_to_state(MusGameState *mus,
-                                                    Action action) {
+                                                    Action action,
+                                                    const MusGameFormat *format) {
     MusHandSummary completed_summaries[MUS_GAME_PLAYER_COUNT];
     MusOrdagoHandCodes completed_codes[MUS_GAME_PLAYER_COUNT];
     MusGameModel *undo_model;
@@ -2545,7 +2592,7 @@ static Status apply_ordago_trusted_action_to_state(MusGameState *mus,
     undo_model = &mus->undo_history[mus->undo_count];
     if (phase_is_betting(mus->model.phase)) {
         copy_ordago_betting_model(undo_model, &mus->model);
-        status = apply_to_model(&mus->model, &MUS_ORDAGO_FORMAT, action,
+        status = apply_to_model(&mus->model, format, action,
                                 mus->hand_summaries);
         if (status == CFR_STATUS_SUCCESS)
             mus->undo_count += 1;
@@ -2556,7 +2603,7 @@ static Status apply_ordago_trusted_action_to_state(MusGameState *mus,
     *undo_model = mus->model;
     memcpy(mus->undo_hand_summaries[mus->undo_count],
            mus->hand_summaries, sizeof(mus->hand_summaries));
-    status = apply_to_model(&mus->model, &MUS_ORDAGO_FORMAT, action,
+    status = apply_to_model(&mus->model, format, action,
                             mus->hand_summaries);
     if (status != CFR_STATUS_SUCCESS) {
         mus->model = *undo_model;
@@ -2614,8 +2661,8 @@ static Status mus_raises_to_eight_trusted_apply_action(const void *context,
 static Status mus_ordago_trusted_apply_action(const void *context,
                                               GameState *state,
                                               Action action) {
-    (void)context;
-    return apply_ordago_trusted_action_to_state(as_mus(state), action);
+    return apply_ordago_trusted_action_to_state(as_mus(state), action,
+                                                game_format(context));
 }
 
 static Status mus_undo_action(const void *context, GameState *state) {
@@ -3115,7 +3162,17 @@ static InfoSetKey ordago_information_set_key(
             key = key * strength_radix +
                   model->outcome_strengths[lance];
         }
-        key = key * MUS_ORDAGO_SCORE_RADIX + max_settled_score;
+        /* With two mus rounds, the full score key still fits in int64_t. */
+        _Static_assert(UINT64_C(52) * 290 * 112 * 41 * 41 * 41 * 41 * 41 *
+                           256 * 2 * 28 < INT64_MAX,
+                       "Score information-set keys must fit in int64_t");
+        if (model->score_target != 0) {
+            for (int player = 0; player < MUS_GAME_PLAYER_COUNT; player += 1)
+                key = key * MUS_ORDAGO_SCORE_RADIX +
+                      model->initial_scores[player] + model->settled_scores[player];
+        } else {
+            key = key * MUS_ORDAGO_SCORE_RADIX + max_settled_score;
+        }
         key = key * MUS_ORDAGO_TOTAL_WAGER_RADIX + prior_wager_total;
         if (model->bet_stage == MUS_BET_RESPONSE) {
             key = key * MUS_ORDAGO_WAGER_RADIX + model->current_wager;
@@ -3604,15 +3661,15 @@ static bool decode_ordago_hand(int code,
     return false;
 }
 
-Status mus_ordago_game_information_set_decode(
-    InfoSetKey key, MusOrdagoInformationSet *information_set) {
+static Status decode_ordago_information_set(
+    InfoSetKey key, unsigned int target, MusOrdagoInformationSet *information_set) {
     int situation;
     int round = -1;
     int hand_code_value;
 
     if (information_set == NULL || key < 0)
         return CFR_STATUS_INVALID_ARGUMENT;
-    *information_set = (MusOrdagoInformationSet){0};
+    *information_set = (MusOrdagoInformationSet){.score_enabled = target != 0};
     situation = (int)(key % MUS_ORDAGO_SITUATION_COUNT);
     key /= MUS_ORDAGO_SITUATION_COUNT;
     if (!decode_ordago_situation(situation, information_set, &round))
@@ -3656,11 +3713,24 @@ Status mus_ordago_game_information_set_decode(
         information_set->prior_wager_total =
             (uint8_t)(key % MUS_ORDAGO_TOTAL_WAGER_RADIX);
         key /= MUS_ORDAGO_TOTAL_WAGER_RADIX;
-        information_set->max_settled_score =
-            (uint8_t)(key % MUS_ORDAGO_SCORE_RADIX);
-        key /= MUS_ORDAGO_SCORE_RADIX;
+        if (target != 0) {
+            for (int player = MUS_GAME_PLAYER_COUNT - 1; player >= 0; player -= 1) {
+                information_set->scores[player] = (uint8_t)(key % MUS_ORDAGO_SCORE_RADIX);
+                key /= MUS_ORDAGO_SCORE_RADIX;
+                if (information_set->scores[player] >= target)
+                    return CFR_STATUS_INVALID_ARGUMENT;
+            }
+            const int a = information_set->scores[0];
+            const int b = information_set->scores[1];
+            information_set->max_settled_score =
+                (uint8_t)((a > b ? a : b) + MUS_ORDAGO_WAGER - (int)target);
+        } else {
+            information_set->max_settled_score =
+                (uint8_t)(key % MUS_ORDAGO_SCORE_RADIX);
+            key /= MUS_ORDAGO_SCORE_RADIX;
+        }
         if ((information_set->previous_strength_count == 0 &&
-             (information_set->max_settled_score != 0 ||
+             ((!information_set->score_enabled && information_set->max_settled_score != 0) ||
               information_set->prior_wager_total != 0)) ||
             (information_set->bet_stage == MUS_BET_RESPONSE &&
              !ordago_offer_is_valid(
@@ -3719,6 +3789,46 @@ Status mus_ordago_game_information_set_decode(
     return CFR_STATUS_SUCCESS;
 }
 
+Status mus_ordago_game_information_set_decode(
+    InfoSetKey key, MusOrdagoInformationSet *information_set) {
+    return decode_ordago_information_set(key, 0, information_set);
+}
+
+Status mus_score_game_information_set_decode(
+    InfoSetKey key, unsigned int target, MusOrdagoInformationSet *information_set) {
+    if (target == 0 || target > MUS_ORDAGO_WAGER)
+        return CFR_STATUS_INVALID_ARGUMENT;
+    return decode_ordago_information_set(key, target, information_set);
+}
+
+/* Each score cell uses a separate store and a distinct checkpoint schema. */
+Status mus_score_game_init(MusScoreGame *score_game, const MusScoreTable *table,
+                           unsigned int a, unsigned int b) {
+    if (score_game == NULL || table == NULL || table->target == 0 ||
+        table->target > MUS_ORDAGO_WAGER || a >= table->target || b >= table->target)
+        return CFR_STATUS_INVALID_ARGUMENT;
+    score_game->continuation = table;
+    score_game->initial_scores[0] = (uint8_t)a;
+    score_game->initial_scores[1] = (uint8_t)b;
+    score_game->game = MUS_ORDAGO_GAME;
+    score_game->game.context = &MUS_SCORE_FORMAT;
+    score_game->game.strategy_schema_id = score_game->schema;
+    return mus_score_game_set_schema(score_game);
+}
+
+Status mus_score_game_state_init(MusGameState *state, const MusScoreGame *game) {
+    if (state == NULL || game == NULL || game->continuation == NULL)
+        return CFR_STATUS_INVALID_ARGUMENT;
+    Status status = mus_ordago_game_state_init(state);
+    if (status != CFR_STATUS_SUCCESS)
+        return status;
+    state->continuation = game->continuation;
+    state->model.score_target = game->continuation->target;
+    memcpy(state->model.initial_scores, game->initial_scores,
+           sizeof(state->model.initial_scores));
+    return validate_state_data(state, &MUS_SCORE_FORMAT);
+}
+
 Status mus_ordago_game_information_set_legal_actions(
     const MusOrdagoInformationSet *information_set, Action *actions,
     size_t capacity, size_t *required_count) {
@@ -3757,7 +3867,7 @@ Status mus_ordago_game_information_set_legal_actions(
     }
     if (!phase_is_betting(information_set->phase) ||
         (information_set->previous_strength_count == 0 &&
-         (information_set->max_settled_score != 0 ||
+         ((!information_set->score_enabled && information_set->max_settled_score != 0) ||
           information_set->prior_wager_total != 0))) {
         return CFR_STATUS_INVALID_ARGUMENT;
     }
