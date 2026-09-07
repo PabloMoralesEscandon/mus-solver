@@ -5,7 +5,7 @@
 #include "cfr/trainer.h"
 #include "mus_solver/mus_game.h"
 
-#define MUS_SCORE_SCHEMA_ID "mus.ordago-score/v1"
+#define MUS_SCORE_SCHEMA_ID "mus.ordago-score/v2"
 
 typedef struct {
     bool ready;
@@ -48,6 +48,8 @@ Status mus_score_table_read(FILE *stream, MusScoreTable *table);
 Status mus_score_table_write(FILE *stream, const MusScoreTable *table);
 Status mus_score_game_init(MusScoreGame *game, const MusScoreTable *table,
                            unsigned int a, unsigned int b);
+/* Checks the game adapter before a caller interprets an opaque state. */
+bool mus_score_game_matches(const Game *game);
 Status mus_score_game_state_init(MusGameState *state, const MusScoreGame *game);
 Status mus_score_game_information_set_decode(
     InfoSetKey key, unsigned int target, MusOrdagoInformationSet *information);

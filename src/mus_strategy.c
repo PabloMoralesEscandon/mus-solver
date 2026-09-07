@@ -279,10 +279,8 @@ static Status write_ordago_node(const InfoNode *node,
         return fputc('\n', writer->stream) == EOF ? CFR_STATUS_IO_ERROR
                                                    : CFR_STATUS_SUCCESS;
     }
-    const unsigned int max_score = information.max_settled_score -
-        (writer->score_target == 0 ? 0U : MUS_ORDAGO_WAGER - writer->score_target);
     if (fprintf(writer->stream, " tantos_maximos=%u acumulado_previo=%u",
-                max_score,
+                information.max_settled_score,
                 information.prior_wager_total) < 0)
         return CFR_STATUS_IO_ERROR;
     if (information.bet_stage != MUS_BET_RESPONSE) {
@@ -512,8 +510,9 @@ Status mus_strategy_write_text(FILE *stream, const Trainer *trainer) {
 }
 
 Status mus_score_strategy_write_text(FILE *stream, const Trainer *trainer) {
-    if (trainer == NULL || trainer->state == NULL ||
-        ((const MusGameState *)trainer->state)->model.score_target == 0)
+    if (stream == NULL || trainer == NULL ||
+        !mus_score_game_matches(trainer->game) || trainer->state == NULL ||
+        cfr_game_validate_state(trainer->game, trainer->state) != CFR_STATUS_SUCCESS)
         return CFR_STATUS_INVALID_ARGUMENT;
     return write_strategy(stream, trainer, trainer->game, false, true);
 }

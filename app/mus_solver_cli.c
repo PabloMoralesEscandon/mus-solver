@@ -1,3 +1,7 @@
+#ifndef _POSIX_C_SOURCE
+#define _POSIX_C_SOURCE 200809L
+#endif
+
 #include <errno.h>
 #include <inttypes.h>
 #include <pthread.h>
@@ -10,6 +14,7 @@
 #include <string.h>
 #include <time.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 #include "cfr/checkpoint.h"
 #include "cfr/info_store.h"
@@ -788,6 +793,67 @@ static Status save_score_diagonal(const MusScoreTable *table, void *context) {
     return status;
 }
 
+static Status write_score_lock(FILE *stream) {
+    char hostname[256] = "unknown";
+    char timestamp[32];
+    const time_t now = time(NULL);
+    struct tm utc;
+    if (now == (time_t)-1 || gmtime_r(&now, &utc) == NULL ||
+        strftime(timestamp, sizeof(timestamp), "%Y-%m-%dT%H:%M:%SZ", &utc) == 0)
+        return CFR_STATUS_IO_ERROR;
+    if (gethostname(hostname, sizeof(hostname)) != 0)
+        strcpy(hostname, "unknown");
+    hostname[sizeof(hostname) - 1] = '\0';
+    return fprintf(stream, "pid=%jd host=%s started=%s\n",
+                   (intmax_t)getpid(), hostname, timestamp) < 0
+               ? CFR_STATUS_IO_ERROR : CFR_STATUS_SUCCESS;
+}
+
+static void report_score_lock(const char *path) {
+    FILE *stream = fopen(path, "r");
+    if (stream == NULL)
+        return;
+    char owner[512];
+    if (fgets(owner, sizeof(owner), stream) != NULL) {
+        owner[strcspn(owner, "\r\n")] = '\0';
+        fprintf(stderr, "error: datos del bloqueo: %s\n", owner);
+    }
+    (void)fclose(stream);
+}
+
+static bool print_score_resume(const MusScoreTable *table, const CliOptions *options) {
+    size_t count = 0, mismatched = 0;
+    size_t min_iterations = SIZE_MAX, max_iterations = 0;
+    size_t min_samples = SIZE_MAX, max_samples = 0;
+    for (unsigned int a = 0; a < table->target; a += 1) {
+        for (unsigned int b = 0; b < table->target; b += 1) {
+            const MusScoreCell *cell = &table->cells[a][b];
+            if (!cell->ready)
+                continue;
+            count += 1;
+            if (cell->iterations < min_iterations)
+                min_iterations = cell->iterations;
+            if (cell->iterations > max_iterations)
+                max_iterations = cell->iterations;
+            if (cell->evaluation_samples < min_samples)
+                min_samples = cell->evaluation_samples;
+            if (cell->evaluation_samples > max_samples)
+                max_samples = cell->evaluation_samples;
+            const uint64_t seed = options->seed + a * MUS_ORDAGO_WAGER + b;
+            if (cell->iterations != options->iterations ||
+                cell->evaluation_samples != options->evaluation_samples ||
+                cell->training_seed != seed)
+                mismatched += 1;
+        }
+    }
+    return count == 0 ||
+           printf("score-resume cells=%zu iterations_min=%zu iterations_max=%zu "
+                  "samples_min=%zu samples_max=%zu requested_iterations=%zu "
+                  "requested_samples=%zu different_settings_cells=%zu\n",
+                  count, min_iterations, max_iterations, min_samples, max_samples,
+                  options->iterations, options->evaluation_samples, mismatched) >= 0;
+}
+
 static int run_score(const CliOptions *options) {
     MusScoreTable table;
     Status status = mus_score_table_init(&table, (unsigned int)options->score_target);
@@ -810,16 +876,20 @@ static int run_score(const CliOptions *options) {
         }
         FILE *lock = fopen(lock_path, "wx");
         if (lock == NULL) {
+            const bool exists = errno == EEXIST;
             fprintf(stderr, "error: no se pudo crear '%s'; "
                             "compruebe si hay otro entrenamiento\n", lock_path);
+            if (exists)
+                report_score_lock(lock_path);
             status = CFR_STATUS_IO_ERROR;
             goto done;
         }
         locked = true;
-        if (fclose(lock) != 0) {
+        status = write_score_lock(lock);
+        if (fclose(lock) != 0)
             status = CFR_STATUS_IO_ERROR;
+        if (status != CFR_STATUS_SUCCESS)
             goto done;
-        }
     }
     FILE *stream = fopen(path, "r");
     if (stream != NULL) {
@@ -854,6 +924,10 @@ static int run_score(const CliOptions *options) {
         goto done;
     }
     if (options->iterations_set) {
+        if (!print_score_resume(&table, options) || fflush(stdout) != 0) {
+            status = CFR_STATUS_IO_ERROR;
+            goto done;
+        }
         const MusScoreTrainingOptions training = {
             .iterations = options->iterations,
             .evaluation_samples = options->evaluation_samples,
@@ -906,9 +980,12 @@ static int run_score(const CliOptions *options) {
             if (status != CFR_STATUS_SUCCESS)
                 goto done;
             if (printf("evaluation scope=score-average-policy score=%u:%u "
-                       "samples=%zu profile_value_player_0=%.17g "
+                       "samples=%zu estimate=fresh seed=%" PRIu64 " "
+                       "stored_value=%.17g stored_samples=%zu "
+                       "profile_value_player_0=%.17g "
                        "profile_value_player_1=%.17g win_probability=%.17g\n",
                        options->score_a, options->score_b, options->evaluation_samples,
+                       options->seed, cell->value, cell->evaluation_samples,
                        value, -value, (value + 1) / 2) < 0) {
                 status = CFR_STATUS_IO_ERROR;
                 goto done;

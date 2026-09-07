@@ -171,7 +171,7 @@ cp "$tmp_dir/score/score-01-01.cfr.zst" "$tmp_dir/preserved.cfr.zst"
     >"$tmp_dir/score-resumed.out"
 grep -q 'evaluation scope=score-average-policy score=0:0 samples=50' \
     "$tmp_dir/score-resumed.out"
-grep -q 'schema=mus.ordago-score/v1' "$tmp_dir/score-strategy.txt"
+grep -q 'schema=mus.ordago-score/v2' "$tmp_dir/score-strategy.txt"
 grep -q 'marcador:0-0/objetivo:3' "$tmp_dir/score-strategy.txt"
 cmp "$tmp_dir/preserved.cfr.zst" "$tmp_dir/score/score-01-01.cfr.zst"
 "$solver" --format ordago-score --target 3 --iterations 2 --seed 7 \

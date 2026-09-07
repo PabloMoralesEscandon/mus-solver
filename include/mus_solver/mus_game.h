@@ -286,7 +286,7 @@ typedef struct {
     uint8_t previous_strength_count;
     bool score_enabled;
     uint8_t scores[MUS_GAME_PLAYER_COUNT];
-    /* Budget offset for score games; highest settled score otherwise. */
+    /* Highest absolute score in score games; highest settled score otherwise. */
     uint8_t max_settled_score;
     /* Settled numeric wager total from completed lances. */
     uint8_t prior_wager_total;

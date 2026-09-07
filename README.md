@@ -163,8 +163,21 @@ el tanteo intrínseco de pares, juego y punto de la versión de origen.
 
 Las utilidades son `+1/-1` cuando termina la partida. Si continúa desde `a'–b'`,
 la utilidad del jugador 0 es `-V[b'][a']`: el siguiente reparto pasa la mano al
-contrario. No se añade la diferencia de tantos a ese valor. La legalidad de los
-envites usa el mayor marcador absoluto, el acumulado de envites y el objetivo.
+contrario. No se añade la diferencia de tantos a ese valor.
+
+En `ordago-score`, el marcador determina la utilidad y el fin de partida. No
+recorta los envites numéricos: tanto a `38–19` como a `19–38` se puede abrir con
+2, 4, 7 o 10, pasar o lanzar órdago. Un envite puede alcanzar o superar los
+tantos restantes sin convertirse en órdago. Si se acepta, se cobra el envite;
+si se rechaza, se cobra el total cubierto. Las apuestas de lances anteriores ya
+están resueltas y no reducen el presupuesto del lance activo.
+
+Se mantienen las restricciones por lance de la abstracción: incrementos
+permitidos y no decrecientes, cada incremento una vez por jugador, máximo de
+cinco envites numéricos y total numérico estrictamente menor que 40. Esta última
+cota es fija, también para objetivos reducidos; no depende del marcador.
+El formato histórico `ordago` conserva su cota acumulada anterior.
+
 Los conjuntos de información incluyen ambos marcadores durante los lances.
 El marcador inicial y el objetivo identifican el almacén y el checkpoint de
 cada celda, también durante mus y descartes.
@@ -201,7 +214,11 @@ juntos al terminarla.
 
 Esta primera implementación ejecuta las celdas secuencialmente y acepta
 `--threads 1`. Emite un informe `score-cell` por celda y un `score-table` para
-el marcador solicitado. No utiliza `--report-every`, `--load`, `--save` ni sus
+el marcador solicitado. Al reanudar, `score-resume` muestra cuántas celdas ya
+están publicadas, los mínimos y máximos de iteraciones y muestras, y cuántas
+se entrenaron con ajustes diferentes de los solicitados. Se permiten
+presupuestos diferentes por celda; las publicadas conservan sus valores.
+No utiliza `--report-every`, `--load`, `--save` ni sus
 variantes comprimidas; la persistencia se gestiona con `--continuation`.
 `--reserve-information-sets` permite reservar capacidad por celda; sin esa
 opción el almacén crece según las necesidades.
@@ -213,9 +230,10 @@ El directorio contiene:
 - `score-AA-BB.cfr.zst`: checkpoint CFR de cada marcador, con la estrategia
   media y los acumuladores necesarios para reanudar el entrenamiento mediante
   la API de C-CFR.
-- `training.lock`: bloqueo mientras se ejecuta un entrenamiento. Si un proceso
-  termina abruptamente, hay que comprobar que ya no se ejecuta antes de borrar
-  este archivo y reanudar.
+- `training.lock`: bloqueo con PID, nombre del equipo y fecha UTC de inicio.
+  El error de bloqueo muestra esos datos. Si un proceso termina abruptamente,
+  hay que comprobar en ese equipo que el proceso indicado ya no se ejecuta
+  antes de borrar este archivo y reanudar.
 
 Repetir el comando con el mismo directorio conserva las diagonales terminadas
 y completa las pendientes. Una diagonal interrumpida se vuelve a entrenar.
@@ -225,6 +243,14 @@ el entrenamiento completo se utiliza otro directorio. Los checkpoints tienen
 un esquema distinto del de `ordago`, que incluye objetivo, marcador y una
 huella de las continuaciones superiores. No se pueden intercambiar entre
 marcadores, objetivos, versiones de mus o tablas distintas.
+
+El esquema actual es `mus.ordago-score/v2`. Las tablas y checkpoints de la
+primera implementación `v1` requieren un entrenamiento nuevo, porque cambió
+el menú de acciones. Los esquemas de las tres versiones históricas se mantienen.
+Los checkpoints de una diagonal interrumpida que no figuren en `values.txt`
+se ignoran; se reemplazan cuando se vuelve a entrenar esa celda. Tanto los
+checkpoints como la tabla se publican mediante archivo temporal y `rename()`;
+las estrategias de celdas ya publicadas no se sobrescriben al reanudar.
 
 Al comenzar otra mano puede seleccionarse su estrategia guardada:
 
@@ -240,7 +266,16 @@ La evaluación recorre manos completas muestreadas con la **estrategia media**,
 con política uniforme en los conjuntos no visitados. Usa un flujo aleatorio
 separado y no modifica los arrepentimientos. El valor guardado es una estimación
 Monte Carlo de esa política, no la utilidad de la última iteración ni una
-medida de explotabilidad. `win_probability = (value + 1) / 2`. El error de
+medida de explotabilidad. `win_probability = (value + 1) / 2`.
+
+`--evaluate` produce una evaluación nueva, indicada con `estimate=fresh`, y
+muestra su semilla, el `stored_value` de la tabla y las muestras utilizadas
+para estimarlo (`stored_samples`). Ambos valores pueden diferir por muestreo.
+Repetir la evaluación con la misma semilla, el mismo número de muestras y la
+misma estrategia reproduce la evaluación nueva; no exige que coincida con la
+estimación guardada durante el entrenamiento.
+
+El error de
 muestreo de las continuaciones se propaga hacia marcadores anteriores. Sigue
 aplicándose la limitación de recuerdo imperfecto de la abstracción de `ordago`;
 el entrenamiento no garantiza un equilibrio.
@@ -256,8 +291,13 @@ cada almacén pertenece a un único marcador.
 Las pruebas comprueban signos, suma cero, órdagos, fin anticipado, tanteo de
 lances sin negociación, acciones legales, aplicación y deshacer, persistencia
 y publicación por diagonales. Un subjuego a tres tantos, con reparto fijo,
-cartas conocidas y sin mus, compara exhaustivamente la tabla con el árbol de
-la partida completa. Las pruebas de entrenamiento y CLI cubren además mus,
+cartas conocidas y sin mus, compara la continuación por tabla con el
+desarrollo directo del mismo árbol hasta el final de la partida. Esta prueba
+valida la continuación, la orientación y el signo; comparte las reglas del
+juego y no es un oráculo independiente de esas reglas. Otras pruebas fijan
+explícitamente los menús de apuestas y los resultados de tanteo a tres y cinco
+tantos, incluidos los lances sin negociación y los empates a favor de mano.
+Las pruebas de entrenamiento y CLI cubren además mus,
 descartes y la selección de marcadores a 40. Estas comprobaciones no equivalen
 a resolver exhaustivamente el juego completo de información imperfecta.
 
