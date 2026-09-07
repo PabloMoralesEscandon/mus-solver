@@ -107,8 +107,15 @@ z = (estimación_equipo_0 - estimación_equipo_1) / 2
 
 ## Cómo se valora el final de una mano
 
-Al alcanzar una hoja se aplica primero todo el tanteo, en el orden establecido
-por las reglas. Después se distingue entre dos casos.
+Durante la negociación solo se cobran los dejes y los importes cubiertos de
+apuestas rechazadas. Los envites queridos, los lances en paso y los valores
+intrínsecos permanecen pendientes hasta el final de la mano. Entonces se cuentan
+por orden —grande, chica, pares, juego o punto— y se detiene el cobro al alcanzar
+el objetivo. Un órdago querido resuelve la partida inmediatamente, sin cobrar
+antes los lances pendientes. Véanse los títulos IV.5 y V.1 del
+[reglamento FEMUS](https://www.mustembleque.es/downloads/REGLAMENTO_FEMUS.29.pdf).
+
+Después se distingue entre dos casos.
 
 ### La partida ha terminado
 
@@ -282,8 +289,11 @@ Cada entrenamiento necesita un contexto inmutable con:
 - referencia de solo lectura a `V`;
 - reglas y abstracción utilizadas.
 
-El estado mutable conserva los tantos resueltos durante la mano. El marcador
-absoluto se obtiene sumándolos al inicial y limitándolo al objetivo.
+El estado mutable separa los tantos cobrados de los contratos pendientes por
+lance. Durante las decisiones, el marcador absoluto incorpora solo cobros ya
+públicos. Los ganadores y valores ocultos de los contratos pendientes no se
+resuelven ni se incluyen en las claves hasta que corresponde el tanteo final.
+Las claves deben distinguir los importes pendientes por lance, no solo su suma.
 
 ### Función de utilidad terminal
 

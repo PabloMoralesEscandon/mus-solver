@@ -153,13 +153,23 @@ Cada celda `a–b` tiene su propio almacén CFR. El árbol conserva una sola man
 con mus, descartes y los envites de `ordago`. El jugador 0 representa siempre
 la mano y el jugador 1 el postre.
 
-El modelo conserva el marcador inicial y los tantos resueltos durante la mano.
-Se mantiene el orden de tanteo de la implementación actual: grande, chica,
-pares y juego o punto, incluidos los lances sin negociación. La partida termina
-en cuanto un jugador alcanza el objetivo; no se resuelven los lances restantes.
-Un órdago querido decide la partida y sustituye el tanteo de la mano. Un órdago
-rechazado concede el total cubierto, o una piedra si era apertura; se conserva
-el tanteo intrínseco de pares, juego y punto de la versión de origen.
+El modelo separa los cobros inmediatos de los contratos pendientes. Los envites
+u órdagos rechazados pagan inmediatamente el deje o el total cubierto. Los
+envites queridos, los lances en paso y los valores de pares/juego quedan para
+el tanteo final, por orden: grande, chica, pares y juego o punto. Se detiene el
+cobro cuando alguien alcanza el objetivo. Un órdago querido decide la partida
+inmediatamente y descarta los tantos pendientes. Estas reglas siguen los
+[títulos IV.5 y V.1 del reglamento FEMUS](https://www.mustembleque.es/downloads/REGLAMENTO_FEMUS.29.pdf).
+
+Por ejemplo, a `39–39`, pasar ambos en grande permite continuar a chica y
+resolver allí un órdago. Si toda la mano va en paso, grande se cuenta primero
+al final. En cambio, un deje cobrado en chica puede decidir la partida antes
+de que se cuente ese grande pendiente.
+
+`paid_scores` conserva los cobros inmediatos; `settled_scores` incorpora además
+el tanteo final cuando corresponde. `pending_lances` señala los contratos aún
+pendientes, descritos en `outcomes` y sus importes, sin guardar sus ganadores
+ni sus valores intrínsecos ocultos. El deshacer restaura los tres campos.
 
 Las utilidades son `+1/-1` cuando termina la partida. Si continúa desde `a'–b'`,
 la utilidad del jugador 0 es `-V[b'][a']`: el siguiente reparto pasa la mano al
@@ -168,9 +178,10 @@ contrario. No se añade la diferencia de tantos a ese valor.
 En `ordago-score`, el marcador determina la utilidad y el fin de partida. No
 recorta los envites numéricos: tanto a `38–19` como a `19–38` se puede abrir con
 2, 4, 7 o 10, pasar o lanzar órdago. Un envite puede alcanzar o superar los
-tantos restantes sin convertirse en órdago. Si se acepta, se cobra el envite;
-si se rechaza, se cobra el total cubierto. Las apuestas de lances anteriores ya
-están resueltas y no reducen el presupuesto del lance activo.
+tantos restantes sin convertirse en órdago. Si se acepta, queda pendiente;
+si se rechaza, se cobra inmediatamente el total cubierto. A `37`, aceptar
+cuatro en grande no termina la partida en ese momento. Los importes de lances
+anteriores no reducen el presupuesto del lance activo.
 
 Se mantienen las restricciones por lance de la abstracción: incrementos
 permitidos y no decrecientes, cada incremento una vez por jugador, máximo de
@@ -178,9 +189,14 @@ cinco envites numéricos y total numérico estrictamente menor que 40. Esta últ
 cota es fija, también para objetivos reducidos; no depende del marcador.
 El formato histórico `ordago` conserva su cota acumulada anterior.
 
-Los conjuntos de información incluyen ambos marcadores durante los lances.
-El marcador inicial y el objetivo identifican el almacén y el checkpoint de
-cada celda, también durante mus y descartes.
+Los conjuntos de información incluyen ambos marcadores **cobrados** y los
+contratos públicos de cada lance anterior: paso, importe querido o importe
+rechazado, quién apostó y el resumen público de fuerza. Conservan la abstracción
+de cartas propias, el lance y turno, mus y descartes, y el envite activo. No
+incluyen quién ganará un lance pendiente ni el valor oculto de los pares del
+rival. El marcador inicial y el objetivo identifican el almacén de cada celda.
+Las claves usan una codificación reversible dentro de `int64_t`; los importes
+activos se reconstruyen a partir de las máscaras de incrementos utilizados.
 
 Prueba pequeña con una partida a cinco tantos:
 
@@ -240,15 +256,15 @@ build/release/mus-solver \
 Para checkpoints sin compresión se usa `--preload-ordago ordago.cfr`.
 La carga valida el esquema de `ordago`, incluida la configuración de uno o dos
 muses. No acepta exportaciones de texto, otros formatos de juego ni checkpoints
-de `ordago-score/v1`.
+de `ordago-score/v1` o `v2`.
 
 La precarga transforma las claves y empareja las probabilidades por **acción**.
-Mus y descartes conservan sus claves dentro del almacén de cada celda. En los
-lances, el formato antiguo guarda el máximo de tantos ganados durante la mano,
-sin distinguir su reparto. Se crean las combinaciones de marcadores compatibles
-con ese máximo y con el marcador inicial, excluyendo las que ya terminan la
-partida. Algunas combinaciones pueden ser inalcanzables; esos nodos no intervienen
-en los recorridos. Las situaciones sin política anterior empiezan uniformes.
+Desde `v3`, solo importa **mus, descartes y grande**. Las claves antiguas de
+chica, pares y juego/punto no contienen los contratos pendientes necesarios y
+usan resultados calculados a partir de cartas ocultas. Esas claves se omiten;
+no se inventan repartos de tantos ni se transfieren sus políticas. Los nodos sin
+precarga empiezan uniformes. La política antigua es una ayuda de inicialización;
+su entrenamiento no acredita una estrategia válida para las reglas corregidas.
 
 La política inicial es `0,95 × política transferida + 0,05 × uniforme`, con
 probabilidad positiva también para los envites que antes no estaban permitidos.
@@ -260,18 +276,17 @@ cero. Un peso mayor mantiene más influencia de la política anterior; no garant
 mejor convergencia. El entrenamiento vuelve a optimizar la utilidad de partida.
 
 El checkpoint de origen se carga una vez y permanece en memoria junto al almacén
-de la celda activa. La expansión puede crear hasta `2 × máximo + 1` nodos por
-nodo de origen en un lance, antes de excluir marcadores terminales. Por tanto,
-la precarga puede consumir bastante más memoria que empezar sin ella. No cambia
-el checkpoint de origen ni sobrescribe nodos existentes al usar el helper.
+de la celda activa. Se importa como máximo un nodo por clave de origen admitida,
+sin expansión de marcadores. No cambia el checkpoint de origen ni sobrescribe
+nodos existentes al usar el helper.
 
 `score-preload-source` muestra el origen, esquema, iteraciones antiguas y peso.
-`score-preload` informa por celda de los nodos importados y de los que incorporan
-acciones nuevas. Para reproducir una ejecución interrumpida, conserva el origen
-y repite las opciones de precarga: `values.txt` no almacena esa configuración.
-Las celdas ya publicadas se mantienen. Los checkpoints de destino son autónomos;
-su evaluación, exportación y reanudación con la API CFR no necesitan el origen.
-La precarga no cambia el esquema de reglas `ordago-score/v2`.
+`score-preload` informa por celda de los nodos importados y de los omitidos por
+falta de historial (`skipped_history_nodes`). Para reproducir una ejecución
+interrumpida, conserva el origen y repite las opciones de precarga: `values.txt`
+no almacena esa configuración. Las celdas ya publicadas se mantienen. Los
+checkpoints de destino son autónomos; su evaluación, exportación y reanudación
+con la API CFR no necesitan el origen. La precarga usa el esquema `ordago-score/v3`.
 
 La API de [mus_score.h](include/mus_solver/mus_score.h) ofrece
 `mus_score_information_set_from_ordago()` para convertir una clave y
@@ -318,9 +333,13 @@ un esquema distinto del de `ordago`, que incluye objetivo, marcador y una
 huella de las continuaciones superiores. No se pueden intercambiar entre
 marcadores, objetivos, versiones de mus o tablas distintas.
 
-El esquema actual es `mus.ordago-score/v2`. Las tablas y checkpoints de la
-primera implementación `v1` requieren un entrenamiento nuevo, porque cambió
-el menú de acciones. Los esquemas de las tres versiones históricas se mantienen.
+El esquema actual es `mus.ordago-score/v3`. **Las tablas y checkpoints de `v1`
+y `v2` no son compatibles y requieren un entrenamiento nuevo en otro directorio.**
+Esas versiones adelantaban el cobro de lances pendientes y filtraban resultados
+de cartas ocultas en las claves. Sus estrategias, utilidades y mediciones de
+tamaño no validan el modelo corregido. Los artefactos antiguos pueden conservarse
+para diagnóstico. Los formatos históricos mantienen sus esquemas y comportamiento;
+no representan esta corrección del tanteo ni de la información disponible.
 Los checkpoints de una diagonal interrumpida que no figuren en `values.txt`
 se ignoran; se reemplazan cuando se vuelve a entrenar esa celda. Tanto los
 checkpoints como la tabla se publican mediante archivo temporal y `rename()`;
@@ -365,12 +384,17 @@ cada almacén pertenece a un único marcador.
 Las pruebas comprueban signos, suma cero, órdagos, fin anticipado, tanteo de
 lances sin negociación, acciones legales, aplicación y deshacer, persistencia
 y publicación por diagonales. Un subjuego a tres tantos, con reparto fijo,
-cartas conocidas y sin mus, compara la continuación por tabla con el
+cartas conocidas, sin mus, apertura de dos u órdago y sin subidas numéricas,
+compara la continuación por tabla con el
 desarrollo directo del mismo árbol hasta el final de la partida. Esta prueba
 valida la continuación, la orientación y el signo; comparte las reglas del
 juego y no es un oráculo independiente de esas reglas. Otras pruebas fijan
 explícitamente los menús de apuestas y los resultados de tanteo a tres y cinco
 tantos, incluidos los lances sin negociación y los empates a favor de mano.
+Hay regresiones explícitas de cobros inmediatos frente a pendientes, órdago
+posterior a un grande en paso a `39–39`, prioridad del tanteo final y ausencia
+de filtraciones al variar solo cartas ocultas. Se recorre también todo el árbol
+de envites de grande para comprobar la nueva codificación de respuestas.
 Las pruebas de entrenamiento y CLI cubren además mus,
 descartes y la selección de marcadores a 40. Estas comprobaciones no equivalen
 a resolver exhaustivamente el juego completo de información imperfecta.

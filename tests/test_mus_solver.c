@@ -2201,13 +2201,14 @@ static void test_score_preload_key_mapping(void) {
                 InfoSetKey original, converted, expected;
                 CHECK(cfr_game_information_set_key(ordago_game(), game_state(&old_state),
                                                     &original) == CFR_STATUS_SUCCESS);
-                CHECK(mus_score_information_set_from_ordago(&score, original,
-                          (unsigned int)old_state.model.settled_scores[0],
-                          (unsigned int)old_state.model.settled_scores[1], &converted) ==
-                      CFR_STATUS_SUCCESS);
+                const bool transferable = old_state.model.phase == MUS_PHASE_GRANDE ||
+                    old_state.model.phase >= MUS_PHASE_MUS_PLAYER_0;
+                CHECK(mus_score_information_set_from_ordago(&score, original, 0, 0, &converted) ==
+                      (transferable ? CFR_STATUS_SUCCESS : CFR_STATUS_NOT_FOUND));
                 CHECK(cfr_game_information_set_key(&score.game, game_state(&new_state),
                                                     &expected) == CFR_STATUS_SUCCESS);
-                CHECK(converted == expected);
+                if (transferable)
+                    CHECK(converted == expected);
                 decisions += 1;
                 phases[old_state.model.phase] = true;
             }
@@ -2234,12 +2235,13 @@ static void test_score_preload_key_mapping(void) {
         score_deal(&score, &new_state, a, b);
         while (new_state.model.phase != MUS_PHASE_TERMINAL) {
             InfoSetKey converted, expected;
+            const bool transferable = old_state.model.phase == MUS_PHASE_GRANDE;
             CHECK(mus_score_information_set_from_ordago(&score, ordago_information_key(&old_state),
-                      (unsigned int)old_state.model.settled_scores[0],
-                      (unsigned int)old_state.model.settled_scores[1], &converted) == CFR_STATUS_SUCCESS);
+                      0, 0, &converted) == (transferable ? CFR_STATUS_SUCCESS : CFR_STATUS_NOT_FOUND));
             CHECK(cfr_game_information_set_key(&score.game, game_state(&new_state), &expected) ==
                   CFR_STATUS_SUCCESS);
-            CHECK(converted == expected);
+            if (transferable)
+                CHECK(converted == expected);
             phases[old_state.model.phase] = true;
             ordago_apply(&old_state, MUS_ACTION_PASS);
             score_apply(&score, &new_state, MUS_ACTION_PASS);
@@ -2273,24 +2275,20 @@ static void test_score_preload_policy(void) {
     ordago_deal(&old_state, SCORE_HAND_B, SCORE_HAND_A);
     ordago_apply(&old_state, MUS_ACTION_NO_MUS);
     score_deal(&score, &new_state, SCORE_HAND_B, SCORE_HAND_A);
-    const Action history[] = {MUS_ACTION_BET_TWO, MUS_ACTION_BET_FOUR,
-        MUS_ACTION_BET_FOUR, MUS_ACTION_BET_TEN, MUS_ACTION_BET_TEN, MUS_ACTION_ACCEPT};
-    for (size_t i = 0; i < sizeof(history) / sizeof(history[0]); i += 1) {
-        ordago_apply(&old_state, history[i]);
-        score_apply(&score, &new_state, history[i]);
-    }
-    CHECK(old_state.model.settled_scores[0] == 30);
-    CHECK(old_state.model.phase == MUS_PHASE_CHICA);
     const InfoSetKey source_key = ordago_information_key(&old_state);
     InfoSetKey target_key;
     CHECK(cfr_game_information_set_key(&score.game, game_state(&new_state), &target_key) ==
           CFR_STATUS_SUCCESS);
     InfoNode *node;
-    CHECK(cfr_info_store_get_or_create(&source_store, source_key, 2, &node) == CFR_STATUS_SUCCESS);
-    const Probability old_average[2] = {0, 1}; /* Pass, ordago. */
-    CHECK(cfr_info_node_accumulate_strategy(node, old_average, 2, 1) == CFR_STATUS_SUCCESS);
+    CHECK(cfr_info_store_get_or_create(&source_store, source_key, 6, &node) == CFR_STATUS_SUCCESS);
+    const Probability old_average[6] = {0, 0, 0, 0, 0, 1}; /* Prefer ordago. */
+    CHECK(cfr_info_node_accumulate_strategy(node, old_average, 6, 1) == CFR_STATUS_SUCCESS);
     CHECK(cfr_info_node_add_regret(node, 0, 1234) == CFR_STATUS_SUCCESS);
-    CHECK(cfr_info_node_add_regret(node, 1, -987) == CFR_STATUS_SUCCESS);
+    CHECK(cfr_info_node_add_regret(node, 5, -987) == CFR_STATUS_SUCCESS);
+    ordago_apply(&old_state, MUS_ACTION_PASS);
+    ordago_apply(&old_state, MUS_ACTION_PASS);
+    const InfoSetKey unsupported_key = ordago_information_key(&old_state);
+    CHECK(cfr_info_store_get_or_create(&source_store, unsupported_key, 6, &node) == CFR_STATUS_SUCCESS);
     CHECK(mus_ordago_game_state_init(&old_state) == CFR_STATUS_SUCCESS);
     CHECK(cfr_trainer_init_mccfr(&source, ordago_game(), game_state(&old_state),
                                  &source_store, 123) == CFR_STATUS_SUCCESS);
@@ -2303,8 +2301,8 @@ static void test_score_preload_policy(void) {
     MusScorePreloadOptions options = {.source = &source, .weight = 2, .uniform_mix = 0.12};
     MusScorePreloadStats stats;
     CHECK(mus_score_preload_ordago(&score, &options, &destination, &stats) == CFR_STATUS_SUCCESS);
-    CHECK(stats.source_nodes == 1 && stats.imported_nodes == 61 && stats.existing_nodes == 0);
-    CHECK(stats.expanded_action_nodes == 61);
+    CHECK(stats.source_nodes == 2 && stats.imported_nodes == 1 && stats.existing_nodes == 0);
+    CHECK(stats.expanded_action_nodes == 0 && stats.skipped_history_nodes == 1);
     CHECK(cfr_info_store_find(&destination, target_key, &node) == CFR_STATUS_SUCCESS);
     CHECK(node->action_count == 6);
     Probability current[16], average[16];
@@ -2320,7 +2318,7 @@ static void test_score_preload_policy(void) {
     CHECK(cfr_info_node_add_regret(node, 0, -8) == CFR_STATUS_SUCCESS);
     const double existing_regret = node->regret_sums[0];
     CHECK(mus_score_preload_ordago(&score, &options, &destination, &stats) == CFR_STATUS_SUCCESS);
-    CHECK(stats.imported_nodes == 0 && stats.existing_nodes == 61);
+    CHECK(stats.imported_nodes == 0 && stats.existing_nodes == 1);
     CHECK(node->regret_sums[0] == existing_regret);
     CHECK(source.training_iterations == 123456 && source.mccfr_rng.state == original_rng);
     if (after != NULL)
@@ -2330,14 +2328,14 @@ static void test_score_preload_policy(void) {
     if (before != NULL) fclose(before);
     if (after != NULL) fclose(after);
 
-    /* A cell near the target imports only nonterminal score splits. */
+    /* Later lances are excluded even when their keys decode successfully. */
     CHECK(cfr_info_store_destroy(&destination) == CFR_STATUS_SUCCESS);
     CHECK(cfr_info_store_init(&destination) == CFR_STATUS_SUCCESS);
     CHECK(mus_score_game_init(&score, &table, 39, 39) == CFR_STATUS_SUCCESS);
     CHECK(mus_score_preload_ordago(&score, &options, &destination, &stats) == CFR_STATUS_SUCCESS);
-    CHECK(stats.imported_nodes == 0);
+    CHECK(stats.imported_nodes == 1 && stats.skipped_history_nodes == 1);
     InfoSetKey untouched = -1;
-    CHECK(mus_score_information_set_from_ordago(&score, source_key, 30, 0, &untouched) ==
+    CHECK(mus_score_information_set_from_ordago(&score, unsupported_key, 0, 0, &untouched) ==
           CFR_STATUS_NOT_FOUND);
     CHECK(untouched == -1);
     CHECK(mus_score_information_set_from_ordago(&score, source_key, 29, 0, &untouched) ==
@@ -2407,15 +2405,19 @@ static void test_score_utilities_and_order(void) {
     score_apply(&game, &state, MUS_ACTION_PASS);
     MusGameModel before = state.model;
     score_apply(&game, &state, MUS_ACTION_PASS);
-    CHECK(state.model.phase == MUS_PHASE_TERMINAL);
-    CHECK(state.model.settled_scores[0] == 0 && state.model.settled_scores[1] == 1);
+    CHECK(state.model.phase == MUS_PHASE_CHICA);
+    CHECK(state.model.settled_scores[0] == 0 && state.model.settled_scores[1] == 0);
+    CHECK(state.model.pending_lances == 1);
     CHECK(state.model.outcomes[1] == MUS_LANCE_UNRESOLVED);
     CHECK(cfr_game_terminal_utility(&game.game, game_state(&state), 0, &u0) ==
-          CFR_STATUS_SUCCESS && u0 == -1);
-    CHECK(cfr_game_terminal_utility(&game.game, game_state(&state), 1, &u1) ==
-          CFR_STATUS_SUCCESS && u1 == 1);
+          CFR_STATUS_INVALID_ARGUMENT);
     CHECK(cfr_game_undo_action(&game.game, game_state(&state)) == CFR_STATUS_SUCCESS);
     CHECK(memcmp(&before, &state.model, sizeof(before)) == 0);
+    score_apply(&game, &state, MUS_ACTION_PASS);
+    score_apply(&game, &state, MUS_ACTION_ORDAGO);
+    score_apply(&game, &state, MUS_ACTION_ACCEPT);
+    CHECK(cfr_game_terminal_utility(&game.game, game_state(&state), 0, &u0) ==
+          CFR_STATUS_SUCCESS && u0 == 1); /* Chica ordago overrides pending grande. */
 
     /* An accepted ordago replaces all points from earlier lances. */
     CHECK(mus_score_game_init(&game, &table, 35, 18) == CFR_STATUS_SUCCESS);
@@ -2451,16 +2453,18 @@ static void test_score_utilities_and_order(void) {
     CHECK(cfr_game_terminal_utility(&game.game, game_state(&state), 0, &u0) ==
           CFR_STATUS_SUCCESS && u0 == -1);
 
-    /* Pares skipped after chica can end the match before juego. */
+    /* Skipped pares remain pending while juego or punto is negotiated. */
     const uint8_t pair[8] = {2, 1, 0, 0, 1, 0, 0, 0};
     CHECK(mus_score_game_init(&game, &table, 38, 0) == CFR_STATUS_SUCCESS);
     score_deal(&game, &state, pair, SCORE_HAND_B);
     for (int i = 0; i < 4; i += 1)
         score_apply(&game, &state, MUS_ACTION_PASS);
-    CHECK(state.model.phase == MUS_PHASE_TERMINAL);
-    CHECK(state.model.settled_scores[0] == 2);
-    CHECK(!state.model.game_revealed);
+    CHECK(state.model.phase == MUS_PHASE_PUNTO);
+    CHECK(state.model.settled_scores[0] == 0);
+    CHECK(state.model.game_revealed && (state.model.pending_lances & 4) != 0);
     CHECK(cfr_game_validate_state(&game.game, game_state(&state)) == CFR_STATUS_SUCCESS);
+    score_pass_to_end(&game, &state);
+    CHECK(state.model.settled_scores[0] == 2);
 }
 
 static void check_score_actions(const MusScoreGame *game, MusGameState *state) {
@@ -2482,6 +2486,162 @@ static void check_score_actions(const MusScoreGame *game, MusGameState *state) {
           game_state(state), trusted, 16, &c) == CFR_STATUS_SUCCESS);
     CHECK(a == b && b == c && memcmp(actual, decoded, a * sizeof(Action)) == 0 &&
           memcmp(actual, trusted, a * sizeof(Action)) == 0);
+}
+
+static InfoSetKey score_information_key(const MusScoreGame *game, MusGameState *state) {
+    InfoSetKey key = -1;
+    CHECK(cfr_game_information_set_key(&game->game, game_state(state), &key) == CFR_STATUS_SUCCESS);
+    return key;
+}
+
+/* FEMUS IV.5 and V.1: negotiated payments precede the final ordered count. */
+static void test_score_payment_timing(void) {
+    MusScoreTable table;
+    MusScoreGame game;
+    MusGameState state;
+    Utility value;
+    CHECK(mus_score_table_init(&table, 40) == CFR_STATUS_SUCCESS);
+    CHECK(mus_score_game_init(&game, &table, 37, 0) == CFR_STATUS_SUCCESS);
+    score_deal(&game, &state, SCORE_HAND_B, SCORE_HAND_A);
+    score_apply(&game, &state, MUS_ACTION_BET_FOUR);
+    score_apply(&game, &state, MUS_ACTION_ACCEPT);
+    CHECK(state.model.phase == MUS_PHASE_CHICA);
+    CHECK(state.model.settled_scores[0] == 0 && state.model.pending_lances == 1);
+    score_apply(&game, &state, MUS_ACTION_PASS);
+    score_apply(&game, &state, MUS_ACTION_ORDAGO);
+    score_apply(&game, &state, MUS_ACTION_ACCEPT);
+    CHECK(cfr_game_terminal_utility(&game.game, game_state(&state), 0, &value) ==
+          CFR_STATUS_SUCCESS && value == -1); /* Postre wins chica despite losing grande. */
+
+    CHECK(mus_score_game_init(&game, &table, 39, 39) == CFR_STATUS_SUCCESS);
+    score_deal(&game, &state, SCORE_HAND_B, SCORE_HAND_A);
+    score_apply(&game, &state, MUS_ACTION_PASS);
+    score_apply(&game, &state, MUS_ACTION_PASS);
+    score_apply(&game, &state, MUS_ACTION_PASS);
+    score_apply(&game, &state, MUS_ACTION_BET_TWO);
+    const MusGameModel before_deje = state.model;
+    score_apply(&game, &state, MUS_ACTION_REJECT);
+    CHECK(state.model.phase == MUS_PHASE_TERMINAL && state.model.pending_lances == 0);
+    CHECK(state.model.paid_scores[1] == 1 && state.model.settled_scores[0] == 0);
+    CHECK(cfr_game_terminal_utility(&game.game, game_state(&state), 0, &value) ==
+          CFR_STATUS_SUCCESS && value == -1); /* The deje cancels pending grande. */
+    CHECK(cfr_game_undo_action(&game.game, game_state(&state)) == CFR_STATUS_SUCCESS);
+    CHECK(memcmp(&before_deje, &state.model, sizeof(before_deje)) == 0);
+
+    score_deal(&game, &state, SCORE_HAND_B, SCORE_HAND_A);
+    score_pass_to_end(&game, &state);
+    CHECK(state.model.settled_scores[0] == 1 && state.model.settled_scores[1] == 0);
+    CHECK(state.model.paid_scores[0] == 0 && state.model.paid_scores[1] == 0);
+    CHECK(cfr_game_terminal_utility(&game.game, game_state(&state), 0, &value) ==
+          CFR_STATUS_SUCCESS && value == 1); /* Grande is first in the final count. */
+
+    CHECK(mus_score_game_init(&game, &table, 0, 38) == CFR_STATUS_SUCCESS);
+    score_deal(&game, &state, SCORE_HAND_B, SCORE_HAND_A);
+    score_apply(&game, &state, MUS_ACTION_BET_TEN);
+    score_apply(&game, &state, MUS_ACTION_ACCEPT);
+    score_apply(&game, &state, MUS_ACTION_BET_TWO);
+    score_apply(&game, &state, MUS_ACTION_ORDAGO);
+    score_apply(&game, &state, MUS_ACTION_REJECT);
+    CHECK(state.model.phase == MUS_PHASE_TERMINAL && state.model.paid_scores[1] == 2);
+    CHECK(state.model.settled_scores[0] == 0);
+    CHECK(cfr_game_terminal_utility(&game.game, game_state(&state), 0, &value) ==
+          CFR_STATUS_SUCCESS && value == -1); /* Covered two are paid before the pending ten. */
+
+    const uint8_t pair[8] = {2, 1, 1, 0, 0, 0, 0, 0};
+    const uint8_t duples[8] = {0, 0, 0, 2, 2, 0, 0, 0};
+    CHECK(mus_score_game_init(&game, &table, 0, 0) == CFR_STATUS_SUCCESS);
+    score_deal(&game, &state, pair, duples);
+    for (int i = 0; i < 4; i += 1) score_apply(&game, &state, MUS_ACTION_PASS);
+    CHECK(state.model.phase == MUS_PHASE_PARES);
+    score_apply(&game, &state, MUS_ACTION_BET_TWO);
+    score_apply(&game, &state, MUS_ACTION_REJECT);
+    CHECK(state.model.phase == MUS_PHASE_PUNTO && state.model.settled_scores[0] == 1);
+    CHECK(state.model.paid_scores[0] == 1 && (state.model.pending_lances & 4) != 0);
+    score_pass_to_end(&game, &state);
+    CHECK(state.model.settled_scores[0] == 3 && state.model.settled_scores[1] == 2);
+    CHECK(state.model.paid_scores[0] == 1); /* Pair value is added once, at the end. */
+}
+
+static void test_score_public_information(void) {
+    MusScoreTable table;
+    MusScoreGame game;
+    MusGameState states[2];
+    const uint8_t low[8] = {4, 0, 0, 0, 0, 0, 0, 0};
+    const uint8_t high[8] = {0, 0, 0, 0, 0, 0, 0, 4};
+    CHECK(mus_score_table_init(&table, 40) == CFR_STATUS_SUCCESS);
+    CHECK(mus_score_game_init(&game, &table, 0, 0) == CFR_STATUS_SUCCESS);
+    /* Own cards and public actions are identical. The winner of grande changes. */
+    for (int accepted = 0; accepted < 2; accepted += 1) {
+        for (int rival = 0; rival < 2; rival += 1) {
+            score_deal(&game, &states[rival], SCORE_HAND_A, rival == 0 ? low : high);
+            score_apply(&game, &states[rival], accepted ? MUS_ACTION_BET_TWO : MUS_ACTION_PASS);
+            score_apply(&game, &states[rival], accepted ? MUS_ACTION_ACCEPT : MUS_ACTION_PASS);
+            CHECK(states[rival].model.phase == MUS_PHASE_CHICA);
+            CHECK(states[rival].model.settled_scores[0] == 0 && states[rival].model.settled_scores[1] == 0);
+            check_score_actions(&game, &states[rival]);
+        }
+        CHECK(score_information_key(&game, &states[0]) == score_information_key(&game, &states[1]));
+    }
+    /* Public pares declarations are equal; the opponent's intrinsic value differs. */
+    const uint8_t pair[8] = {0, 1, 1, 0, 0, 0, 0, 2};
+    const uint8_t duples[8] = {0, 0, 0, 2, 2, 0, 0, 0};
+    for (int rival = 0; rival < 2; rival += 1) {
+        score_deal(&game, &states[rival], SCORE_HAND_A, rival == 0 ? pair : duples);
+        for (int i = 0; i < 4; i += 1) score_apply(&game, &states[rival], MUS_ACTION_PASS);
+        CHECK(states[rival].model.phase == MUS_PHASE_PUNTO);
+        CHECK(states[rival].model.settled_scores[1] == 0);
+    }
+    CHECK(score_information_key(&game, &states[0]) == score_information_key(&game, &states[1]));
+
+    /* Equal totals in different lances are different pending obligations. */
+    for (int history = 0; history < 2; history += 1) {
+        score_deal(&game, &states[history], SCORE_HAND_A, SCORE_HAND_B);
+        score_apply(&game, &states[history], history == 0 ? MUS_ACTION_BET_TWO : MUS_ACTION_BET_FOUR);
+        score_apply(&game, &states[history], MUS_ACTION_ACCEPT);
+        score_apply(&game, &states[history], history == 0 ? MUS_ACTION_BET_FOUR : MUS_ACTION_BET_TWO);
+        score_apply(&game, &states[history], MUS_ACTION_ACCEPT);
+        CHECK(states[history].model.phase == MUS_PHASE_PUNTO);
+        CHECK(states[history].model.paid_scores[0] == 0 && states[history].model.paid_scores[1] == 0);
+        MusOrdagoInformationSet information;
+        CHECK(mus_score_game_information_set_decode(score_information_key(&game, &states[history]),
+                  40, &information) == CFR_STATUS_SUCCESS);
+        CHECK(information.previous_stakes[0] == (history == 0 ? 2 : 4));
+        CHECK(information.previous_stakes[1] == (history == 0 ? 4 : 2));
+        check_score_actions(&game, &states[history]);
+    }
+    CHECK(score_information_key(&game, &states[0]) != score_information_key(&game, &states[1]));
+}
+
+static void score_check_response_tree(const MusScoreGame *game, MusGameState *state) {
+    if (state->model.phase != MUS_PHASE_GRANDE) return;
+    check_score_actions(game, state);
+    MusOrdagoInformationSet information;
+    CHECK(mus_score_game_information_set_decode(score_information_key(game, state), 40,
+                                               &information) == CFR_STATUS_SUCCESS);
+    CHECK(information.current_wager == state->model.current_wager);
+    CHECK(information.previous_wager == state->model.previous_wager);
+    CHECK(memcmp(information.used_wager_action_masks, state->model.used_wager_action_masks, 2) == 0);
+    Action actions[16];
+    size_t count;
+    CHECK(cfr_game_legal_actions(&game->game, game_state(state), actions, 16, &count) == CFR_STATUS_SUCCESS);
+    const MusGameModel before = state->model;
+    for (size_t i = 0; i < count; i += 1) {
+        score_apply(game, state, actions[i]);
+        CHECK(cfr_game_validate_state(&game->game, game_state(state)) == CFR_STATUS_SUCCESS);
+        score_check_response_tree(game, state);
+        CHECK(cfr_game_undo_action(&game->game, game_state(state)) == CFR_STATUS_SUCCESS);
+        CHECK(memcmp(&before, &state->model, sizeof(before)) == 0);
+    }
+}
+
+static void test_score_response_codec(void) {
+    MusScoreTable table;
+    MusScoreGame game;
+    MusGameState state;
+    CHECK(mus_score_table_init(&table, 40) == CFR_STATUS_SUCCESS);
+    CHECK(mus_score_game_init(&game, &table, 39, 39) == CFR_STATUS_SUCCESS);
+    score_deal(&game, &state, SCORE_HAND_A, SCORE_HAND_B);
+    score_check_response_tree(&game, &state);
 }
 
 /* Expected menus are written independently of the game's action generator. */
@@ -2527,7 +2687,9 @@ static void test_score_wager_menus_and_settlement(void) {
     expect_score_menu(&game, &state, response_two, 6);
     score_apply(&game, &state, MUS_ACTION_ACCEPT);
     Utility value;
-    CHECK(state.model.phase == MUS_PHASE_TERMINAL);
+    CHECK(state.model.phase == MUS_PHASE_CHICA && state.model.settled_scores[0] == 0);
+    CHECK(state.model.pending_lances == 1 && state.model.paid_scores[0] == 0);
+    score_pass_to_end(&game, &state);
     CHECK(state.model.settled_scores[0] == 2 && state.model.settled_scores[1] == 0);
     CHECK(!state.model.outcome_wager_is_ordago[0]);
     CHECK(cfr_game_terminal_utility(&game.game, game_state(&state), 0, &value) ==
@@ -2535,6 +2697,8 @@ static void test_score_wager_menus_and_settlement(void) {
     score_deal(&game, &state, SCORE_HAND_B, SCORE_HAND_A);
     score_apply(&game, &state, MUS_ACTION_BET_TEN);
     score_apply(&game, &state, MUS_ACTION_ACCEPT);
+    CHECK(state.model.phase == MUS_PHASE_CHICA && state.model.settled_scores[0] == 0);
+    score_pass_to_end(&game, &state);
     CHECK(state.model.settled_scores[0] == 10 && !state.model.outcome_wager_is_ordago[0]);
     CHECK(cfr_game_terminal_utility(&game.game, game_state(&state), 0, &value) ==
           CFR_STATUS_SUCCESS && value == 1);
@@ -2548,15 +2712,15 @@ static void test_score_wager_menus_and_settlement(void) {
     score_deal(&game, &state, SCORE_HAND_B, SCORE_HAND_A);
     score_apply(&game, &state, MUS_ACTION_BET_TEN);
     score_apply(&game, &state, MUS_ACTION_ACCEPT);
-    CHECK(state.model.phase == MUS_PHASE_CHICA && state.model.settled_scores[0] == 10);
+    CHECK(state.model.phase == MUS_PHASE_CHICA && state.model.settled_scores[0] == 0);
     CHECK(!state.model.outcome_wager_is_ordago[0]);
 
-    /* Settled stakes do not remove wagers from the next lance. */
+    /* Pending stakes do not remove wagers from the next lance. */
     CHECK(mus_score_game_init(&game, &table, 36, 0) == CFR_STATUS_SUCCESS);
     score_deal(&game, &state, SCORE_HAND_B, SCORE_HAND_A);
     score_apply(&game, &state, MUS_ACTION_BET_TWO);
     score_apply(&game, &state, MUS_ACTION_ACCEPT);
-    CHECK(state.model.settled_scores[0] == 2 && state.model.prior_wager_total == 2);
+    CHECK(state.model.settled_scores[0] == 0 && state.model.prior_wager_total == 2);
     expect_score_menu(&game, &state, opening, 6);
 
     /* The per-player increment masks and five-offer limit still apply. */
@@ -2586,13 +2750,13 @@ static void test_score_reduced_match_scoring_cases(void) {
         uint8_t earned_a, earned_b;
         Utility value;
     } cases[] = {
-        {3, 0, 2, SCORE_HAND_A, SCORE_HAND_B, 2, 0, 1, -1}, /* Grande. */
-        {3, 2, 0, SCORE_HAND_A, SCORE_HAND_B, 4, 1, 1, 1},  /* Chica. */
+        {3, 0, 2, SCORE_HAND_A, SCORE_HAND_B, 6, 0, 1, -1}, /* Grande. */
+        {3, 2, 0, SCORE_HAND_A, SCORE_HAND_B, 6, 1, 1, 1},  /* Chica. */
         {3, 1, 1, SCORE_HAND_A, SCORE_HAND_B, 6, 1, 2, -1}, /* Punto. */
         {5, 0, 3, SCORE_HAND_A, SCORE_HAND_B, 6, 1, 2, -1},
-        {5, 3, 0, pair, SCORE_HAND_B, 4, 2, 1, 1},         /* Solo pares. */
+        {5, 3, 0, pair, SCORE_HAND_B, 6, 2, 1, 1},         /* Solo pares. */
         {5, 1, 0, game_31, SCORE_HAND_B, 4, 4, 1, 1},      /* Solo juego. */
-        {3, 2, 2, SCORE_HAND_A, SCORE_HAND_A, 2, 1, 0, 1},  /* Mano wins a tie. */
+        {3, 2, 2, SCORE_HAND_A, SCORE_HAND_A, 6, 1, 0, 1},  /* Mano wins a tie. */
     };
     for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i += 1) {
         MusScoreTable table;
@@ -2660,7 +2824,7 @@ static void test_score_export_rejects_foreign_games(void) {
 
 static double score_full_match(unsigned int target, unsigned int a, unsigned int b);
 
-/* Exhaustive perfect-information subgame: fixed hands and no mus. */
+/* Exhaustive subgame: fixed hands, no mus, opening two or ordago, no numeric raises. */
 static double score_exhaustive_hand(const MusScoreGame *game, MusGameState *state,
                                     bool continue_full_match) {
     if (state->model.phase == MUS_PHASE_TERMINAL) {
@@ -2689,6 +2853,10 @@ static double score_exhaustive_hand(const MusScoreGame *game, MusGameState *stat
     MusGameModel before = state->model;
     const size_t undo_count = state->undo_count;
     for (size_t i = 0; i < count; i += 1) {
+        if (actions[i] == MUS_ACTION_BET_FOUR || actions[i] == MUS_ACTION_BET_SEVEN ||
+            actions[i] == MUS_ACTION_BET_TEN ||
+            (actions[i] == MUS_ACTION_BET_TWO && state->model.bet_stage == MUS_BET_RESPONSE))
+            continue;
         CHECK(game->game.trusted_operations->apply_action(game->game.context,
               game_state(state), actions[i]) == CFR_STATUS_SUCCESS);
         CHECK(cfr_game_validate_state(&game->game, game_state(state)) == CFR_STATUS_SUCCESS);
@@ -2875,14 +3043,16 @@ static void test_score_training_and_persistence(void) {
                                    &store, &trainer) == CFR_STATUS_SUCCESS);
         CHECK(cfr_trainer_run(&trainer, 1) == CFR_STATUS_SUCCESS);
         CHECK(cfr_info_store_destroy(&store) == CFR_STATUS_SUCCESS);
-        char *version = strstr(game.schema, "/v2/");
+        char *version = strstr(game.schema, "/v3/");
         CHECK(version != NULL);
         if (version != NULL) {
-            version[2] = '1';
-            rewind(saved.checkpoint);
-            CHECK(cfr_checkpoint_read(saved.checkpoint, &game.game, game_state(&state),
-                                       &store, &trainer) == CFR_STATUS_INCOMPATIBLE_GAME);
-            version[2] = '2';
+            for (char old_version = '1'; old_version <= '2'; old_version += 1) {
+                version[2] = old_version;
+                rewind(saved.checkpoint);
+                CHECK(cfr_checkpoint_read(saved.checkpoint, &game.game, game_state(&state),
+                                           &store, &trainer) == CFR_STATUS_INCOMPATIBLE_GAME);
+            }
+            version[2] = '3';
         }
         table.cells[2][2].value = table.cells[2][2].value == 1 ? 0 : 1;
         CHECK(mus_score_game_init(&game, &table, 1, 1) == CFR_STATUS_SUCCESS);
@@ -2909,18 +3079,23 @@ static void test_score_training_and_persistence(void) {
         CHECK(mus_score_table_read(file, &table) == CFR_STATUS_FORMAT_ERROR);
         fclose(file);
     }
-    file = tmpfile();
-    CHECK(file != NULL);
-    if (file != NULL) {
-        fputs("mus.ordago-score/v1 base=" MUS_ORDAGO_STRATEGY_SCHEMA_ID
-              " target=3 orientation=mano utility=signed-one\n2 2 0 1 1 0\n", file);
-        rewind(file);
-        CHECK(mus_score_table_read(file, &table) == CFR_STATUS_FORMAT_ERROR);
-        fclose(file);
+    for (int old_version = 1; old_version <= 2; old_version += 1) {
+        file = tmpfile();
+        CHECK(file != NULL);
+        if (file != NULL) {
+            fprintf(file, "mus.ordago-score/v%d base=" MUS_ORDAGO_STRATEGY_SCHEMA_ID
+                    " target=3 orientation=mano utility=signed-one\n2 2 0 1 1 0\n", old_version);
+            rewind(file);
+            CHECK(mus_score_table_read(file, &table) == CFR_STATUS_FORMAT_ERROR);
+            fclose(file);
+        }
     }
 }
 
 int main(void) {
+    test_score_payment_timing();
+    test_score_public_information();
+    test_score_response_codec();
     test_score_preload_key_mapping();
     test_score_preload_policy();
     test_score_wager_menus_and_settlement();
