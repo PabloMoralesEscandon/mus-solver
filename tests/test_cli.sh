@@ -283,6 +283,119 @@ if "$solver" --format ordago-score --target 3 --continuation "$tmp_dir/preloaded
     exit 1
 fi
 
+# Resume one score checkpoint without changing the published continuation table.
+cp "$tmp_dir/score/values.txt" "$tmp_dir/score-values-preserved.txt"
+"$solver" --format ordago-score --target 3 --score 1:1 \
+    --continuation "$tmp_dir/score" \
+    --load-compressed "$tmp_dir/score/score-01-01.cfr.zst" \
+    --iterations 3 --report-every 2 --save-compressed "$tmp_dir/score-plus-three.cfr.zst" \
+    --export-strategy "$tmp_dir/score-plus-three.txt" >"$tmp_dir/score-plus-three.out"
+grep -q 'initial_iterations=2 added_iterations=3 total_iterations=5 continuation=frozen' \
+    "$tmp_dir/score-plus-three.out"
+grep -q 'report iterations=4 threads=1' "$tmp_dir/score-plus-three.out"
+grep -q 'report iterations=5 threads=1' "$tmp_dir/score-plus-three.out"
+grep -q 'training_iterations=5' "$tmp_dir/score-plus-three.txt"
+# Splitting the added work preserves RNG state, regrets, statistics and averages.
+"$solver" --format ordago-score --target 3 --score 1:1 \
+    --continuation "$tmp_dir/score" \
+    --load-compressed "$tmp_dir/score/score-01-01.cfr.zst" \
+    --iterations 1 --save "$tmp_dir/score-plus-one.cfr" \
+    --evaluate --evaluation-samples 20 >"$tmp_dir/score-plus-one.out"
+grep -q 'evaluation scope=score-checkpoint-average-policy score=1:1 iterations=3' \
+    "$tmp_dir/score-plus-one.out"
+"$solver" --format ordago-score --target 3 --score 1:1 \
+    --continuation "$tmp_dir/score" --load "$tmp_dir/score-plus-one.cfr" \
+    --iterations 2 --report-every 1 --save-compressed "$tmp_dir/score-split.cfr.zst" \
+    >"$tmp_dir/score-split.out"
+cmp "$tmp_dir/score-plus-three.cfr.zst" "$tmp_dir/score-split.cfr.zst"
+"$solver" --format ordago-score --target 3 --score 1:1 \
+    --continuation "$tmp_dir/score" --load-compressed "$tmp_dir/score-split.cfr.zst" \
+    --evaluate --seed 13 --evaluation-samples 20 \
+    --export-strategy "$tmp_dir/score-split.txt" >"$tmp_dir/score-split-evaluate.out"
+cmp "$tmp_dir/score-plus-three.txt" "$tmp_dir/score-split.txt"
+cmp "$tmp_dir/score/values.txt" "$tmp_dir/score-values-preserved.txt"
+for checkpoint in "$tmp_dir/score/"*.zst; do
+    name=${checkpoint##*/}
+    cmp "$checkpoint" "$tmp_dir/score-continuous/$name"
+done
+# Only higher values are needed, including when the selected cell is unpublished.
+mkdir "$tmp_dir/score-values-only"
+awk 'NR == 1 || $1 + $2 > 2' "$tmp_dir/score/values.txt" \
+    >"$tmp_dir/score-values-only/values.txt"
+"$solver" --format ordago-score --target 3 --score 1:1 \
+    --continuation "$tmp_dir/score-values-only" \
+    --load-compressed "$tmp_dir/score/score-01-01.cfr.zst" \
+    --iterations 3 --save-compressed "$tmp_dir/score-values-only-result.cfr.zst" \
+    >"$tmp_dir/score-values-only.out"
+cmp "$tmp_dir/score-plus-three.cfr.zst" "$tmp_dir/score-values-only-result.cfr.zst"
+test ! -f "$tmp_dir/score-values-only/training.lock"
+# Reject changed continuation values and incomplete higher diagonals.
+mkdir "$tmp_dir/score-changed-values" "$tmp_dir/score-missing-values"
+awk '$1 == 2 && $2 == 2 {$3 = ($3 == 0 ? 0.5 : 0)} {print}' \
+    "$tmp_dir/score/values.txt" >"$tmp_dir/score-changed-values/values.txt"
+head -n 1 "$tmp_dir/score/values.txt" >"$tmp_dir/score-missing-values/values.txt"
+for directory in score-changed-values score-missing-values; do
+    if "$solver" --format ordago-score --target 3 --score 1:1 \
+        --continuation "$tmp_dir/$directory" \
+        --load-compressed "$tmp_dir/score/score-01-01.cfr.zst" \
+        --iterations 1 --save "$tmp_dir/score-invalid-result.cfr" \
+        >"$tmp_dir/$directory.out" 2>"$tmp_dir/$directory.err"; then
+        echo "reanudar con continuaciones incompatibles debio fallar" >&2
+        exit 1
+    fi
+    test ! -f "$tmp_dir/score-invalid-result.cfr"
+done
+# Output paths cannot overwrite coordinator files, even through a symlink.
+ln -s "$tmp_dir/score" "$tmp_dir/score-alias"
+for output in "$tmp_dir/score/score-01-01.cfr.zst" \
+    "$tmp_dir/score/extra.cfr.zst" "$tmp_dir/score-alias/values.txt"; do
+    if "$solver" --format ordago-score --target 3 --score 1:1 \
+        --continuation "$tmp_dir/score" \
+        --load-compressed "$tmp_dir/score/score-01-01.cfr.zst" \
+        --iterations 1 --save-compressed "$output" \
+        >"$tmp_dir/score-protected.out" 2>"$tmp_dir/score-protected.err"; then
+        echo "sobrescribir archivos del coordinador debio fallar" >&2
+        exit 1
+    fi
+done
+if "$solver" --format ordago-score --target 3 --score 1:1 \
+    --continuation "$tmp_dir/score" \
+    --load-compressed "$tmp_dir/score/score-01-01.cfr.zst" \
+    --export-strategy "$tmp_dir/score/extra.txt" \
+    >"$tmp_dir/score-protected-export.out" 2>"$tmp_dir/score-protected-export.err"; then
+    echo "exportar dentro de la tabla del coordinador debio fallar" >&2
+    exit 1
+fi
+cmp "$tmp_dir/score/values.txt" "$tmp_dir/score-values-preserved.txt"
+cmp "$tmp_dir/score/score-01-01.cfr.zst" "$tmp_dir/preserved.cfr.zst"
+# A resume must save its work and must not reinitialize the training policy or RNG.
+for mode in no-save seed preload threads overflow wrong-score wrong-target old-version; do
+    set -- --save "$tmp_dir/score-invalid-result.cfr"
+    target=3
+    score=1:1
+    source="$tmp_dir/score/score-01-01.cfr.zst"
+    iterations=1
+    directory="$tmp_dir/score"
+    case "$mode" in
+        no-save) set -- ;;
+        seed) set -- "$@" --seed 7 ;;
+        preload) set -- "$@" --preload-ordago "$tmp_dir/prior.cfr" ;;
+        threads) set -- "$@" --threads 2 ;;
+        overflow) iterations=18446744073709551615 ;;
+        wrong-score) score=0:0 ;;
+        wrong-target) target=4 ;;
+        old-version) directory="$tmp_dir/score-v3" ;;
+    esac
+    if "$solver" --format ordago-score --target "$target" --score "$score" \
+        --continuation "$directory" --load-compressed "$source" \
+        --iterations "$iterations" "$@" \
+        >"$tmp_dir/score-invalid-$mode.out" 2>"$tmp_dir/score-invalid-$mode.err"; then
+        echo "opciones incompatibles con la reanudacion debieron fallar: $mode" >&2
+        exit 1
+    fi
+    test ! -f "$tmp_dir/score-invalid-result.cfr"
+done
+
 # A checkpoint from a different score must not load in the selected cell.
 cp "$tmp_dir/score/score-01-01.cfr.zst" "$tmp_dir/score/score-00-00.cfr.zst"
 if "$solver" --format ordago-score --target 3 --continuation "$tmp_dir/score" \

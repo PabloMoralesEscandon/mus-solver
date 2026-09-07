@@ -1,6 +1,9 @@
 #ifndef _POSIX_C_SOURCE
 #define _POSIX_C_SOURCE 200809L
 #endif
+#ifndef _XOPEN_SOURCE
+#define _XOPEN_SOURCE 700
+#endif
 
 #include <errno.h>
 #include <inttypes.h>
@@ -113,6 +116,10 @@ static bool print_usage(FILE *stream, const char *program) {
                "  --evaluation-samples N Manos para evaluar cada celda (10000).\n"
                "                          En ordago-score, --iterations se aplica\n"
                "                          a cada celda pendiente; se guarda por diagonal.\n"
+               "                          Con --load[-compressed], se suman solo\n"
+               "                          al checkpoint del marcador elegido.\n"
+               "                          Requiere --save[-compressed] fuera de DIR;\n"
+               "                          conserva values.txt y admite --report-every.\n"
                "  --preload-ordago FILE   Precarga la estrategia media de ordago.\n"
                "  --preload-ordago-compressed FILE\n"
                "                          Precarga desde un checkpoint Zstandard.\n"
@@ -315,14 +322,26 @@ static bool parse_options(int argc, char *argv[], CliOptions *options) {
     if (options->help)
         return true;
     if (options->format == CLI_FORMAT_ORDAGO_SCORE) {
-        return options->continuation_dir != NULL &&
-               options->continuation_dir[0] != '\0' &&
-               options->score_a < options->score_target &&
-               options->score_b < options->score_target &&
-               options->load_path == NULL && options->save_path == NULL &&
+        if (options->continuation_dir == NULL ||
+            options->continuation_dir[0] == '\0' ||
+            options->score_a >= options->score_target ||
+            options->score_b >= options->score_target || options->threads != 1)
+            return false;
+        if (options->load_path != NULL) {
+            if (options->load_path[0] == '\0' ||
+                options->preload_ordago_path != NULL || options->preload_weight_set ||
+                (options->iterations_set && (options->seed_set || options->save_path == NULL)) ||
+                (!options->iterations_set && (options->save_path != NULL || options->report_every_set)) ||
+                (!options->iterations_set && !options->evaluate && options->export_path == NULL))
+                return false;
+            if (options->iterations_set && !options->report_every_set)
+                options->report_every = options->iterations;
+            return true;
+        }
+        return options->save_path == NULL &&
                (options->preload_ordago_path == NULL || options->iterations_set) &&
                (!options->preload_weight_set || options->preload_ordago_path != NULL) &&
-               options->threads == 1 && !options->report_every_set &&
+               !options->report_every_set &&
                (options->iterations_set || options->evaluate || options->export_path != NULL);
     }
     if (options->continuation_dir != NULL || options->score_set ||
@@ -907,7 +926,168 @@ static bool print_score_resume(const MusScoreTable *table, const CliOptions *opt
                   options->iterations, options->evaluation_samples, mismatched) >= 0;
 }
 
+/* Standalone outputs must not replace files managed by the coordinator. */
+static Status check_score_output_path(const char *directory, const char *path) {
+    if (path == NULL)
+        return CFR_STATUS_SUCCESS;
+    if (path[0] == '\0')
+        return CFR_STATUS_INVALID_ARGUMENT;
+    char *root = realpath(directory, NULL);
+    if (root == NULL)
+        return CFR_STATUS_IO_ERROR;
+    char *output = realpath(path, NULL);
+    if (output == NULL && errno == ENOENT) {
+        char *parent = strdup(path);
+        if (parent == NULL) {
+            free(root);
+            return CFR_STATUS_OUT_OF_MEMORY;
+        }
+        char *slash = strrchr(parent, '/');
+        if (slash != NULL) {
+            if (slash == parent)
+                slash[1] = '\0';
+            else
+                *slash = '\0';
+        }
+        output = realpath(slash == NULL ? "." : parent, NULL);
+        free(parent);
+    }
+    Status status = CFR_STATUS_IO_ERROR;
+    if (output != NULL) {
+        const size_t length = strlen(root);
+        const bool inside = strcmp(root, "/") == 0 ||
+            (strncmp(root, output, length) == 0 &&
+             (output[length] == '\0' || output[length] == '/'));
+        status = inside ? CFR_STATUS_INVALID_ARGUMENT : CFR_STATUS_SUCCESS;
+        if (inside)
+            fprintf(stderr, "error: guarde '%s' fuera de --continuation; "
+                            "los checkpoints publicados y values.txt deben conservarse\n", path);
+    }
+    free(output);
+    free(root);
+    return status;
+}
+
+static Status report_score_checkpoint(const Trainer *trainer, size_t completed,
+                                      void *context) {
+    (void)completed;
+    return print_report(trainer, 1, trainer->store, context)
+               ? CFR_STATUS_SUCCESS : CFR_STATUS_IO_ERROR;
+}
+
+/* Resume one checkpoint against an immutable snapshot of continuation values.
+ * The selected cell need not be published. Only higher diagonals are required. */
+static int run_score_checkpoint(const CliOptions *options) {
+    MusScoreTable table;
+    MusScoreGame game;
+    InfoStore store = {0};
+    Trainer trainer;
+    MusGameState *state = NULL;
+    char *path = score_path(options->continuation_dir, "values.txt");
+    Status status = path == NULL ? CFR_STATUS_OUT_OF_MEMORY : CFR_STATUS_SUCCESS;
+    if (status != CFR_STATUS_SUCCESS)
+        goto done;
+    status = check_score_output_path(options->continuation_dir, options->save_path);
+    if (status == CFR_STATUS_SUCCESS)
+        status = check_score_output_path(options->continuation_dir, options->export_path);
+    if (status != CFR_STATUS_SUCCESS)
+        goto done;
+    FILE *stream = fopen(path, "r");
+    if (stream == NULL) {
+        status = CFR_STATUS_IO_ERROR;
+        goto done;
+    }
+    status = mus_score_table_read(stream, &table);
+    if (fclose(stream) != 0 && status == CFR_STATUS_SUCCESS)
+        status = CFR_STATUS_IO_ERROR;
+    if (status != CFR_STATUS_SUCCESS)
+        goto done;
+    if (table.target != options->score_target) {
+        status = CFR_STATUS_INCOMPATIBLE_GAME;
+        goto done;
+    }
+    const unsigned int sum = options->score_a + options->score_b;
+    for (unsigned int a = 0; a < table.target; a += 1) {
+        for (unsigned int b = 0; b < table.target; b += 1) {
+            if (a + b > sum && !table.cells[a][b].ready) {
+                fprintf(stderr, "error: falta el valor de continuacion %u:%u\n", a, b);
+                status = CFR_STATUS_NOT_FOUND;
+                goto done;
+            }
+        }
+    }
+    state = malloc(sizeof(*state));
+    if (state == NULL) {
+        status = CFR_STATUS_OUT_OF_MEMORY;
+        goto done;
+    }
+    status = mus_score_game_init(&game, &table, options->score_a, options->score_b);
+    if (status == CFR_STATUS_SUCCESS)
+        status = mus_score_game_state_init(state, &game);
+    if (status == CFR_STATUS_SUCCESS)
+        status = load_checkpoint(options->load_path, &game.game,
+                                 mus_game_state_as_game_state(state), &store,
+                                 &trainer, options->load_compressed);
+    if (status != CFR_STATUS_SUCCESS)
+        goto done;
+    const size_t initial_iterations = trainer.training_iterations;
+    if (options->iterations > SIZE_MAX - initial_iterations) {
+        status = CFR_STATUS_INVALID_ARGUMENT;
+        goto done;
+    }
+    if (options->reserve_information_sets_set)
+        status = cfr_info_store_reserve(&store, options->reserve_information_sets);
+    if (status != CFR_STATUS_SUCCESS)
+        goto done;
+    if (options->iterations_set) {
+        struct timespec start;
+        if (timespec_get(&start, TIME_UTC) != TIME_UTC) {
+            status = CFR_STATUS_IO_ERROR;
+            goto done;
+        }
+        status = cfr_trainer_run_with_callback(
+            &trainer, options->iterations, options->report_every, false,
+            report_score_checkpoint, &start);
+        if (status != CFR_STATUS_SUCCESS)
+            goto done;
+    }
+    if (options->save_path != NULL)
+        status = save_checkpoint(options->save_path, &trainer, options->save_compressed);
+    if (status != CFR_STATUS_SUCCESS)
+        goto done;
+    if (printf("score-checkpoint score=%u:%u target=%u initial_iterations=%zu "
+               "added_iterations=%zu total_iterations=%zu continuation=frozen\n",
+               options->score_a, options->score_b, table.target, initial_iterations,
+               options->iterations, trainer.training_iterations) < 0) {
+        status = CFR_STATUS_IO_ERROR;
+        goto done;
+    }
+    if (options->evaluate) {
+        double value;
+        status = mus_score_evaluate(&game, &store, options->evaluation_samples,
+                                    options->seed, &value);
+        if (status == CFR_STATUS_SUCCESS &&
+            printf("evaluation scope=score-checkpoint-average-policy score=%u:%u "
+                   "iterations=%zu samples=%zu estimate=fresh seed=%" PRIu64 " "
+                   "profile_value_player_0=%.17g win_probability=%.17g\n",
+                   options->score_a, options->score_b, trainer.training_iterations,
+                   options->evaluation_samples, options->seed, value, (value + 1) / 2) < 0)
+            status = CFR_STATUS_IO_ERROR;
+    }
+    if (status == CFR_STATUS_SUCCESS && options->export_path != NULL)
+        status = export_strategy(options->export_path, &trainer, options->format);
+done:
+    (void)cfr_info_store_destroy(&store);
+    free(state);
+    free(path);
+    if (status != CFR_STATUS_SUCCESS)
+        fprintf(stderr, "error: checkpoint ordago-score: %s\n", status_name(status));
+    return status == CFR_STATUS_SUCCESS ? 0 : EXIT_RUNTIME_ERROR;
+}
+
 static int run_score(const CliOptions *options) {
+    if (options->load_path != NULL)
+        return run_score_checkpoint(options);
     MusScoreTable table;
     Status status = mus_score_table_init(&table, (unsigned int)options->score_target);
     InfoStore store = {0};

@@ -251,8 +251,10 @@ el marcador solicitado. Al reanudar, `score-resume` muestra cuántas celdas ya
 están publicadas, los mínimos y máximos de iteraciones y muestras, y cuántas
 se entrenaron con ajustes diferentes de los solicitados. Se permiten
 presupuestos diferentes por celda; las publicadas conservan sus valores.
-No utiliza `--report-every`, `--load`, `--save` ni sus
-variantes comprimidas; la persistencia se gestiona con `--continuation`.
+El coordinador no utiliza `--report-every`, `--load` ni `--save`; su
+persistencia se gestiona con `--continuation`. Cargar un checkpoint con
+`--load` o `--load-compressed` selecciona la reanudación individual descrita
+más abajo, sin recorrer las diagonales.
 `--reserve-information-sets` permite reservar capacidad por celda; sin esa
 opción el almacén crece según las necesidades.
 
@@ -339,13 +341,13 @@ El directorio contiene:
   escala de utilidad, iteraciones, muestras de evaluación y semilla por celda.
 - `score-AA-BB.cfr.zst`: checkpoint CFR de cada marcador, con la estrategia
   media y los acumuladores necesarios para reanudar el entrenamiento mediante
-  la API de C-CFR.
+  la CLI o la API de C-CFR.
 - `training.lock`: bloqueo con PID, nombre del equipo y fecha UTC de inicio.
   El error de bloqueo muestra esos datos. Si un proceso termina abruptamente,
   hay que comprobar en ese equipo que el proceso indicado ya no se ejecuta
   antes de borrar este archivo y reanudar.
 
-Repetir el comando con el mismo directorio conserva las diagonales terminadas
+Repetir el comando del coordinador con el mismo directorio conserva las diagonales terminadas
 y completa las pendientes. Una diagonal interrumpida se vuelve a entrenar.
 Las celdas ya publicadas no reciben iteraciones adicionales, porque sus
 estrategias y valores son continuaciones fijas de las anteriores. Para cambiar
@@ -367,6 +369,50 @@ Los checkpoints de una diagonal interrumpida que no figuren en `values.txt`
 se ignoran; se reemplazan cuando se vuelve a entrenar esa celda. Tanto los
 checkpoints como la tabla se publican mediante archivo temporal y `rename()`;
 las estrategias de celdas ya publicadas no se sobrescriben al reanudar.
+
+### Añadir iteraciones a un checkpoint con marcador
+
+`--load-compressed` carga el estado completo de un único marcador: regrets,
+estrategia acumulada, contador, estadísticas y estado aleatorio. En este modo,
+`--iterations N` añade **N iteraciones a ese checkpoint**, sin entrenar otras
+celdas ni volver a precargar la estrategia general. Por ejemplo, un checkpoint
+de 100.000 iteraciones pasa a 200.000 con:
+
+```sh
+build/release/mus-solver \
+    --format ordago-score --target 40 --score 30:30 \
+    --continuation marcador-40 \
+    --load-compressed marcador-40/score-30-30.cfr.zst \
+    --iterations 100000 --report-every 1000 \
+    --save-compressed score-30-30-200k.cfr.zst \
+    --export-strategy score-30-30-200k.txt
+```
+
+También admite `--load` y `--save` para checkpoints sin comprimir. El nuevo
+checkpoint debe guardarse con `--save` o `--save-compressed`. Los archivos de
+salida deben quedar fuera del directorio `--continuation`, para conservar sus
+checkpoints publicados y su tabla. Las exportaciones TXT no se sobrescriben.
+Para seguir desde el resultado, se utiliza ese nuevo archivo con `--load` o
+`--load-compressed`, según su formato.
+No se permite `--seed` al añadir iteraciones: se restaura el flujo aleatorio
+guardado. Tampoco se admite `--preload-ordago`. Se mantiene un hilo.
+
+Los informes de `--report-every` muestran el contador total, incluidas las
+iteraciones anteriores. El informe `score-checkpoint` separa
+`initial_iterations`, `added_iterations` y `total_iterations`.
+
+La continuación se lee de `values.txt` y permanece fija durante esta ejecución.
+Solo se necesitan los valores de las diagonales superiores; no se cargan sus
+estrategias. La celda seleccionada puede no estar publicada todavía. El esquema
+del checkpoint debe coincidir con el marcador, objetivo, versión y valores de
+continuación. Un cambio en esos valores impide una reanudación exacta.
+Conserve la tabla compatible junto con el checkpoint.
+
+Este modo **no publica un valor nuevo en `values.txt`**: modificarlo afectaría
+a las estrategias que ya usaron ese marcador como continuación. El checkpoint
+ampliado se evalúa o exporta pasando explícitamente `--load[-compressed]`, sin
+`--iterations`. `--evaluate` usa las muestras de `--evaluation-samples`, con
+semilla 0 por defecto o la indicada por `--seed` en esa evaluación separada.
 
 Al comenzar otra mano puede seleccionarse su estrategia guardada:
 
