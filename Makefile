@@ -2,6 +2,8 @@ CC ?= cc
 AR ?= ar
 
 LDLIBS += -lzstd
+JSON_C_FLAGS := $(shell pkg-config --cflags json-c)
+JSON_C_LIBS := $(shell pkg-config --libs json-c)
 
 CPPFLAGS += -Iinclude -IC-CFR/include -ISimulador-Mus/include
 ifneq ($(origin MUS_MAX_MUSES), undefined)
@@ -22,7 +24,7 @@ LTO_BUILD_DIR ?= build/lto
 RELEASE_DIR := $(BUILD_DIR)/release
 DEBUG_DIR := $(BUILD_DIR)/debug
 
-MUS_SOURCES := src/mus_game.c src/mus_evaluation.c src/mus_strategy.c
+MUS_SOURCES := src/mus_game.c src/mus_evaluation.c src/mus_strategy.c src/mus_adapter.c src/mus_text_strategy.c
 SIMULATOR_SOURCES := Simulador-Mus/src/cartas.c \
 	Simulador-Mus/src/baraja_espanola.c Simulador-Mus/src/mus.c
 LIB_SOURCES := $(MUS_SOURCES) $(SIMULATOR_SOURCES)
@@ -50,17 +52,19 @@ DEPENDENCY_FILES := $(RELEASE_OBJECTS:.o=.d) $(DEBUG_OBJECTS:.o=.d) \
 .PHONY: all lto debug test test-tsan test-sanitize dependencies cfr-release \
 	cfr-debug clean
 
-all: $(RELEASE_BINARY)
+all: $(RELEASE_BINARY) $(RELEASE_DIR)/mus-bot
 
 lto:
 	$(MAKE) BUILD_DIR=$(LTO_BUILD_DIR) CFR_BUILD_DIR=$(LTO_BUILD_DIR) \
 		all
 
-debug: $(DEBUG_BINARY) $(TEST_BINARY)
+debug: $(DEBUG_BINARY) $(TEST_BINARY) $(DEBUG_DIR)/mus-bot $(DEBUG_DIR)/mus_adapter_tests
 
-test: $(TEST_BINARY) $(DEBUG_BINARY)
+test: $(TEST_BINARY) $(DEBUG_BINARY) $(DEBUG_DIR)/mus-bot $(DEBUG_DIR)/mus_adapter_tests
 	./$(TEST_BINARY)
 	./tests/test_cli.sh ./$(DEBUG_BINARY)
+	./$(DEBUG_DIR)/mus_adapter_tests
+	python3 tests/test_adapter_cli.py ./$(DEBUG_DIR)/mus-bot ./$(DEBUG_DIR)/mus_adapter_tests
 
 test-tsan:
 	$(MAKE) BUILD_DIR=$(BUILD_DIR)/test-tsan \
@@ -124,3 +128,18 @@ clean:
 	$(RM) -r -- $(BUILD_DIR)
 
 -include $(DEPENDENCY_FILES)
+
+$(RELEASE_DIR)/app/mus_bot_cli.o $(DEBUG_DIR)/app/mus_bot_cli.o: CPPFLAGS += $(JSON_C_FLAGS)
+
+$(RELEASE_DIR)/mus-bot: $(RELEASE_DIR)/app/mus_bot_cli.o $(RELEASE_LIBRARY) cfr-release
+	$(CC) $(LDFLAGS) $(RELEASE_LINK_FLAGS) $(THREAD_FLAGS) $< $(RELEASE_LIBRARY) $(RELEASE_CFR_LIBRARY) $(LDLIBS) $(JSON_C_LIBS) -o $@
+
+$(DEBUG_DIR)/mus-bot: $(DEBUG_DIR)/app/mus_bot_cli.o $(DEBUG_LIBRARY) cfr-debug
+	$(CC) $(LDFLAGS) $(THREAD_FLAGS) $< $(DEBUG_LIBRARY) $(DEBUG_CFR_LIBRARY) $(LDLIBS) $(JSON_C_LIBS) -o $@
+
+-include $(RELEASE_DIR)/app/mus_bot_cli.d $(DEBUG_DIR)/app/mus_bot_cli.d
+
+$(DEBUG_DIR)/mus_adapter_tests: $(DEBUG_DIR)/tests/test_mus_adapter.o $(DEBUG_LIBRARY) cfr-debug
+	$(CC) $(LDFLAGS) $(THREAD_FLAGS) $< $(DEBUG_LIBRARY) $(DEBUG_CFR_LIBRARY) $(LDLIBS) -lm -o $@
+
+-include $(DEBUG_DIR)/tests/test_mus_adapter.d

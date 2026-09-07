@@ -3719,6 +3719,157 @@ Status mus_ordago_game_information_set_decode(
     return CFR_STATUS_SUCCESS;
 }
 
+static bool ordago_observed_hand_equal(const MusOrdagoInformationSet *a,
+                                        const MusOrdagoInformationSet *b) {
+    if (a->hand_kind != b->hand_kind)
+        return false;
+    switch (a->hand_kind) {
+    case MUS_ORDAGO_HAND_EXACT:
+        return memcmp(a->hand, b->hand, sizeof(a->hand)) == 0;
+    case MUS_ORDAGO_HAND_GRANDE:
+        return a->king_count == b->king_count &&
+               a->has_highest_non_king == b->has_highest_non_king &&
+               (!a->has_highest_non_king ||
+                a->highest_non_king == b->highest_non_king);
+    case MUS_ORDAGO_HAND_CHICA:
+        return a->pito_count == b->pito_count &&
+               a->has_lowest_non_pito == b->has_lowest_non_pito &&
+               (!a->has_lowest_non_pito ||
+                a->lowest_non_pito == b->lowest_non_pito);
+    case MUS_ORDAGO_HAND_PARES:
+        return a->pairs_type == b->pairs_type &&
+               a->pairs_value == b->pairs_value &&
+               a->has_second_pairs_value == b->has_second_pairs_value &&
+               (!a->has_second_pairs_value ||
+                a->second_pairs_value == b->second_pairs_value);
+    case MUS_ORDAGO_HAND_JUEGO:
+        return a->game_value == b->game_value;
+    case MUS_ORDAGO_HAND_PUNTO:
+        return a->point_value == b->point_value;
+    }
+    return false;
+}
+
+Status mus_ordago_game_information_set_set_hand(
+    MusOrdagoInformationSet *information,
+    const uint8_t hand[MUS_GAME_CLASS_COUNT]) {
+    MusHandSummary summary;
+    MusOrdagoInformationSet temporary;
+    int code = -1;
+    if (information == NULL || hand == NULL ||
+        summarize_hand(hand, &summary) != CFR_STATUS_SUCCESS)
+        return CFR_STATUS_INVALID_ARGUMENT;
+    temporary = *information;
+    temporary.has_second_pairs_value = false;
+    if (phase_is_mus_decision(temporary.phase) || phase_is_discard(temporary.phase)) {
+        temporary.hand_kind = MUS_ORDAGO_HAND_EXACT;
+        code = compact_hand_code(hand);
+    } else {
+        const int phase_index = ordago_betting_phase_index(temporary.phase);
+        if (phase_index < 0)
+            return CFR_STATUS_INVALID_ARGUMENT;
+        temporary.hand_kind = (MusOrdagoHandKind)(MUS_ORDAGO_HAND_GRANDE + phase_index);
+        switch (temporary.phase) {
+        case MUS_PHASE_GRANDE: code = grande_hand_code(hand); break;
+        case MUS_PHASE_CHICA: code = chica_hand_code(hand); break;
+        case MUS_PHASE_PARES: code = pairs_hand_code(hand); break;
+        case MUS_PHASE_JUEGO: code = summary.game_key; break;
+        case MUS_PHASE_PUNTO:
+            code = summary.point_value <= 30 ? summary.point_value - 4 : -1;
+            break;
+        default: break;
+        }
+    }
+    if (!decode_ordago_hand(code, &temporary))
+        return CFR_STATUS_INVALID_ARGUMENT;
+    *information = temporary;
+    return CFR_STATUS_SUCCESS;
+}
+
+Status mus_ordago_game_information_set_encode(
+    const MusOrdagoInformationSet *information, InfoSetKey *result) {
+    MusGameModel model = {0};
+    MusOrdagoInformationSet decoded = {0};
+    int hand_code = -1;
+    int situation;
+    InfoSetKey key;
+    if (information == NULL || result == NULL ||
+        !player_is_valid(information->player) ||
+        (information->mus_stopped && !player_is_valid(information->mus_stop_player)) ||
+        information->mus_count > MUS_GAME_MAX_MUSES)
+        return CFR_STATUS_INVALID_ARGUMENT;
+    model.phase = (uint8_t)information->phase;
+    model.current_player = (uint8_t)information->player;
+    model.bet_stage = (uint8_t)information->bet_stage;
+    model.mus_count = information->mus_count;
+    model.mus_stopped = information->mus_stopped;
+    model.mus_stop_player = (uint8_t)information->mus_stop_player;
+    memcpy(model.discard_counts, information->discard_counts, sizeof(model.discard_counts));
+    situation = ordago_situation_code(&model);
+    if (situation < 0 ||
+        !decode_ordago_situation(situation, &decoded, &(int){0}) ||
+        decoded.phase != information->phase || decoded.player != information->player ||
+        decoded.hand_kind != information->hand_kind)
+        return CFR_STATUS_INVALID_ARGUMENT;
+    for (int code = 0; code < ordago_hand_radix(information->phase); ++code) {
+        MusOrdagoInformationSet candidate = decoded;
+        if (decode_ordago_hand(code, &candidate) &&
+            ordago_observed_hand_equal(information, &candidate)) {
+            hand_code = code;
+            break;
+        }
+    }
+    if (hand_code < 0)
+        return CFR_STATUS_INVALID_ARGUMENT;
+    key = hand_code;
+    if (phase_is_mus_decision(information->phase) || phase_is_discard(information->phase)) {
+        if (ordago_discard_history_code(&model, model.mus_count) < 0)
+            return CFR_STATUS_INVALID_ARGUMENT;
+        for (int round = 0; round < model.mus_count; ++round)
+            for (int player = 0; player < 2; ++player)
+                key = key * 4 + model.discard_counts[round][player] - 1;
+        if (information->phase == MUS_PHASE_DISCARD_PLAYER_1) {
+            int count = model.discard_counts[model.mus_count][0];
+            if (count < 1 || count > 4)
+                return CFR_STATUS_INVALID_ARGUMENT;
+            key = key * 4 + count - 1;
+        }
+    } else {
+        int mus = ordago_public_mus_code(&model);
+        int strength_count = ordago_previous_strength_count(information->phase);
+        Action actions[MUS_GAME_MAX_LEGAL_ACTIONS];
+        size_t count;
+        if (mus < 0 || information->previous_strength_count != strength_count ||
+            information->numeric_wager_count !=
+                ordago_numeric_wager_count(information->used_wager_action_masks) ||
+            mus_ordago_game_information_set_legal_actions(information, actions,
+                MUS_GAME_MAX_LEGAL_ACTIONS, &count) != CFR_STATUS_SUCCESS)
+            return CFR_STATUS_INVALID_ARGUMENT;
+        key = key * ordago_public_mus_radix() + mus;
+        for (int lance = 0; lance < strength_count; ++lance) {
+            int strength = information->previous_strengths[lance];
+            if (strength < 0 || strength >= ordago_strength_radix(lance))
+                return CFR_STATUS_INVALID_ARGUMENT;
+            key = key * ordago_strength_radix(lance) + strength;
+        }
+        key = key * MUS_ORDAGO_SCORE_RADIX + information->max_settled_score;
+        key = key * MUS_ORDAGO_TOTAL_WAGER_RADIX + information->prior_wager_total;
+        if (information->bet_stage == MUS_BET_RESPONSE) {
+            key = key * MUS_ORDAGO_WAGER_RADIX + information->current_wager;
+            key = key * MUS_ORDAGO_WAGER_RADIX + information->previous_wager;
+            for (int player = 0; player < 2; ++player)
+                key = key * MUS_ORDAGO_WAGER_ACTION_MASK_RADIX +
+                      information->used_wager_action_masks[player];
+            key = key * 2 + information->current_wager_is_ordago;
+        }
+    }
+    key = key * MUS_ORDAGO_SITUATION_COUNT + situation;
+    if (mus_ordago_game_information_set_decode(key, &decoded) != CFR_STATUS_SUCCESS)
+        return CFR_STATUS_INVALID_ARGUMENT;
+    *result = key;
+    return CFR_STATUS_SUCCESS;
+}
+
 Status mus_ordago_game_information_set_legal_actions(
     const MusOrdagoInformationSet *information_set, Action *actions,
     size_t capacity, size_t *required_count) {

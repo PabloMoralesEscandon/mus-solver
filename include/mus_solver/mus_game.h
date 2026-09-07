@@ -326,6 +326,13 @@ const GameState *mus_ordago_game_state_as_game_state_const(
     const MusOrdagoGameState *state);
 Status mus_ordago_game_information_set_decode(
     InfoSetKey key, MusOrdagoInformationSet *information_set);
+/* Encodes an observation without access to the other player's cards. */
+Status mus_ordago_game_information_set_encode(
+    const MusOrdagoInformationSet *information_set, InfoSetKey *key);
+/* Sets the phase-specific abstraction from four cards owned by the player. */
+Status mus_ordago_game_information_set_set_hand(
+    MusOrdagoInformationSet *information_set,
+    const uint8_t hand[MUS_GAME_CLASS_COUNT]);
 /* Returns the ordered legal actions represented by a decoded information set. */
 Status mus_ordago_game_information_set_legal_actions(
     const MusOrdagoInformationSet *information_set, Action *actions,
