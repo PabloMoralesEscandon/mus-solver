@@ -175,28 +175,45 @@ Las utilidades son `+1/-1` cuando termina la partida. Si continúa desde `a'–b
 la utilidad del jugador 0 es `-V[b'][a']`: el siguiente reparto pasa la mano al
 contrario. No se añade la diferencia de tantos a ese valor.
 
-En `ordago-score`, el marcador determina la utilidad y el fin de partida. No
-recorta los envites numéricos: tanto a `38–19` como a `19–38` se puede abrir con
-2, 4, 7 o 10, pasar o lanzar órdago. Un envite puede alcanzar o superar los
-tantos restantes sin convertirse en órdago. Si se acepta, queda pendiente;
-si se rechaza, se cobra inmediatamente el total cubierto. A `37`, aceptar
-cuatro en grande no termina la partida en ese momento. Los importes de lances
-anteriores no reducen el presupuesto del lance activo.
+En `ordago-score/v4`, cada oferta numérica debe cumplir:
+
+```text
+max(marcador_inicial_0 + tantos_cobrados_0,
+    marcador_inicial_1 + tantos_cobrados_1)
++ total_de_envites_queridos_pendientes
++ total_propuesto_en_el_lance_actual < 40
+```
+
+Los dejes e importes cubiertos ya cobrados solo cuentan en el marcador; no se
+suman otra vez como pendientes. Los lances en paso y los valores intrínsecos no
+se anticipan. En una subida, el total propuesto incluye lo envidado antes en
+ese mismo lance. El órdago sigue disponible y queda fuera de esta cota numérica.
+Por ejemplo, partiendo de `29–30`, cobrar 1 el jugador 0 y 2 el jugador 1 deja
+`30–32`. Si además hay 2 queridos en pares, la base es `32 + 2 = 34`: un total
+de 6 queda excluido por la desigualdad estricta. Entre las aperturas disponibles,
+se permiten 2 y 4; entre las respuestas a 2, subir otros 4 queda prohibido.
+A `38–19`, `19–38` y `39–39` solo se puede abrir pasando o con órdago.
 
 Se mantienen las restricciones por lance de la abstracción: incrementos
-permitidos y no decrecientes, cada incremento una vez por jugador, máximo de
-cinco envites numéricos y total numérico estrictamente menor que 40. Esta última
-cota es fija, también para objetivos reducidos; no depende del marcador.
-El formato histórico `ordago` conserva su cota acumulada anterior.
+permitidos y no decrecientes, cada incremento una vez por jugador y máximo de
+cinco envites numéricos. La cota acumulada de 40 también se usa con objetivos
+reducidos. Es una restricción del árbol del solver. El formato histórico
+`ordago` conserva su cota acumulada anterior.
 
-Los conjuntos de información incluyen ambos marcadores **cobrados** y los
-contratos públicos de cada lance anterior: paso, importe querido o importe
-rechazado, quién apostó y el resumen público de fuerza. Conservan la abstracción
-de cartas propias, el lance y turno, mus y descartes, y el envite activo. No
-incluyen quién ganará un lance pendiente ni el valor oculto de los pares del
-rival. El marcador inicial y el objetivo identifican el almacén de cada celda.
-Las claves usan una codificación reversible dentro de `int64_t`; los importes
-activos se reconstruyen a partir de las máscaras de incrementos utilizados.
+Las claves vuelven al resumen de fuerza por lance de `ordago` y un único total
+agregado de envites anteriores, que en el modo con marcador contiene solo los
+queridos pendientes. No conservan sus importes separados por lance. Por tanto,
+grande 2/chica 4 y grande 4/chica 2 comparten nodo si coinciden los demás datos.
+El **modelo** conserva cada importe para cobrarlo correctamente al final; unir
+las claves hace que esos estados usen la misma política pese a tener pagos
+futuros distintos. Es la abstracción elegida para reducir los nodos.
+
+Los conjuntos de información incluyen ambos marcadores **cobrados**, las cartas
+propias abstraídas, el lance y turno, mus y descartes, fuerza anterior y envite
+activo. No incluyen quién ganará un lance pendiente ni el valor oculto de los
+pares del rival. El marcador inicial y el objetivo identifican el almacén de
+cada celda. Las claves usan una codificación reversible dentro de `int64_t`;
+los importes activos se reconstruyen con las máscaras de incrementos utilizados.
 
 Prueba pequeña con una partida a cinco tantos:
 
@@ -256,18 +273,21 @@ build/release/mus-solver \
 Para checkpoints sin compresión se usa `--preload-ordago ordago.cfr`.
 La carga valida el esquema de `ordago`, incluida la configuración de uno o dos
 muses. No acepta exportaciones de texto, otros formatos de juego ni checkpoints
-de `ordago-score/v1` o `v2`.
+de ninguna versión de `ordago-score`.
 
 La precarga transforma las claves y empareja las probabilidades por **acción**.
 Desde `v3`, solo importa **mus, descartes y grande**. Las claves antiguas de
-chica, pares y juego/punto no contienen los contratos pendientes necesarios y
+chica, pares y juego/punto mezclan importes ya cobrados con pendientes y
 usan resultados calculados a partir de cartas ocultas. Esas claves se omiten;
 no se inventan repartos de tantos ni se transfieren sus políticas. Los nodos sin
 precarga empiezan uniformes. La política antigua es una ayuda de inicialización;
 su entrenamiento no acredita una estrategia válida para las reglas corregidas.
 
-La política inicial es `0,95 × política transferida + 0,05 × uniforme`, con
-probabilidad positiva también para los envites que antes no estaban permitidos.
+La precarga omite respuestas que el límite del marcador hace inalcanzables y
+normaliza las probabilidades sobre las acciones que siguen permitidas. Si todas
+tenían probabilidad cero en el origen, usa una distribución uniforme. La política
+inicial es `0,95 × política transferida + 0,05 × uniforme`, con probabilidad
+positiva en todas las acciones del destino.
 `--preload-weight` fija la masa inicial por nodo, tanto de estrategia media como
 de regrets positivos **sintéticos**; el valor predeterminado es 1. No se copian
 los regrets antiguos, su escala de utilidad, las iteraciones, el estado aleatorio
@@ -282,11 +302,12 @@ nodos existentes al usar el helper.
 
 `score-preload-source` muestra el origen, esquema, iteraciones antiguas y peso.
 `score-preload` informa por celda de los nodos importados y de los omitidos por
-falta de historial (`skipped_history_nodes`). Para reproducir una ejecución
+falta de historial (`skipped_history_nodes`) o por superar el presupuesto del
+marcador (`skipped_illegal_nodes`). Para reproducir una ejecución
 interrumpida, conserva el origen y repite las opciones de precarga: `values.txt`
 no almacena esa configuración. Las celdas ya publicadas se mantienen. Los
 checkpoints de destino son autónomos; su evaluación, exportación y reanudación
-con la API CFR no necesitan el origen. La precarga usa el esquema `ordago-score/v3`.
+con la API CFR no necesitan el origen. La precarga usa el esquema `ordago-score/v4`.
 
 La API de [mus_score.h](include/mus_solver/mus_score.h) ofrece
 `mus_score_information_set_from_ordago()` para convertir una clave y
@@ -333,10 +354,12 @@ un esquema distinto del de `ordago`, que incluye objetivo, marcador y una
 huella de las continuaciones superiores. No se pueden intercambiar entre
 marcadores, objetivos, versiones de mus o tablas distintas.
 
-El esquema actual es `mus.ordago-score/v3`. **Las tablas y checkpoints de `v1`
-y `v2` no son compatibles y requieren un entrenamiento nuevo en otro directorio.**
-Esas versiones adelantaban el cobro de lances pendientes y filtraban resultados
-de cartas ocultas en las claves. Sus estrategias, utilidades y mediciones de
+El esquema actual es `mus.ordago-score/v4`. **Las tablas y checkpoints de `v1`,
+`v2` y `v3` no son compatibles y requieren un entrenamiento nuevo en otro directorio.**
+`v3` usa otra abstracción de historial y otros menús; su incompatibilidad no
+implica un error de tanteo. En cambio, `v1` y `v2` adelantaban el cobro de lances
+pendientes y filtraban resultados de cartas ocultas en las claves. Sus estrategias,
+utilidades y mediciones de
 tamaño no validan el modelo corregido. Los artefactos antiguos pueden conservarse
 para diagnóstico. Los formatos históricos mantienen sus esquemas y comportamiento;
 no representan esta corrección del tanteo ni de la información disponible.
@@ -394,7 +417,9 @@ tantos, incluidos los lances sin negociación y los empates a favor de mano.
 Hay regresiones explícitas de cobros inmediatos frente a pendientes, órdago
 posterior a un grande en paso a `39–39`, prioridad del tanteo final y ausencia
 de filtraciones al variar solo cartas ocultas. Se recorre también todo el árbol
-de envites de grande para comprobar la nueva codificación de respuestas.
+de envites de grande a distintos marcadores para comprobar las claves y menús.
+Otras regresiones comprueban la unión de las historias 2+4 y 4+2, su cobro
+diferenciado, el límite estricto acumulado y la precarga de menús reducidos.
 Las pruebas de entrenamiento y CLI cubren además mus,
 descartes y la selección de marcadores a 40. Estas comprobaciones no equivalen
 a resolver exhaustivamente el juego completo de información imperfecta.

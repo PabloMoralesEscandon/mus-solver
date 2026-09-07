@@ -41,21 +41,16 @@
      MUS_ORDAGO_DISCARD_ROUND_RADIX * MUS_ORDAGO_DISCARD_ROUND_RADIX)
 #endif
 
-/* Public contract: pass, accepted amount/bettor, rejected covered amount/
- * bettor/strength, or a skipped pares declaration. No showdown result. */
-#define MUS_SCORE_REJECTED_CONTRACT_BASE (1 + 2 * (MUS_ORDAGO_WAGER - 2))
-#define MUS_SCORE_SKIPPED_CONTRACT_BASE \
-    (MUS_SCORE_REJECTED_CONTRACT_BASE + 4 * (MUS_ORDAGO_WAGER - 1))
-#define MUS_SCORE_CONTRACT_RADIX (MUS_SCORE_SKIPPED_CONTRACT_BASE + 3)
 /* The masks determine the sum and last increment: increments never decrease. */
 #define MUS_SCORE_RESPONSE_RADIX \
     (MUS_ORDAGO_WAGER_ACTION_MASK_RADIX * MUS_ORDAGO_WAGER_ACTION_MASK_RADIX * 2)
 /* Bound all betting phases, without hashing or information-set collisions. */
 #define MUS_SCORE_KEY_RADIX_PRODUCT                                    \
     (UINT64_C(1) * MUS_ORDAGO_PAIRS_HAND_RADIX *                         \
-     MUS_ORDAGO_PUBLIC_MUS_RADIX * MUS_SCORE_CONTRACT_RADIX *           \
-     MUS_SCORE_CONTRACT_RADIX * MUS_SCORE_CONTRACT_RADIX *             \
+     MUS_ORDAGO_PUBLIC_MUS_RADIX * MUS_ORDAGO_STRENGTH_RADIX *          \
+     MUS_ORDAGO_STRENGTH_RADIX * MUS_ORDAGO_PAIRS_STRENGTH_RADIX *      \
      MUS_ORDAGO_SCORE_RADIX * MUS_ORDAGO_SCORE_RADIX *                   \
+     MUS_ORDAGO_TOTAL_WAGER_RADIX *                                    \
      MUS_SCORE_RESPONSE_RADIX * MUS_ORDAGO_SITUATION_COUNT)
 _Static_assert(MUS_ORDAGO_PAIRS_HAND_RADIX >= MUS_ORDAGO_GRANDE_HAND_RADIX &&
                    MUS_ORDAGO_PAIRS_HAND_RADIX >= MUS_ORDAGO_CHICA_HAND_RADIX &&
@@ -797,7 +792,8 @@ static void advance_lance(
 
             if (outcome == MUS_LANCE_FIRST_BET_REJECTED ||
                 outcome == MUS_LANCE_SECOND_BET_REJECTED) {
-                contribution = model->previous_wager;
+                /* A score game's rejected stake is already in paid_scores. */
+                contribution = format->score_enabled ? 0 : model->previous_wager;
             } else if (model->current_wager_is_ordago) {
                 contribution = model->previous_wager == 1
                                    ? 0
@@ -1024,7 +1020,8 @@ static int recompute_ordago_prior_wager_total(const MusGameModel *model) {
         }
         if (model->outcomes[lance] == MUS_LANCE_FIRST_BET_REJECTED ||
             model->outcomes[lance] == MUS_LANCE_SECOND_BET_REJECTED) {
-            total += model->outcome_previous_wagers[lance];
+            if (model->score_target == 0)
+                total += model->outcome_previous_wagers[lance];
             if (total >= MUS_ORDAGO_WAGER)
                 return MUS_ORDAGO_WAGER;
             continue;
@@ -1052,14 +1049,17 @@ static int ordago_max_settled_score(const MusGameModel *model) {
     return a > b ? a : b;
 }
 
-/* Match scores determine utility and termination, not the numeric menu.
- * The historical hand formats retain their cumulative wager budget. */
+/* Pending showdown results must not affect the score game's numeric menu. */
 static int ordago_budget_score(const MusGameModel *model) {
-    return model->score_target == 0 ? ordago_max_settled_score(model) : 0;
+    if (model->score_target == 0)
+        return ordago_max_settled_score(model);
+    const int a = model->initial_scores[0] + model->paid_scores[0];
+    const int b = model->initial_scores[1] + model->paid_scores[1];
+    return a > b ? a : b;
 }
 
 static int ordago_budget_prior_wager_total(const MusGameModel *model) {
-    return model->score_target == 0 ? ordago_prior_wager_total(model) : 0;
+    return ordago_prior_wager_total(model);
 }
 
 static bool score_match_finished(const MusGameModel *model) {
@@ -3229,27 +3229,13 @@ static int ordago_strength_radix(int lance) {
                       : MUS_ORDAGO_STRENGTH_RADIX;
 }
 
-static int score_contract_code(const MusGameModel *model, int lance) {
-    const MusLanceOutcome outcome = model->outcomes[lance];
-    if (outcome == MUS_LANCE_ALL_PASS)
-        return 0;
-    if (outcome_is_accepted(outcome))
-        return 1 + (model->outcome_wagers[lance] - 2) * 2 + outcome_bettor(outcome);
-    if (outcome_is_rejected(outcome))
-        return MUS_SCORE_REJECTED_CONTRACT_BASE +
-            (ordago_outcome_stake(model, lance, outcome) - 1) * 4 +
-            outcome_bettor(outcome) * 2 +
-            (model->outcome_strengths[lance] == MUS_LANCE_STRENGTH_BOTH);
-    return MUS_SCORE_SKIPPED_CONTRACT_BASE +
-        (int)model->outcome_strengths[lance] - MUS_LANCE_STRENGTH_PARES_SKIPPED_NONE;
-}
-
 static InfoSetKey score_betting_information_set_key(const MusGameModel *model, int hand) {
     InfoSetKey key = (InfoSetKey)hand * ordago_public_mus_radix() + ordago_public_mus_code(model);
     for (int lance = 0; lance < ordago_previous_strength_count(model->phase); lance += 1)
-        key = key * MUS_SCORE_CONTRACT_RADIX + score_contract_code(model, lance);
+        key = key * ordago_strength_radix(lance) + model->outcome_strengths[lance];
     for (int player = 0; player < MUS_GAME_PLAYER_COUNT; player += 1)
         key = key * MUS_ORDAGO_SCORE_RADIX + model->initial_scores[player] + model->paid_scores[player];
+    key = key * MUS_ORDAGO_TOTAL_WAGER_RADIX + model->prior_wager_total;
     if (model->bet_stage == MUS_BET_RESPONSE) {
         const unsigned int response = ((unsigned int)model->used_wager_action_masks[0] *
                               MUS_ORDAGO_WAGER_ACTION_MASK_RADIX +
@@ -3790,37 +3776,6 @@ static bool decode_ordago_hand(int code,
     return false;
 }
 
-static bool decode_score_contract(int code, int lance, MusOrdagoInformationSet *information) {
-    if (code == 0) {
-        information->previous_outcomes[lance] = MUS_LANCE_ALL_PASS;
-        information->previous_strengths[lance] = MUS_LANCE_STRENGTH_NONE;
-    } else if (code < MUS_SCORE_REJECTED_CONTRACT_BASE) {
-        code -= 1;
-        information->previous_outcomes[lance] = code % 2 == 0
-            ? MUS_LANCE_FIRST_BET_ACCEPTED : MUS_LANCE_SECOND_BET_ACCEPTED;
-        information->previous_stakes[lance] = (uint8_t)(code / 2 + 2);
-        information->previous_strengths[lance] = MUS_LANCE_STRENGTH_BOTH;
-    } else if (code < MUS_SCORE_SKIPPED_CONTRACT_BASE) {
-        code -= MUS_SCORE_REJECTED_CONTRACT_BASE;
-        const int bettor = code / 2 % 2;
-        information->previous_outcomes[lance] = bettor == 0
-            ? MUS_LANCE_FIRST_BET_REJECTED : MUS_LANCE_SECOND_BET_REJECTED;
-        information->previous_stakes[lance] = (uint8_t)(code / 4 + 1);
-        information->previous_strengths[lance] = code % 2 != 0 ? MUS_LANCE_STRENGTH_BOTH
-            : bettor == 0 ? MUS_LANCE_STRENGTH_PLAYER_0 : MUS_LANCE_STRENGTH_PLAYER_1;
-    } else {
-        if (lance != 2)
-            return false;
-        information->previous_outcomes[lance] = MUS_LANCE_SKIPPED;
-        information->previous_strengths[lance] =
-            (MusLanceStrength)(MUS_LANCE_STRENGTH_PARES_SKIPPED_NONE +
-                               code - MUS_SCORE_SKIPPED_CONTRACT_BASE);
-    }
-    const int total = information->prior_wager_total + information->previous_stakes[lance];
-    information->prior_wager_total = (uint8_t)(total < MUS_ORDAGO_WAGER ? total : MUS_ORDAGO_WAGER);
-    return true;
-}
-
 static bool decode_score_betting_payload(InfoSetKey *payload, unsigned int target,
                                          MusOrdagoInformationSet *information) {
     InfoSetKey key = *payload;
@@ -3847,6 +3802,8 @@ static bool decode_score_betting_payload(InfoSetKey *payload, unsigned int targe
             ? (uint8_t)(total == 0 ? 1 : total)
             : (uint8_t)(information->numeric_wager_count == 1 ? 1 : total - last);
     }
+    information->prior_wager_total = (uint8_t)(key % MUS_ORDAGO_TOTAL_WAGER_RADIX);
+    key /= MUS_ORDAGO_TOTAL_WAGER_RADIX;
     for (int player = MUS_GAME_PLAYER_COUNT - 1; player >= 0; player -= 1) {
         information->scores[player] = (uint8_t)(key % MUS_ORDAGO_SCORE_RADIX);
         key /= MUS_ORDAGO_SCORE_RADIX;
@@ -3856,9 +3813,9 @@ static bool decode_score_betting_payload(InfoSetKey *payload, unsigned int targe
     information->max_settled_score = information->scores[0] > information->scores[1]
         ? information->scores[0] : information->scores[1];
     for (int lance = information->previous_strength_count - 1; lance >= 0; lance -= 1) {
-        if (!decode_score_contract((int)(key % MUS_SCORE_CONTRACT_RADIX), lance, information))
-            return false;
-        key /= MUS_SCORE_CONTRACT_RADIX;
+        information->previous_strengths[lance] =
+            (MusLanceStrength)(key % ordago_strength_radix(lance));
+        key /= ordago_strength_radix(lance);
     }
     if (!decode_ordago_public_mus((int)(key % ordago_public_mus_radix()), information))
         return false;
@@ -3960,8 +3917,8 @@ static Status decode_ordago_information_set(
 
             if (active_wager > 0 &&
                 !ordago_numeric_budget_allows(
-                    information_set->score_enabled ? 0 : information_set->max_settled_score,
-                    information_set->score_enabled ? 0 : information_set->prior_wager_total,
+                    information_set->max_settled_score,
+                    information_set->prior_wager_total,
                     active_wager, 0)) {
                 return CFR_STATUS_INVALID_ARGUMENT;
             }
@@ -4042,7 +3999,7 @@ Status mus_score_information_set_from_ordago(
                                                    &information);
     if (status == CFR_STATUS_SUCCESS)
         *result = key;
-    return status;
+    return status == CFR_STATUS_INVALID_ARGUMENT ? CFR_STATUS_NOT_FOUND : status;
 }
 
 /* Each score cell uses a separate store and a distinct checkpoint schema. */
@@ -4276,8 +4233,8 @@ Status mus_ordago_game_information_set_legal_actions(
     }
     return collect_ordago_betting_actions(
         information_set->bet_stage,
-        information_set->score_enabled ? 0 : information_set->max_settled_score,
-        information_set->score_enabled ? 0 : information_set->prior_wager_total,
+        information_set->max_settled_score,
+        information_set->prior_wager_total,
         information_set->current_wager,
         information_set->previous_wager, information_set->player,
         information_set->bettor,

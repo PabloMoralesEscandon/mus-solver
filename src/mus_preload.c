@@ -34,13 +34,24 @@ static Status preload_node(const InfoNode *source, void *raw_context) {
     status = cfr_info_node_average_strategy(source, average, MUS_GAME_MAX_LEGAL_ACTIONS);
     if (status != CFR_STATUS_SUCCESS)
         return status;
-    information.score_enabled = true;
+    InfoSetKey key;
+    status = mus_score_information_set_from_ordago(context->game, source->key, 0, 0, &key);
+    if (status == CFR_STATUS_NOT_FOUND) {
+        context->stats.skipped_illegal_nodes += 1;
+        return CFR_STATUS_SUCCESS;
+    }
+    if (status != CFR_STATUS_SUCCESS)
+        return status;
+    status = mus_score_game_information_set_decode(
+        key, context->game->continuation->target, &information);
+    if (status != CFR_STATUS_SUCCESS)
+        return status;
     status = mus_ordago_game_information_set_legal_actions(
         &information, new_actions, MUS_GAME_MAX_LEGAL_ACTIONS, &new_count);
     if (status != CFR_STATUS_SUCCESS)
         return status;
 
-    /* Numeric menus can grow. Match action identifiers, never array indices. */
+    /* Match action identifiers and normalize over the destination's menu. */
     double mass = 0;
     size_t shared = 0;
     for (size_t i = 0; i < new_count; i += 1) {
@@ -65,10 +76,6 @@ static Status preload_node(const InfoNode *source, void *raw_context) {
             return CFR_STATUS_NUMERIC_ERROR;
     }
 
-    InfoSetKey key;
-    status = mus_score_information_set_from_ordago(context->game, source->key, 0, 0, &key);
-    if (status != CFR_STATUS_SUCCESS)
-        return status;
     InfoNode *node;
     status = cfr_info_store_find(context->destination, key, &node);
     if (status == CFR_STATUS_SUCCESS) {

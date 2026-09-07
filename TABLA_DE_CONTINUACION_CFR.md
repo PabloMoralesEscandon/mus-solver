@@ -293,7 +293,10 @@ El estado mutable separa los tantos cobrados de los contratos pendientes por
 lance. Durante las decisiones, el marcador absoluto incorpora solo cobros ya
 públicos. Los ganadores y valores ocultos de los contratos pendientes no se
 resuelven ni se incluyen en las claves hasta que corresponde el tanteo final.
-Las claves deben distinguir los importes pendientes por lance, no solo su suma.
+La abstracción de `ordago-score/v4` conserva en las claves el resumen de fuerza
+por lance de `ordago` y la suma de envites queridos pendientes, sin separar sus
+importes. Estados con repartos distintos de ese total pueden compartir política.
+El modelo conserva los contratos exactos para resolver el tanteo en orden.
 
 ### Función de utilidad terminal
 
@@ -330,6 +333,19 @@ mismas acciones y en el mismo orden.
 Si el máximo de un envite depende de los tantos restantes, el marcador
 absoluto debe estar disponible al generar acciones. Dos historiales de envite
 idénticos pueden tener menús distintos cuando parten de marcadores diferentes.
+
+En la abstracción actual, cada oferta numérica cumple:
+
+```text
+max(a + cobrado_0, b + cobrado_1) + queridos_pendientes + total_propuesto < 40
+```
+
+Los dejes e importes cubiertos ya cobrados no se vuelven a sumar como pendientes.
+Los lances en paso y los valores de cartas esperan al tanteo final; no aportan
+puntos calculados por anticipado a esta cota. El total propuesto incluye las
+ofertas numéricas previas del lance actual. Los órdagos quedan fuera de la cota;
+se mantienen los incrementos y el máximo de cinco ofertas numéricas por lance.
+El límite de 40 es fijo incluso cuando se usa un objetivo de prueba reducido.
 
 Toda información pública que determine el menú legal debe formar parte del
 estado y, cuando corresponda, del conjunto de información.

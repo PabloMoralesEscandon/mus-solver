@@ -807,10 +807,11 @@ static Status save_score_cell(const MusScoreGame *game, const Trainer *trainer,
     if (status == CFR_STATUS_SUCCESS && persistence->preload_stats != NULL) {
         const MusScorePreloadStats *stats = persistence->preload_stats;
         if (printf("score-preload score=%u:%u source_nodes=%zu imported_nodes=%zu "
-                   "existing_nodes=%zu expanded_action_nodes=%zu skipped_history_nodes=%zu\n",
+                   "existing_nodes=%zu expanded_action_nodes=%zu skipped_history_nodes=%zu skipped_illegal_nodes=%zu\n",
                    game->initial_scores[0], game->initial_scores[1],
                    stats->source_nodes, stats->imported_nodes, stats->existing_nodes,
-                   stats->expanded_action_nodes, stats->skipped_history_nodes) < 0)
+                   stats->expanded_action_nodes, stats->skipped_history_nodes,
+                   stats->skipped_illegal_nodes) < 0)
             status = CFR_STATUS_IO_ERROR;
     }
     if (status == CFR_STATUS_SUCCESS &&

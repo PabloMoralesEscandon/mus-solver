@@ -5,7 +5,7 @@
 #include "cfr/trainer.h"
 #include "mus_solver/mus_game.h"
 
-#define MUS_SCORE_SCHEMA_ID "mus.ordago-score/v3"
+#define MUS_SCORE_SCHEMA_ID "mus.ordago-score/v4"
 
 typedef struct {
     bool ready;
@@ -48,6 +48,7 @@ typedef struct {
     size_t existing_nodes;
     size_t expanded_action_nodes;
     size_t skipped_history_nodes;
+    size_t skipped_illegal_nodes;
 } MusScorePreloadStats;
 
 typedef struct {
@@ -78,13 +79,14 @@ Status mus_score_game_state_init(MusGameState *state, const MusScoreGame *game);
 Status mus_score_game_information_set_decode(
     InfoSetKey key, unsigned int target, MusOrdagoInformationSet *information);
 /* Convert only mus, discard, and grande keys. Both earned arguments must be
- * zero. Later lances return NOT_FOUND: legacy keys lack the pending contracts
- * and contain nonpublic showdown-derived scores. An error preserves result. */
+ * zero. Later lances and responses outside the destination wager budget return
+ * NOT_FOUND. Legacy later-lance keys mix collected and pending amounts and
+ * contain nonpublic showdown-derived scores. An error preserves result. */
 Status mus_score_information_set_from_ordago(
     const MusScoreGame *game, InfoSetKey source_key,
     unsigned int earned_a, unsigned int earned_b, InfoSetKey *result);
 /* Import mus, discard, and grande average policies into missing nodes of an
- * initialized store. Skip later lances rather than inventing pending contracts.
+ * initialized store. Skip later lances and unreachable response nodes.
  * Map probabilities by action identity and seed synthetic positive regrets.
  * Do not copy source regrets, iteration counters, RNG, or continuation values.
  * Existing nodes are preserved. Requires exclusive access to destination.

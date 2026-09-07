@@ -172,7 +172,7 @@ cp "$tmp_dir/score/score-01-01.cfr.zst" "$tmp_dir/preserved.cfr.zst"
     >"$tmp_dir/score-resumed.out"
 grep -q 'evaluation scope=score-average-policy score=0:0 samples=50' \
     "$tmp_dir/score-resumed.out"
-grep -q 'schema=mus.ordago-score/v3' "$tmp_dir/score-strategy.txt"
+grep -q 'schema=mus.ordago-score/v4' "$tmp_dir/score-strategy.txt"
 grep -q 'marcador:0-0/objetivo:3' "$tmp_dir/score-strategy.txt"
 cmp "$tmp_dir/preserved.cfr.zst" "$tmp_dir/score/score-01-01.cfr.zst"
 "$solver" --format ordago-score --target 3 --iterations 2 --seed 7 \
@@ -241,17 +241,19 @@ done
 "$solver" --format ordago-score --target 3 --continuation "$tmp_dir/preloaded-resume" \
     --export-strategy "$tmp_dir/preloaded-reloaded.txt" >"$tmp_dir/preloaded-reloaded.out"
 cmp "$tmp_dir/preloaded.txt" "$tmp_dir/preloaded-reloaded.txt"
-mkdir "$tmp_dir/score-v2"
-sed 's/mus\.ordago-score\/v3/mus.ordago-score\/v2/' "$tmp_dir/score/values.txt" \
-    >"$tmp_dir/score-v2/values.txt"
-cp "$tmp_dir/score-v2/values.txt" "$tmp_dir/score-v2-preserved.txt"
-if "$solver" --format ordago-score --target 3 --continuation "$tmp_dir/score-v2" \
-    --iterations 1 >"$tmp_dir/score-v2.out" 2>"$tmp_dir/score-v2.err"; then
-    echo "la tabla con las reglas incorrectas v2 no debe reanudarse" >&2
-    exit 1
-fi
-cmp "$tmp_dir/score-v2/values.txt" "$tmp_dir/score-v2-preserved.txt"
-test ! -f "$tmp_dir/score-v2/training.lock"
+for version in 1 2 3; do
+    mkdir "$tmp_dir/score-v$version"
+    sed "s@mus.ordago-score/v4@mus.ordago-score/v$version@" "$tmp_dir/score/values.txt" \
+        >"$tmp_dir/score-v$version/values.txt"
+    cp "$tmp_dir/score-v$version/values.txt" "$tmp_dir/score-v$version-preserved.txt"
+    if "$solver" --format ordago-score --target 3 --continuation "$tmp_dir/score-v$version" \
+        --iterations 1 >"$tmp_dir/score-v$version.out" 2>"$tmp_dir/score-v$version.err"; then
+        echo "la tabla con esquema v$version no debe reanudarse como v4" >&2
+        exit 1
+    fi
+    cmp "$tmp_dir/score-v$version/values.txt" "$tmp_dir/score-v$version-preserved.txt"
+    test ! -f "$tmp_dir/score-v$version/training.lock"
+done
 for source in "$tmp_dir/raises.cfr" "$tmp_dir/continuous.cfr"; do
     if "$solver" --format ordago-score --target 3 --iterations 1 \
         --continuation "$tmp_dir/preload-invalid" --preload-ordago "$source" \

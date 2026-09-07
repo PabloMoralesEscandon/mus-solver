@@ -163,7 +163,8 @@ typedef struct {
     uint8_t previous_wager;
     /* Numeric wager actions already used by each player in this lance. */
     uint8_t used_wager_action_masks[MUS_GAME_PLAYER_COUNT];
-    /* Public numeric contract total from completed lances, capped at ordago. */
+    /* Prior numeric total, capped at ordago. Score games include only
+     * accepted pending wagers; historical formats also include rejected stakes. */
     uint8_t prior_wager_total;
     /* Collected points. Score games add deferred points only at final counting. */
     uint8_t settled_scores[MUS_GAME_PLAYER_COUNT];
@@ -289,15 +290,11 @@ typedef struct {
     Player mus_stop_player;
     MusLanceStrength previous_strengths[MUS_GAME_LANCE_COUNT - 1];
     uint8_t previous_strength_count;
-    /* Score games only: public contracts for completed lances. Accepted
-     * amounts remain pending; rejected amounts have already been collected. */
-    uint8_t previous_outcomes[MUS_GAME_LANCE_COUNT];
-    uint8_t previous_stakes[MUS_GAME_LANCE_COUNT];
     bool score_enabled;
     uint8_t scores[MUS_GAME_PLAYER_COUNT];
     /* Highest absolute score in score games; highest settled score otherwise. */
     uint8_t max_settled_score;
-    /* Public numeric contract total from completed lances. */
+    /* Aggregated prior wagers. Score games exclude already collected stakes. */
     uint8_t prior_wager_total;
     Player bettor;
     uint8_t current_wager;
