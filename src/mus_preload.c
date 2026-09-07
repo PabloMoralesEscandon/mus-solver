@@ -23,6 +23,10 @@ static Status preload_node(const InfoNode *source, void *raw_context) {
     Status status = mus_ordago_game_information_set_decode(source->key, &information);
     if (status != CFR_STATUS_SUCCESS)
         return CFR_STATUS_FORMAT_ERROR;
+    if (information.hand_kind != MUS_ORDAGO_HAND_EXACT && information.phase != MUS_PHASE_GRANDE) {
+        context->stats.skipped_history_nodes += 1;
+        return CFR_STATUS_SUCCESS;
+    }
     status = mus_ordago_game_information_set_legal_actions(
         &information, old_actions, MUS_GAME_MAX_LEGAL_ACTIONS, &old_count);
     if (status != CFR_STATUS_SUCCESS || source->action_count != old_count)
@@ -61,43 +65,29 @@ static Status preload_node(const InfoNode *source, void *raw_context) {
             return CFR_STATUS_NUMERIC_ERROR;
     }
 
-    /* The old key records only max(earned_a, earned_b). Expand that aggregate
-     * into nonterminal score pairs. This can include unreachable abstractions;
-     * only a traversal of a reachable state can use an imported node. */
-    const unsigned int maximum = information.max_settled_score;
-    if (maximum >= MUS_ORDAGO_WAGER)
-        return CFR_STATUS_FORMAT_ERROR;
-    for (unsigned int a = 0; a <= maximum; a += 1) {
-        const unsigned int first_b = a == maximum ? 0 : maximum;
-        for (unsigned int b = first_b; b <= maximum; b += 1) {
-            InfoSetKey key;
-            status = mus_score_information_set_from_ordago(context->game, source->key,
-                                                           a, b, &key);
-            if (status == CFR_STATUS_NOT_FOUND)
-                continue;
-            if (status != CFR_STATUS_SUCCESS)
-                return status;
-            InfoNode *node;
-            status = cfr_info_store_find(context->destination, key, &node);
-            if (status == CFR_STATUS_SUCCESS) {
-                if (node->action_count != new_count)
-                    return CFR_STATUS_INVALID_ARGUMENT;
-                context->stats.existing_nodes += 1;
-                continue;
-            }
-            if (status != CFR_STATUS_NOT_FOUND)
-                return status;
-            status = cfr_info_store_get_or_create(context->destination, key, new_count, &node);
-            if (status != CFR_STATUS_SUCCESS)
-                return status;
-            status = cfr_info_node_apply_deltas(node, prior, prior, new_count);
-            if (status != CFR_STATUS_SUCCESS)
-                return status;
-            context->stats.imported_nodes += 1;
-            if (shared < new_count)
-                context->stats.expanded_action_nodes += 1;
-        }
+    InfoSetKey key;
+    status = mus_score_information_set_from_ordago(context->game, source->key, 0, 0, &key);
+    if (status != CFR_STATUS_SUCCESS)
+        return status;
+    InfoNode *node;
+    status = cfr_info_store_find(context->destination, key, &node);
+    if (status == CFR_STATUS_SUCCESS) {
+        if (node->action_count != new_count)
+            return CFR_STATUS_INVALID_ARGUMENT;
+        context->stats.existing_nodes += 1;
+        return CFR_STATUS_SUCCESS;
     }
+    if (status != CFR_STATUS_NOT_FOUND)
+        return status;
+    status = cfr_info_store_get_or_create(context->destination, key, new_count, &node);
+    if (status != CFR_STATUS_SUCCESS)
+        return status;
+    status = cfr_info_node_apply_deltas(node, prior, prior, new_count);
+    if (status != CFR_STATUS_SUCCESS)
+        return status;
+    context->stats.imported_nodes += 1;
+    if (shared < new_count)
+        context->stats.expanded_action_nodes += 1;
     return CFR_STATUS_SUCCESS;
 }
 

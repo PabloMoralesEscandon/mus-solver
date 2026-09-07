@@ -279,6 +279,16 @@ static Status write_ordago_node(const InfoNode *node,
         return fputc('\n', writer->stream) == EOF ? CFR_STATUS_IO_ERROR
                                                    : CFR_STATUS_SUCCESS;
     }
+    if (information.score_enabled) {
+        if (fputs(" contratos_previos=", writer->stream) == EOF)
+            return CFR_STATUS_IO_ERROR;
+        for (int lance = 0; lance < information.previous_strength_count; lance += 1) {
+            if (fprintf(writer->stream, "%s%s:%u", lance == 0 ? "" : ",",
+                        mus_game_outcome_name((MusLanceOutcome)information.previous_outcomes[lance]),
+                        information.previous_stakes[lance]) < 0)
+                return CFR_STATUS_IO_ERROR;
+        }
+    }
     if (fprintf(writer->stream, " tantos_maximos=%u acumulado_previo=%u",
                 information.max_settled_score,
                 information.prior_wager_total) < 0)
