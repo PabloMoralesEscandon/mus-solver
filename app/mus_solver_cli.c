@@ -93,8 +93,9 @@ static bool print_usage(FILE *stream, const char *program) {
                "Opciones:\n"
                "  --iterations N         Iteraciones MCCFR nuevas.\n"
                "  --report-every N       Frecuencia de informes de entrenamiento.\n"
-               "  --threads N            Hilos de entrenamiento (1 por defecto;\n"
-               "                          ordago-score admite 1).\n"
+               "  --threads N            Hilos de entrenamiento (1 por defecto).\n"
+               "                          ordago-score: celdas de la misma diagonal;\n"
+               "                          reanudar un checkpoint admite 1.\n"
                "  --seed N               Semilla de un entrenamiento nuevo (0 por "
                "defecto).\n"
                "  --format FORMAT        single-bet (por defecto) o "
@@ -325,10 +326,10 @@ static bool parse_options(int argc, char *argv[], CliOptions *options) {
         if (options->continuation_dir == NULL ||
             options->continuation_dir[0] == '\0' ||
             options->score_a >= options->score_target ||
-            options->score_b >= options->score_target || options->threads != 1)
+            options->score_b >= options->score_target)
             return false;
         if (options->load_path != NULL) {
-            if (options->load_path[0] == '\0' ||
+            if (options->load_path[0] == '\0' || options->threads != 1 ||
                 options->preload_ordago_path != NULL || options->preload_weight_set ||
                 (options->iterations_set && (options->seed_set || options->save_path == NULL)) ||
                 (!options->iterations_set && (options->save_path != NULL || options->report_every_set)) ||
@@ -339,6 +340,7 @@ static bool parse_options(int argc, char *argv[], CliOptions *options) {
             return true;
         }
         return options->save_path == NULL &&
+               (options->iterations_set || options->threads == 1) &&
                (options->preload_ordago_path == NULL || options->iterations_set) &&
                (!options->preload_weight_set || options->preload_ordago_path != NULL) &&
                !options->report_every_set &&
@@ -1199,6 +1201,7 @@ static int run_score(const CliOptions *options) {
             .evaluation_samples = options->evaluation_samples,
             .seed = options->seed,
             .reserve_information_sets = options->reserve_information_sets,
+            .threads = options->threads,
             .preload = options->preload_ordago_path == NULL ? NULL : &preload,
             .preload_stats = persistence.preload_stats == NULL ? NULL : &preload_stats,
         };

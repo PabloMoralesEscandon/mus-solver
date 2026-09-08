@@ -1,0 +1,344 @@
+{
+  "platform": "AMD Ryzen AI 7 350, x86_64, GCC 16.1.1",
+  "baseline_commit": "e69fdc0",
+  "baseline_cfr_commit": "067ecae5967b8b2d37a2818ac281798745072833",
+  "baseline_flags": "-O2 -flto",
+  "optimized_flags": "-O3 -flto",
+  "mus_max_muses": 1,
+  "single_cell_cpu_affinity": [
+    0
+  ],
+  "single_cell": [
+    {
+      "score": "39:39",
+      "iterations": 100000,
+      "samples": 100000,
+      "seed": 7,
+      "repeats": 3,
+      "results_equal": true,
+      "checkpoint_hash": "08c07dd1bbb91582",
+      "value": 0.005320000000000121,
+      "information_sets": 11645,
+      "visited_nodes": 11194790,
+      "current": {
+        "training_seconds": 0.63440585,
+        "iterations_per_second": 157627.802,
+        "evaluation_seconds": 0.054286193
+      },
+      "baseline": {
+        "training_seconds": 0.978945042,
+        "iterations_per_second": 102150.78,
+        "evaluation_seconds": 0.072610617
+      },
+      "training_speedup": 1.5430895569452896,
+      "evaluation_speedup": 1.3375522022699216
+    },
+    {
+      "score": "35:18",
+      "iterations": 10000,
+      "samples": 100000,
+      "seed": 7,
+      "repeats": 3,
+      "results_equal": true,
+      "checkpoint_hash": "b5323e1abc5d53bc",
+      "value": 0.4583629999999978,
+      "information_sets": 1261575,
+      "visited_nodes": 23096665,
+      "current": {
+        "training_seconds": 3.061079774,
+        "iterations_per_second": 3266.821,
+        "evaluation_seconds": 0.135743941
+      },
+      "baseline": {
+        "training_seconds": 3.249527464,
+        "iterations_per_second": 3077.371,
+        "evaluation_seconds": 0.170644462
+      },
+      "training_speedup": 1.0615624890277688,
+      "evaluation_speedup": 1.2571055528732586
+    },
+    {
+      "score": "20:20",
+      "iterations": 1000,
+      "samples": 100000,
+      "seed": 7,
+      "repeats": 3,
+      "results_equal": true,
+      "checkpoint_hash": "a50432ad2d754da9",
+      "value": 0.054128499999999434,
+      "information_sets": 5401710,
+      "visited_nodes": 26789990,
+      "current": {
+        "training_seconds": 3.304883188,
+        "iterations_per_second": 302.583,
+        "evaluation_seconds": 0.166834487
+      },
+      "baseline": {
+        "training_seconds": 3.666825008,
+        "iterations_per_second": 272.715,
+        "evaluation_seconds": 0.203838547
+      },
+      "training_speedup": 1.1095172807662939,
+      "evaluation_speedup": 1.2218010236696446
+    },
+    {
+      "score": "0:0",
+      "iterations": 300,
+      "samples": 100000,
+      "seed": 7,
+      "repeats": 3,
+      "results_equal": true,
+      "checkpoint_hash": "c7cb2799387d00c1",
+      "value": 0.026513999999999906,
+      "information_sets": 7429880,
+      "visited_nodes": 26652909,
+      "current": {
+        "training_seconds": 3.735692267,
+        "iterations_per_second": 80.306,
+        "evaluation_seconds": 0.166425012
+      },
+      "baseline": {
+        "training_seconds": 4.050507392,
+        "iterations_per_second": 74.065,
+        "evaluation_seconds": 0.198368972
+      },
+      "training_speedup": 1.0842722318915248,
+      "evaluation_speedup": 1.1919420621703185
+    }
+  ],
+  "diagonals": [
+    {
+      "variant": "baseline-1",
+      "repeat": 1,
+      "seconds": 4.20486330598942,
+      "files_equal": true
+    },
+    {
+      "variant": "current-1",
+      "repeat": 1,
+      "seconds": 3.7401539440033957,
+      "files_equal": true
+    },
+    {
+      "variant": "current-4",
+      "repeat": 1,
+      "seconds": 2.247714728000574,
+      "files_equal": true
+    },
+    {
+      "variant": "current-8",
+      "repeat": 1,
+      "seconds": 1.8997605970071163,
+      "files_equal": true
+    },
+    {
+      "variant": "current-8",
+      "repeat": 2,
+      "seconds": 1.9626210140122566,
+      "files_equal": true
+    },
+    {
+      "variant": "current-4",
+      "repeat": 2,
+      "seconds": 2.2093408459913917,
+      "files_equal": true
+    },
+    {
+      "variant": "current-1",
+      "repeat": 2,
+      "seconds": 3.708651163993636,
+      "files_equal": true
+    },
+    {
+      "variant": "baseline-1",
+      "repeat": 2,
+      "seconds": 4.1163534939987585,
+      "files_equal": true
+    },
+    {
+      "variant": "baseline-1",
+      "repeat": 3,
+      "seconds": 4.100442833994748,
+      "files_equal": true
+    },
+    {
+      "variant": "current-1",
+      "repeat": 3,
+      "seconds": 3.678506591997575,
+      "files_equal": true
+    },
+    {
+      "variant": "current-4",
+      "repeat": 3,
+      "seconds": 2.2004520629998296,
+      "files_equal": true
+    },
+    {
+      "variant": "current-8",
+      "repeat": 3,
+      "seconds": 1.851769875996979,
+      "files_equal": true
+    },
+    {
+      "score": "35:35",
+      "cells": 45,
+      "iterations_per_cell": 1000,
+      "samples_per_cell": 10000,
+      "seed": 7,
+      "repeats": 3,
+      "files_equal": true,
+      "baseline-1": {
+        "seconds": 4.1163534939987585,
+        "iterations_per_second": 10932.005734105587
+      },
+      "current-1": {
+        "seconds": 3.708651163993636,
+        "iterations_per_second": 12133.791508053848
+      },
+      "current-4": {
+        "seconds": 2.2093408459913917,
+        "iterations_per_second": 20368.065924118317
+      },
+      "current-8": {
+        "seconds": 1.8997605970071163,
+        "iterations_per_second": 23687.195150216834
+      }
+    }
+  ],
+  "memory": {
+    "method": "Linux wait4 ru_maxrss for each fresh child process; KiB converted to MiB",
+    "repeats": 2,
+    "table_workload": "45 cells through 35:35; target 40; 1000 iterations and 10000 evaluation samples per cell; seed 7",
+    "single_cell_workload": "0:0 with synthetic continuations; 300 iterations; 100000 evaluation samples; seed 7; checkpoint hashing included in process peak",
+    "runs": [
+      {
+        "workload": "table-35:35",
+        "variant": "baseline",
+        "repeat": 1,
+        "peak_rss_kib": 37924,
+        "peak_rss_mib": 37.03515625,
+        "seconds": 4.13006858000881,
+        "files_equal": true
+      },
+      {
+        "workload": "table-35:35",
+        "variant": "current-1",
+        "repeat": 1,
+        "peak_rss_kib": 38068,
+        "peak_rss_mib": 37.17578125,
+        "seconds": 3.4417955850076396,
+        "files_equal": true
+      },
+      {
+        "workload": "table-35:35",
+        "variant": "current-4",
+        "repeat": 1,
+        "peak_rss_kib": 86332,
+        "peak_rss_mib": 84.30859375,
+        "seconds": 1.9918206529982854,
+        "files_equal": true
+      },
+      {
+        "workload": "table-35:35",
+        "variant": "current-8",
+        "repeat": 1,
+        "peak_rss_kib": 136056,
+        "peak_rss_mib": 132.8671875,
+        "seconds": 1.7310022859892342,
+        "files_equal": true
+      },
+      {
+        "workload": "table-35:35",
+        "variant": "current-8",
+        "repeat": 2,
+        "peak_rss_kib": 138488,
+        "peak_rss_mib": 135.2421875,
+        "seconds": 1.6958039320015814,
+        "files_equal": true
+      },
+      {
+        "workload": "table-35:35",
+        "variant": "current-4",
+        "repeat": 2,
+        "peak_rss_kib": 88364,
+        "peak_rss_mib": 86.29296875,
+        "seconds": 1.9649055939808022,
+        "files_equal": true
+      },
+      {
+        "workload": "table-35:35",
+        "variant": "current-1",
+        "repeat": 2,
+        "peak_rss_kib": 38180,
+        "peak_rss_mib": 37.28515625,
+        "seconds": 3.4938795609923545,
+        "files_equal": true
+      },
+      {
+        "workload": "table-35:35",
+        "variant": "baseline",
+        "repeat": 2,
+        "peak_rss_kib": 37760,
+        "peak_rss_mib": 36.875,
+        "seconds": 4.0122477839759085,
+        "files_equal": true
+      },
+      {
+        "workload": "cell-0:0",
+        "variant": "baseline",
+        "repeat": 1,
+        "iterations": 300,
+        "peak_rss_kib": 1091104,
+        "peak_rss_mib": 1065.53125,
+        "seconds": 7.265538662002655,
+        "results_equal": true,
+        "checkpoint_hash": "c7cb2799387d00c1",
+        "value": 0.026513999999999906,
+        "information_sets": 7429880,
+        "visited_nodes": 26652909
+      },
+      {
+        "workload": "cell-0:0",
+        "variant": "current-1",
+        "repeat": 1,
+        "iterations": 300,
+        "peak_rss_kib": 1090752,
+        "peak_rss_mib": 1065.1875,
+        "seconds": 6.878886426013196,
+        "results_equal": true,
+        "checkpoint_hash": "c7cb2799387d00c1",
+        "value": 0.026513999999999906,
+        "information_sets": 7429880,
+        "visited_nodes": 26652909
+      },
+      {
+        "workload": "cell-0:0",
+        "variant": "current-1",
+        "repeat": 2,
+        "iterations": 300,
+        "peak_rss_kib": 1091416,
+        "peak_rss_mib": 1065.8359375,
+        "seconds": 6.757539052981883,
+        "results_equal": true,
+        "checkpoint_hash": "c7cb2799387d00c1",
+        "value": 0.026513999999999906,
+        "information_sets": 7429880,
+        "visited_nodes": 26652909
+      },
+      {
+        "workload": "cell-0:0",
+        "variant": "baseline",
+        "repeat": 2,
+        "iterations": 300,
+        "peak_rss_kib": 1091008,
+        "peak_rss_mib": 1065.4375,
+        "seconds": 7.19227169099031,
+        "results_equal": true,
+        "checkpoint_hash": "c7cb2799387d00c1",
+        "value": 0.026513999999999906,
+        "information_sets": 7429880,
+        "visited_nodes": 26652909
+      }
+    ]
+  }
+}

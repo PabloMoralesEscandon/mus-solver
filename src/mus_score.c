@@ -1,6 +1,7 @@
 #include <errno.h>
 #include <inttypes.h>
 #include <math.h>
+#include <pthread.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -216,11 +217,18 @@ Status mus_score_evaluate(const MusScoreGame *game, const InfoStore *store,
     const GameOperations *ops = game->game.trusted_operations;
     const void *context = game->game.context;
     double mean = 0;
-    Status status = CFR_STATUS_SUCCESS;
+    Status status = mus_score_game_state_init(state, game);
+    if (status != CFR_STATUS_SUCCESS) {
+        free(state);
+        return status;
+    }
+    /* Only the active state needs resetting. Each action writes its undo
+     * entry before that entry can be read. */
+    unsigned char root[offsetof(MusGameState, undo_history)];
+    memcpy(root, state, sizeof(root));
     for (size_t sample = 0; sample < samples; sample += 1) {
-        status = mus_score_game_state_init(state, game);
-        if (status != CFR_STATUS_SUCCESS)
-            break;
+        memcpy(state, root, sizeof(root));
+        state->undo_count = 0;
         GameState *raw = mus_game_state_as_game_state(state);
         while (state->model.phase != MUS_PHASE_TERMINAL) {
             Action actions[MUS_GAME_MAX_LEGAL_ACTIONS];
@@ -280,6 +288,58 @@ Status mus_score_evaluate(const MusScoreGame *game, const InfoStore *store,
     return status;
 }
 
+typedef struct {
+    const MusScoreTable *table;
+    const MusScoreTrainingOptions *options;
+    unsigned int a;
+    unsigned int b;
+    MusScoreGame game;
+    MusGameState state;
+    InfoStore store;
+    Trainer trainer;
+    MusScoreCell cell;
+    MusScorePreloadStats preload_stats;
+    Status status;
+} ScoreTrainingWorker;
+
+static void *train_score_cell(void *raw_worker) {
+    ScoreTrainingWorker *worker = raw_worker;
+    const MusScoreTrainingOptions *options = worker->options;
+    const uint64_t seed = options->seed +
+        (uint64_t)(worker->a * MUS_ORDAGO_WAGER + worker->b);
+    worker->store = (InfoStore){0};
+    worker->preload_stats = (MusScorePreloadStats){0};
+    Status status = mus_score_game_init(&worker->game, worker->table,
+                                        worker->a, worker->b);
+    if (status == CFR_STATUS_SUCCESS)
+        status = mus_score_game_state_init(&worker->state, &worker->game);
+    if (status == CFR_STATUS_SUCCESS)
+        status = cfr_info_store_init(&worker->store);
+    if (status == CFR_STATUS_SUCCESS)
+        status = cfr_trainer_init_mccfr(
+            &worker->trainer, &worker->game.game,
+            mus_game_state_as_game_state(&worker->state), &worker->store, seed);
+    if (status == CFR_STATUS_SUCCESS && options->reserve_information_sets != 0)
+        status = cfr_info_store_reserve(&worker->store,
+                                        options->reserve_information_sets);
+    if (status == CFR_STATUS_SUCCESS && options->preload != NULL)
+        status = mus_score_preload_ordago(&worker->game, options->preload,
+                                          &worker->store, &worker->preload_stats);
+    if (status == CFR_STATUS_SUCCESS)
+        status = cfr_trainer_run(&worker->trainer, options->iterations);
+    worker->cell = (MusScoreCell){
+        .ready = true, .iterations = options->iterations,
+        .evaluation_samples = options->evaluation_samples, .training_seed = seed,
+    };
+    if (status == CFR_STATUS_SUCCESS)
+        status = mus_score_evaluate(&worker->game, &worker->store,
+                                    options->evaluation_samples,
+                                    seed ^ UINT64_C(0xd1b54a32d192ed03),
+                                    &worker->cell.value);
+    worker->status = status;
+    return NULL;
+}
+
 Status mus_score_train(MusScoreTable *table, unsigned int minimum_sum,
                        const MusScoreTrainingOptions *options,
                        MusScoreSaveCell save_cell,
@@ -288,54 +348,67 @@ Status mus_score_train(MusScoreTable *table, unsigned int minimum_sum,
         options->evaluation_samples == 0 ||
         minimum_sum > 2U * (unsigned int)(table->target - 1))
         return CFR_STATUS_INVALID_ARGUMENT;
-    MusGameState *state = malloc(sizeof(*state));
-    if (state == NULL)
+    size_t worker_count = options->threads == 0 ? 1 : options->threads;
+    if (worker_count > table->target)
+        worker_count = table->target;
+    ScoreTrainingWorker *workers = calloc(worker_count, sizeof(*workers));
+    if (workers == NULL)
         return CFR_STATUS_OUT_OF_MEMORY;
     Status status = CFR_STATUS_SUCCESS;
     for (int sum = 2 * (table->target - 1); sum >= (int)minimum_sum; sum -= 1) {
         MusScoreCell batch[MUS_ORDAGO_WAGER] = {0};
-        bool changed = false;
+        unsigned int scores[MUS_ORDAGO_WAGER];
+        size_t count = 0;
         for (int a = 0; a < table->target; a += 1) {
             const int b = sum - a;
             if (b < 0 || b >= table->target || table->cells[a][b].ready)
                 continue;
-            MusScoreGame game;
-            InfoStore store = {0};
-            Trainer trainer;
-            const uint64_t seed = options->seed + (uint64_t)(a * MUS_ORDAGO_WAGER + b);
-            status = mus_score_game_init(&game, table, (unsigned int)a, (unsigned int)b);
-            if (status == CFR_STATUS_SUCCESS)
-                status = mus_score_game_state_init(state, &game);
-            if (status == CFR_STATUS_SUCCESS)
-                status = cfr_info_store_init(&store);
-            if (status != CFR_STATUS_SUCCESS)
-                goto done;
-            status = cfr_trainer_init_mccfr(&trainer, &game.game,
-                                          mus_game_state_as_game_state(state), &store, seed);
-            if (status == CFR_STATUS_SUCCESS && options->reserve_information_sets != 0)
-                status = cfr_info_store_reserve(&store, options->reserve_information_sets);
-            if (options->preload_stats != NULL)
-                *options->preload_stats = (MusScorePreloadStats){0};
-            if (status == CFR_STATUS_SUCCESS && options->preload != NULL)
-                status = mus_score_preload_ordago(&game, options->preload, &store,
-                                                  options->preload_stats);
-            if (status == CFR_STATUS_SUCCESS)
-                status = cfr_trainer_run(&trainer, options->iterations);
-            MusScoreCell cell = {.ready = true, .iterations = options->iterations,
-                                .evaluation_samples = options->evaluation_samples,
-                                .training_seed = seed};
-            if (status == CFR_STATUS_SUCCESS)
-                status = mus_score_evaluate(&game, &store, options->evaluation_samples,
-                                            seed ^ UINT64_C(0xd1b54a32d192ed03), &cell.value);
-            if (status == CFR_STATUS_SUCCESS && save_cell != NULL)
-                status = save_cell(&game, &trainer, &cell, context);
-            (void)cfr_info_store_destroy(&store);
-            if (status != CFR_STATUS_SUCCESS)
-                goto done;
-            batch[a] = cell;
-            changed = true;
+            scores[count++] = (unsigned int)a;
         }
-        if (!changed)
+        for (size_t offset = 0; offset < count; offset += worker_count) {
+            const size_t remaining = count - offset;
+            const size_t active = remaining < worker_count ? remaining : worker_count;
+            pthread_t threads[MUS_ORDAGO_WAGER - 1];
+            size_t created = 0;
+            for (size_t i = 0; i < active; i += 1) {
+                workers[i].table = table;
+                workers[i].options = options;
+                workers[i].a = scores[offset + i];
+                workers[i].b = (unsigned int)sum - workers[i].a;
+            }
+            for (size_t i = 1; i < active; i += 1) {
+                if (pthread_create(&threads[created], NULL, train_score_cell,
+                                    &workers[i]) != 0)
+                    break;
+                created += 1;
+            }
+            (void)train_score_cell(&workers[0]);
+            /* If a thread cannot start, the caller completes its cells. */
+            for (size_t i = created + 1; i < active; i += 1)
+                (void)train_score_cell(&workers[i]);
+            for (size_t i = 0; i < created; i += 1)
+                (void)pthread_join(threads[i], NULL);
+
+            /* Callbacks run on the caller, in the same order as serial
+             * training. Keep each store alive until its callback returns. */
+            for (size_t i = 0; i < active; i += 1) {
+                ScoreTrainingWorker *worker = &workers[i];
+                if (status == CFR_STATUS_SUCCESS) {
+                    if (options->preload_stats != NULL)
+                        *options->preload_stats = worker->preload_stats;
+                    status = worker->status;
+                    if (status == CFR_STATUS_SUCCESS && save_cell != NULL)
+                        status = save_cell(&worker->game, &worker->trainer,
+                                            &worker->cell, context);
+                    if (status == CFR_STATUS_SUCCESS)
+                        batch[worker->a] = worker->cell;
+                }
+                (void)cfr_info_store_destroy(&worker->store);
+            }
+            if (status != CFR_STATUS_SUCCESS)
+                goto done;
+        }
+        if (count == 0)
             continue;
         for (int a = 0; a < table->target; a += 1) {
             if (batch[a].ready)
@@ -348,6 +421,6 @@ Status mus_score_train(MusScoreTable *table, unsigned int minimum_sum,
         }
     }
 done:
-    free(state);
+    free(workers);
     return status;
 }

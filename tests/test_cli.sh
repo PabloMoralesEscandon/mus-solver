@@ -175,7 +175,7 @@ grep -q 'evaluation scope=score-average-policy score=0:0 samples=50' \
 grep -q 'schema=mus.ordago-score/v4' "$tmp_dir/score-strategy.txt"
 grep -q 'marcador:0-0/objetivo:3' "$tmp_dir/score-strategy.txt"
 cmp "$tmp_dir/preserved.cfr.zst" "$tmp_dir/score/score-01-01.cfr.zst"
-"$solver" --format ordago-score --target 3 --iterations 2 --seed 7 \
+"$solver" --format ordago-score --target 3 --iterations 2 --seed 7 --threads 2 \
     --evaluation-samples 50 --continuation "$tmp_dir/score-continuous" \
     >"$tmp_dir/score-continuous.out"
 cmp "$tmp_dir/score/values.txt" "$tmp_dir/score-continuous/values.txt"
@@ -226,7 +226,7 @@ cp "$tmp_dir/preloaded-resume/score-01-01.cfr.zst" "$tmp_dir/preloaded-preserved
     --preload-ordago "$tmp_dir/prior.cfr" --preload-weight 2 \
     --export-strategy "$tmp_dir/preloaded.txt" >"$tmp_dir/preloaded-resume.out"
 grep -q 'training_iterations=2' "$tmp_dir/preloaded.txt"
-"$solver" --format ordago-score --target 3 --iterations 2 --seed 7 \
+"$solver" --format ordago-score --target 3 --iterations 2 --seed 7 --threads 8 \
     --evaluation-samples 20 --continuation "$tmp_dir/preloaded-zstd" \
     --preload-ordago-compressed "$tmp_dir/prior.cfr.zst" --preload-weight 2 \
     --evaluate >"$tmp_dir/preloaded-zstd.out"

@@ -60,6 +60,10 @@ typedef struct {
     const MusScorePreloadOptions *preload;
     /* Optional output for the most recent cell, available in save_cell. */
     MusScorePreloadStats *preload_stats;
+    /* Maximum concurrent cells in one diagonal. Zero and one run serially.
+     * Each worker owns one CFR store. Save callbacks run on the caller in
+     * score order, before the complete diagonal is published. */
+    size_t threads;
 } MusScoreTrainingOptions;
 
 /* Save the strategy before the coordinator publishes its value. */

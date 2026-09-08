@@ -1,4 +1,5 @@
 #include <math.h>
+#include <pthread.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -3119,6 +3120,116 @@ static Status fail_score_diagonal(const MusScoreGame *game, const Trainer *train
                ? CFR_STATUS_IO_ERROR : CFR_STATUS_SUCCESS;
 }
 
+typedef struct {
+    FILE *checkpoints[3][3];
+    pthread_t caller;
+    size_t cells;
+    size_t diagonals;
+    bool compare;
+} ScoreParallelSave;
+
+static Status test_parallel_score_cell(const MusScoreGame *game,
+                                       const Trainer *trainer,
+                                       const MusScoreCell *cell, void *context) {
+    static const unsigned int order[9][2] = {
+        {2, 2}, {1, 2}, {2, 1}, {0, 2}, {1, 1},
+        {2, 0}, {0, 1}, {1, 0}, {0, 0},
+    };
+    ScoreParallelSave *saved = context;
+    const unsigned int a = game->initial_scores[0];
+    const unsigned int b = game->initial_scores[1];
+    CHECK(pthread_equal(pthread_self(), saved->caller));
+    CHECK(saved->cells < 9);
+    if (saved->cells < 9) {
+        CHECK(a == order[saved->cells][0]);
+        CHECK(b == order[saved->cells][1]);
+    }
+    for (unsigned int x = 0; x < 3; x += 1) {
+        for (unsigned int y = 0; y < 3; y += 1)
+            CHECK(game->continuation->cells[x][y].ready == (x + y > a + b));
+    }
+    CHECK(cell->training_seed == 7 + a * MUS_ORDAGO_WAGER + b);
+    FILE *checkpoint = tmpfile();
+    CHECK(checkpoint != NULL);
+    if (checkpoint != NULL) {
+        CHECK(cfr_checkpoint_write(checkpoint, trainer) == CFR_STATUS_SUCCESS);
+        if (saved->compare) {
+            CHECK(saved->checkpoints[a][b] != NULL);
+            if (saved->checkpoints[a][b] != NULL)
+                CHECK(streams_equal(saved->checkpoints[a][b], checkpoint));
+            fclose(checkpoint);
+        } else {
+            saved->checkpoints[a][b] = checkpoint;
+        }
+    }
+    saved->cells += 1;
+    return CFR_STATUS_SUCCESS;
+}
+
+static Status test_parallel_score_diagonal(const MusScoreTable *table,
+                                           void *context) {
+    ScoreParallelSave *saved = context;
+    CHECK(pthread_equal(pthread_self(), saved->caller));
+    size_t ready = 0;
+    for (unsigned int a = 0; a < table->target; a += 1) {
+        for (unsigned int b = 0; b < table->target; b += 1)
+            ready += table->cells[a][b].ready ? 1U : 0U;
+    }
+    CHECK(ready == saved->cells);
+    saved->diagonals += 1;
+    return CFR_STATUS_SUCCESS;
+}
+
+static void test_score_parallel_training(void) {
+    MusScoreTable serial;
+    MusScoreTable parallel;
+    MusScoreTrainingOptions options = {
+        .iterations = 2, .evaluation_samples = 50, .seed = 7,
+    };
+    ScoreParallelSave saved = {.caller = pthread_self()};
+    CHECK(mus_score_table_init(&serial, 3) == CFR_STATUS_SUCCESS);
+    CHECK(mus_score_train(&serial, 0, &options, test_parallel_score_cell,
+                          test_parallel_score_diagonal, &saved) == CFR_STATUS_SUCCESS);
+    CHECK(saved.cells == 9 && saved.diagonals == 5);
+    const size_t thread_counts[] = {1, 2, SIZE_MAX};
+    for (size_t i = 0; i < sizeof(thread_counts) / sizeof(thread_counts[0]); i += 1) {
+        saved.cells = 0;
+        saved.diagonals = 0;
+        saved.compare = true;
+        options.threads = thread_counts[i];
+        CHECK(mus_score_table_init(&parallel, 3) == CFR_STATUS_SUCCESS);
+        CHECK(mus_score_train(&parallel, 2, &options, test_parallel_score_cell,
+                              test_parallel_score_diagonal, &saved) == CFR_STATUS_SUCCESS);
+        CHECK(saved.cells == 6 && saved.diagonals == 3);
+        CHECK(mus_score_train(&parallel, 0, &options, test_parallel_score_cell,
+                              test_parallel_score_diagonal, &saved) == CFR_STATUS_SUCCESS);
+        CHECK(saved.cells == 9 && saved.diagonals == 5);
+        FILE *left = tmpfile();
+        FILE *right = tmpfile();
+        CHECK(left != NULL && right != NULL);
+        if (left != NULL && right != NULL) {
+            CHECK(mus_score_table_write(left, &serial) == CFR_STATUS_SUCCESS);
+            CHECK(mus_score_table_write(right, &parallel) == CFR_STATUS_SUCCESS);
+            CHECK(streams_equal(left, right));
+        }
+        if (left != NULL)
+            fclose(left);
+        if (right != NULL)
+            fclose(right);
+        CHECK(mus_score_table_init(&parallel, 3) == CFR_STATUS_SUCCESS);
+        CHECK(mus_score_train(&parallel, 0, &options, fail_score_diagonal,
+                              NULL, NULL) == CFR_STATUS_IO_ERROR);
+        CHECK(parallel.cells[2][2].ready);
+        CHECK(!parallel.cells[1][2].ready && !parallel.cells[2][1].ready);
+    }
+    for (size_t a = 0; a < 3; a += 1) {
+        for (size_t b = 0; b < 3; b += 1) {
+            if (saved.checkpoints[a][b] != NULL)
+                fclose(saved.checkpoints[a][b]);
+        }
+    }
+}
+
 static void test_score_training_and_persistence(void) {
     MusScoreTable table;
     ScoreTestSave saved = {0};
@@ -3213,6 +3324,7 @@ int main(void) {
     test_score_utilities_and_order();
     test_score_keys_and_full_match();
     test_score_training_and_persistence();
+    test_score_parallel_training();
     test_ordago_reservation_limits();
     test_apply_undo_and_contract();
     test_cached_hand_summary_validation();

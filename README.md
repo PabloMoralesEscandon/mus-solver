@@ -125,7 +125,7 @@ make test-sanitize
 make dependencies
 ```
 
-La compilación release usa LTO y requiere la biblioteca de desarrollo de
+La compilación release usa `-O3` y LTO y requiere la biblioteca de desarrollo de
 Zstandard. `make lto` genera la misma configuración optimizada en
 `build/lto/release` y `C-CFR/build/lto/release`, sin reemplazar los artefactos
 normales.
@@ -240,13 +240,26 @@ build/release/mus-solver \
 El coordinador resuelve las diagonales desde `2 × (objetivo - 1)` hasta la suma
 del marcador solicitado. Calcula todos los marcadores de esas diagonales;
 `0:0` a 40 requiere 1.600 celdas. Esto puede costar mucho más que entrenar una
-mano aislada. Se mantiene un solo almacén CFR de destino en memoria y se libera después
+mano aislada. Se mantiene un almacén CFR de destino por trabajador y se libera después
 de guardar cada estrategia. La tabla permanece inmutable durante el
 entrenamiento y la evaluación de cada diagonal, y sus valores se publican
 juntos al terminarla.
 
-Esta primera implementación ejecuta las celdas secuencialmente y acepta
-`--threads 1`. Emite un informe `score-cell` por celda y un `score-table` para
+`--threads N` entrena hasta N celdas independientes de una misma diagonal en
+paralelo; el valor predeterminado es 1. Cada celda conserva su semilla, recorrido
+MCCFR y evaluación, por lo que el número de hilos no cambia las tablas ni los
+checkpoints. Las estrategias se guardan en el mismo orden que en la ejecución
+secuencial. La memoria puede crecer hasta N almacenes CFR; conviene ajustar los
+hilos a la memoria disponible, especialmente lejos del objetivo. El paralelismo
+está limitado por el número de celdas de cada diagonal.
+
+```sh
+./build/release/mus-solver --format ordago-score \
+    --iterations 1000 --evaluation-samples 10000 --seed 7 \
+    --threads 4 --continuation marcador-40
+```
+
+Emite un informe `score-cell` por celda y un `score-table` para
 el marcador solicitado. Al reanudar, `score-resume` muestra cuántas celdas ya
 están publicadas, los mínimos y máximos de iteraciones y muestras, y cuántas
 se entrenaron con ajustes diferentes de los solicitados. Se permiten
@@ -257,6 +270,11 @@ persistencia se gestiona con `--continuation`. Cargar un checkpoint con
 más abajo, sin recorrer las diagonales.
 `--reserve-information-sets` permite reservar capacidad por celda; sin esa
 opción el almacén crece según las necesidades.
+
+El tanteo incremental, la generación de acciones y las cachés del recorrido
+conservan la abstracción `ordago-score/v4`. La evaluación restaura solo el estado
+activo entre muestras. El [benchmark de rendimiento](docs/performance.md)
+permite medir iteraciones por segundo y comprobar que los resultados coinciden.
 
 ### Precarga desde `ordago` sin marcador
 

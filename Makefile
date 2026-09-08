@@ -12,7 +12,7 @@ endif
 C_STANDARD := -std=c17
 WARNINGS := -Wall -Wextra -Wpedantic -Wshadow -Wconversion -Werror
 RELEASE_LTO_FLAGS := -flto
-RELEASE_FLAGS := -O2 $(RELEASE_LTO_FLAGS)
+RELEASE_FLAGS := -O3 $(RELEASE_LTO_FLAGS)
 RELEASE_LINK_FLAGS := $(RELEASE_LTO_FLAGS)
 DEBUG_FLAGS := -O0 -g3
 DEPENDENCY_FLAGS := -MMD -MP
@@ -51,18 +51,30 @@ DEPENDENCY_FILES := $(RELEASE_OBJECTS:.o=.d) $(DEBUG_OBJECTS:.o=.d) \
 	$(DEBUG_TEST_OBJECT:.o=.d)
 
 .PHONY: all lto debug test test-tsan test-sanitize dependencies cfr-release \
-	cfr-debug clean
+	cfr-debug clean benchmark-score
 
 all: $(RELEASE_BINARY) $(RELEASE_DIR)/mus-bot
+
+benchmark-score: $(RELEASE_DIR)/benchmark-score
+
+$(RELEASE_DIR)/benchmark-score: $(RELEASE_DIR)/tests/benchmark_score.o \
+		$(RELEASE_LIBRARY) cfr-release
+	$(CC) $(LDFLAGS) $(RELEASE_LINK_FLAGS) $(THREAD_FLAGS) $< \
+		$(RELEASE_LIBRARY) $(RELEASE_CFR_LIBRARY) $(LDLIBS) -o $@
+
+-include $(RELEASE_DIR)/tests/benchmark_score.d
 
 lto:
 	$(MAKE) BUILD_DIR=$(LTO_BUILD_DIR) CFR_BUILD_DIR=$(LTO_BUILD_DIR) \
 		all
 
-debug: $(DEBUG_BINARY) $(TEST_BINARY) $(DEBUG_DIR)/mus-bot $(DEBUG_DIR)/mus_adapter_tests
+debug: $(DEBUG_BINARY) $(TEST_BINARY) $(DEBUG_DIR)/mus-bot $(DEBUG_DIR)/mus_adapter_tests \
+	$(DEBUG_DIR)/mus_hotpaths_tests
 
-test: $(TEST_BINARY) $(DEBUG_BINARY) $(DEBUG_DIR)/mus-bot $(DEBUG_DIR)/mus_adapter_tests
+test: $(TEST_BINARY) $(DEBUG_BINARY) $(DEBUG_DIR)/mus-bot $(DEBUG_DIR)/mus_adapter_tests \
+	$(DEBUG_DIR)/mus_hotpaths_tests
 	./$(TEST_BINARY)
+	./$(DEBUG_DIR)/mus_hotpaths_tests
 	./tests/test_cli.sh ./$(DEBUG_BINARY)
 	./$(DEBUG_DIR)/mus_adapter_tests
 	python3 tests/test_adapter_cli.py ./$(DEBUG_DIR)/mus-bot ./$(DEBUG_DIR)/mus_adapter_tests
@@ -86,6 +98,7 @@ dependencies:
 cfr-release:
 	$(MAKE) -C C-CFR BUILD_DIR=$(CFR_BUILD_DIR) \
 		CFLAGS='$(CFLAGS) $(RELEASE_LTO_FLAGS)' \
+		RELEASE_FLAGS='$(RELEASE_FLAGS) -DNDEBUG' \
 		LDFLAGS='$(LDFLAGS) $(RELEASE_LINK_FLAGS)' \
 		$(CFR_BUILD_DIR)/release/libcfr.a
 
@@ -112,8 +125,15 @@ $(DEBUG_BINARY): $(DEBUG_APP_OBJECT) $(DEBUG_LIBRARY) cfr-debug
 		$(DEBUG_CFR_LIBRARY) $(LDLIBS) -o $@
 
 $(TEST_BINARY): $(DEBUG_TEST_OBJECT) $(DEBUG_LIBRARY) cfr-debug
-	$(CC) $(LDFLAGS) $(DEBUG_TEST_OBJECT) $(DEBUG_LIBRARY) \
+	$(CC) $(LDFLAGS) $(THREAD_FLAGS) $(DEBUG_TEST_OBJECT) $(DEBUG_LIBRARY) \
 		$(DEBUG_CFR_LIBRARY) $(LDLIBS) -o $@
+
+$(DEBUG_DIR)/mus_hotpaths_tests: $(DEBUG_DIR)/tests/test_mus_hotpaths.o \
+		$(DEBUG_LIBRARY) cfr-debug
+	$(CC) $(LDFLAGS) $(THREAD_FLAGS) $< $(DEBUG_LIBRARY) \
+		$(DEBUG_CFR_LIBRARY) $(LDLIBS) -o $@
+
+-include $(DEBUG_DIR)/tests/test_mus_hotpaths.d
 
 $(RELEASE_DIR)/%.o: %.c
 	@mkdir -p $(dir $@)

@@ -721,10 +721,46 @@ static void compute_score_accounting(
     }
 }
 
-static void refresh_score_accounting(
-    MusGameModel *model, const MusHandSummary summaries[MUS_GAME_PLAYER_COUNT]) {
-    compute_score_accounting(model, summaries, model->settled_scores,
-                             model->paid_scores, &model->pending_lances);
+/* Exactly one new contract closes at each call. Retain the public payments
+ * from earlier lances, and resolve the pending contracts only at final count.
+ * compute_score_accounting remains an independent check of this cache. */
+static void update_score_accounting(
+    MusGameModel *model, const MusHandSummary summaries[MUS_GAME_PLAYER_COUNT],
+    int lance) {
+    const MusLanceOutcome outcome = model->outcomes[lance];
+
+    if (outcome_is_accepted(outcome) &&
+        model->outcome_wager_is_ordago[lance]) {
+        (void)settle_ordago_lance_score(
+            model, summaries, lance, model->settled_scores, true);
+        model->pending_lances = 0;
+        return;
+    }
+    if (outcome_is_rejected(outcome)) {
+        const int winner = outcome_bettor(outcome);
+
+        add_ordago_score(model->paid_scores, winner,
+                         ordago_outcome_stake(model, lance, outcome));
+        model->settled_scores[winner] = model->paid_scores[winner];
+        if (model->initial_scores[winner] + model->paid_scores[winner] >=
+            model->score_target) {
+            model->pending_lances = 0;
+            return;
+        }
+    }
+    if (!(lance == 2 && !model->pairs[0] && !model->pairs[1]) &&
+        (lance >= 2 || !outcome_is_rejected(outcome))) {
+        model->pending_lances |= (uint8_t)(1U << lance);
+    }
+    if (lance != MUS_GAME_LANCE_COUNT - 1)
+        return;
+    model->pending_lances = 0;
+    for (int pending = 0; pending < MUS_GAME_LANCE_COUNT; pending += 1) {
+        (void)settle_ordago_lance_score(
+            model, summaries, pending, model->settled_scores, false);
+        if (score_match_finished(model))
+            return;
+    }
 }
 
 static Status recompute_ordago_settled_scores(
@@ -764,7 +800,7 @@ static void prepare_final_lance(
     } else {
         model->outcomes[3] = MUS_LANCE_SKIPPED;
         if (format->score_enabled) {
-            refresh_score_accounting(model, summaries);
+            update_score_accounting(model, summaries, 3);
         } else if (format->ordago_with_mus) {
             (void)settle_ordago_lance_score(
                 model, summaries, 3, model->settled_scores, true);
@@ -807,7 +843,7 @@ static void advance_lance(
                 (uint8_t)(total < MUS_ORDAGO_WAGER ? total
                                                    : MUS_ORDAGO_WAGER);
             if (format->score_enabled)
-                refresh_score_accounting(model, summaries);
+                update_score_accounting(model, summaries, lance);
             else
                 (void)settle_ordago_lance_score(
                     model, summaries, lance, model->settled_scores, true);
@@ -835,7 +871,7 @@ static void advance_lance(
                         ? MUS_LANCE_STRENGTH_PARES_SKIPPED_PLAYER_1
                         : MUS_LANCE_STRENGTH_PARES_SKIPPED_NONE;
                 if (format->score_enabled)
-                    refresh_score_accounting(model, summaries);
+                    update_score_accounting(model, summaries, 2);
                 else
                     (void)settle_ordago_lance_score(
                         model, summaries, 2, model->settled_scores, true);
@@ -991,13 +1027,12 @@ static bool ordago_wager_action_is_unused(uint8_t used_action_mask,
 
 static uint8_t ordago_numeric_wager_count(
     const uint8_t used_action_masks[MUS_GAME_PLAYER_COUNT]) {
-    unsigned int count = 0;
+    static const uint8_t counts[MUS_ORDAGO_WAGER_ACTION_MASK_COUNT] = {
+        0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4,
+    };
 
-    for (int player = 0; player < MUS_GAME_PLAYER_COUNT; player += 1) {
-        for (int bit = 0; bit < MUS_ORDAGO_WAGER_ACTION_COUNT; bit += 1)
-            count += (used_action_masks[player] >> bit) & 1U;
-    }
-    return (uint8_t)count;
+    return (uint8_t)(counts[used_action_masks[0] & 15U] +
+                     counts[used_action_masks[1] & 15U]);
 }
 
 /* This makes every reachable numeric-wager sequence non-decreasing. */
@@ -1251,43 +1286,45 @@ static Status collect_ordago_betting_actions_unchecked(
     };
     static const uint8_t increments[4] = {2, 4, 7, 10};
     Action temporary[7];
+    Action *output = capacity >= 7 ? actions : temporary;
     size_t count = 0;
-    const uint8_t numeric_wager_count =
-        ordago_numeric_wager_count(used_action_masks);
+    const uint8_t used = used_action_masks[current_player];
+    const int budget = MUS_ORDAGO_WAGER - max_settled_score - prior_wager_total;
 
     if (bet_stage == MUS_BET_RESPONSE) {
-        temporary[count++] = MUS_ACTION_REJECT;
-        temporary[count++] = MUS_ACTION_ACCEPT;
+        output[count++] = MUS_ACTION_REJECT;
+        output[count++] = MUS_ACTION_ACCEPT;
         if (!current_wager_is_ordago) {
-            for (int index = 0; index < 4; index += 1) {
-                if (ordago_response_increment_is_legal(
-                        max_settled_score, prior_wager_total, current_wager,
-                        previous_wager, numeric_wager_count,
-                        used_action_masks[current_player],
-                        increments[index])) {
-                    temporary[count++] = wager_actions[index];
+            const uint8_t minimum = ordago_minimum_response_increment(
+                current_wager, previous_wager);
+
+            if (minimum > 0 && ordago_numeric_wager_count(used_action_masks) <
+                                   MUS_ORDAGO_MAX_NUMERIC_WAGERS) {
+                for (int index = 0; index < 4; index += 1) {
+                    if (index != 2 && (used & (1U << index)) == 0 &&
+                        increments[index] >= minimum &&
+                        increments[index] < budget - current_wager) {
+                        output[count++] = wager_actions[index];
+                    }
                 }
             }
-            temporary[count++] = MUS_ACTION_ORDAGO;
+            output[count++] = MUS_ACTION_ORDAGO;
         }
     } else {
-        temporary[count++] = MUS_ACTION_PASS;
+        output[count++] = MUS_ACTION_PASS;
         for (int index = 0; index < 4; index += 1) {
-            if (ordago_numeric_budget_allows(
-                    max_settled_score, prior_wager_total, 0,
-                    increments[index]) &&
-                ordago_wager_action_is_unused(
-                    used_action_masks[current_player],
-                    increments[index])) {
-                temporary[count++] = wager_actions[index];
+            if (increments[index] < budget &&
+                (used & (1U << index)) == 0) {
+                output[count++] = wager_actions[index];
             }
         }
-        temporary[count++] = MUS_ACTION_ORDAGO;
+        output[count++] = MUS_ACTION_ORDAGO;
     }
     *required_count = count;
     if (capacity < count)
         return CFR_STATUS_BUFFER_TOO_SMALL;
-    memcpy(actions, temporary, count * sizeof(*actions));
+    if (output == temporary)
+        memcpy(actions, temporary, count * sizeof(*actions));
     return CFR_STATUS_SUCCESS;
 }
 
@@ -2198,10 +2235,23 @@ static Status mus_trusted_legal_actions(const void *context,
         const uint8_t *hand =
             mus->model.hands[mus->model.current_player];
         size_t count = 0;
+        unsigned int equal_neighbors = 0;
+        unsigned int position = 0;
+
+        /* Within each class, a selected card must include the card before it.
+         * Build the adjacent equal-card positions once for all 15 masks. */
+        for (int card_class = 0; card_class < MUS_GAME_CLASS_COUNT;
+             card_class += 1) {
+            const unsigned int cards = hand[card_class];
+
+            if (cards > 1)
+                equal_neighbors |= ((1U << (cards - 1)) - 1U) << position;
+            position += cards;
+        }
 
         for (unsigned int mask = 1; mask < MUS_GAME_DISCARD_MASK_COUNT;
              mask += 1) {
-            if (mus_ordago_game_discard_mask_is_canonical(hand, mask))
+            if (((mask >> 1) & ~mask & equal_neighbors) == 0)
                 temporary[count++] = MUS_ACTION_DISCARD_MASK(mask);
         }
         *required_count = count;
