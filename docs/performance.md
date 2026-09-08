@@ -79,14 +79,27 @@ exige igualdad entre todas las variantes.
 conserva su propio almacén y semilla. Las llamadas para guardar estrategias
 ocurren en el hilo del llamador y en orden de marcador. Solo se publican los
 valores cuando termina la diagonal. La reanudación de un checkpoint individual
-sigue usando un hilo.
+admite `--threads N` para compartir su única estrategia.
+
+En el coordinador, `--threads-per-cell M` comparte el almacén CFR de cada celda
+entre hasta M hilos. `--threads 1 --threads-per-cell 8` entrena una estrategia
+cada vez con hasta ocho hilos. `--threads 2 --threads-per-cell 4` puede entrenar
+dos estrategias con hasta ocho hilos en total. Las iteraciones se reparten y
+los contadores se agregan antes de guardar. Este modo conserva la abstracción,
+pero el orden concurrente de las actualizaciones no es reproducible bit a bit.
+Las comparaciones de igualdad de los benchmarks anteriores usan un hilo por
+estrategia.
 
 La memoria aumenta con el número de celdas simultáneas. La reserva de infosets
 también se aplica por celda. Las diagonales estrechas y los grupos con una celda
 mucho más costosa limitan la aceleración; aumentar los hilos no garantiza una
 mejora proporcional.
 
-## Resultados medidos
+## Resultados anteriores: un hilo por celda
+
+Estas mediciones corresponden al commit `26e492b`, anterior al modo de varios
+hilos sobre una misma estrategia. Las mediciones de rendimiento y memoria de
+esta versión usan un hilo por celda; no miden `--threads-per-cell`.
 
 Medianas de tres ejecuciones en un AMD Ryzen AI 7 350, GCC 16.1.1, frente al
 commit `e69fdc0` con sus submódulos originales. La versión anterior usa `-O2` y
@@ -151,7 +164,84 @@ En la carga de 45 celdas, ocho hilos requieren aproximadamente 3,6 veces la RAM
 de la ejecución anterior con un hilo. Esta proporción no es un límite para
 otros marcadores o presupuestos de entrenamiento.
 
+## Hilos sobre un mismo marcador: 2026-09-08
+
+Se ha medido la implementación nueva con 1, 2, 4, 8 y 14 hilos que comparten
+un único almacén. Son medianas de tres procesos nuevos por configuración,
+ejecutados de uno en uno y alternando el orden de los hilos entre repeticiones.
+La máquina es el mismo Ryzen AI 7 350: 8 núcleos físicos y 16 procesadores
+lógicos, todos disponibles para cada ejecución. La compilación usa GCC 16.1.1,
+`-O3 -flto` y el límite predeterminado de un mus.
+
+Se mantienen la semilla 7, la abstracción y el total de iteraciones por marcador:
+500.000 en `39:39`, 10.000 en `35:18`, 1.000 en `20:20` y 300 en `0:0`.
+Las continuaciones son las mismas sintéticas e inmutables del benchmark de una
+celda. Se mide solo entrenamiento, incluida la preparación concurrente y la
+creación y espera de los hilos. No se reserva capacidad explícita, ni se evalúa
+o guarda la estrategia. Las compilaciones y otras suites de pruebas terminaron
+antes de iniciar la medición.
+
+Iteraciones por segundo:
+
+| Marcador | 1 hilo | 2 hilos | 4 hilos | 8 hilos | 14 hilos |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 39:39 | 221.609 | 385.338 | 438.346 | 720.285 | 930.293 |
+| 35:18 | 3.152 | 4.901 | 7.654 | 11.965 | 15.635 |
+| 20:20 | 302,0 | 420,7 | 538,1 | 703,7 | 797,5 |
+| 0:0 | 80,0 | 114,9 | 141,2 | 176,1 | 187,6 |
+
+Aceleración respecto a un hilo, calculada como tiempo mediano con un hilo
+dividido entre tiempo mediano con N hilos:
+
+| Marcador | 2 hilos | 4 hilos | 8 hilos | 14 hilos |
+| --- | ---: | ---: | ---: | ---: |
+| 39:39 | 1,74× | 1,98× | 3,25× | 4,20× |
+| 35:18 | 1,56× | 2,43× | 3,80× | 4,96× |
+| 20:20 | 1,39× | 1,78× | 2,33× | 2,64× |
+| 0:0 | 1,44× | 1,76× | 2,20× | 2,35× |
+
+En `0:0`, pasar de 8 a 14 hilos añade un 6,5% de iteraciones por segundo. En
+`20:20` añade un 13,3%; en los otros dos marcadores, aproximadamente un 30%.
+Son tasas de recorrido, no una medida de convergencia a la misma calidad de
+estrategia. Las semillas auxiliares y las actualizaciones concurrentes cambian
+los nodos visitados y el crecimiento del almacén. Por ejemplo, `0:0` visita una
+mediana de 88.843 nodos por iteración con un hilo y 77.370 con catorce. Los
+tiempos de sus tres ejecuciones con catorce hilos van de 1,33 a 1,79 segundos;
+esa variación limita la precisión de la comparación entre ocho y catorce.
+
+Pico de RAM residente después del entrenamiento, mediana en MiB:
+
+| Marcador | 1 hilo | 2 hilos | 4 hilos | 8 hilos | 14 hilos |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 35:18 | 132 | 135 | 138 | 145 | 155 |
+| 20:20 | 614 | 608 | 640 | 694 | 737 |
+| 0:0 | 1.007 | 944 | 1.037 | 1.142 | 1.342 |
+
+La memoria incluye un almacén compartido y los espacios de trabajo de sus
+hilos. Puede bajar en alguna ejecución porque cambia la cantidad de infosets;
+no significa que añadir hilos reduzca por sí mismo la memoria. En `0:0`, la
+mediana con catorce hilos es un 33% mayor que con uno. Estas cifras no incluyen
+evaluación ni serialización, a diferencia de la medición de memoria anterior.
+
+Para repetir la medición:
+
+```sh
+make benchmark-score-threads
+python3 tests/benchmark_score_threads.py build/release/benchmark-score-threads \
+    --threads 1 2 4 8 14 --repeats 3 --seed 7 \
+    --output /tmp/performance-shared-threads-results.json
+```
+
+Las 60 ejecuciones, sus nodos e infosets, los rangos y las medianas están en
+[performance-shared-threads-results.json](performance-shared-threads-results.json).
+El programa también permite medir una configuración individual con
+`build/release/benchmark-score-threads A B ITERACIONES HILOS [SEMILLA]`.
+
 ## Verificación
+
+El 2026-09-08 se han compilado y ejecutado las tres suites siguientes con
+`-j2`, incluido el soporte nuevo de hilos por estrategia. Todas han terminado
+correctamente, sin errores de ASan/UBSan ni avisos de ThreadSanitizer.
 
 ```sh
 make test
@@ -162,6 +252,9 @@ make test-tsan
 Las pruebas cubren los 330 multiconjuntos de cartas para los descartes, recorridos
 con validación de cada hijo y undo en todos los marcadores a objetivos 3, 5 y 40,
 y la igualdad byte a byte de tablas y checkpoints con distintos números de
-hilos. También cubren precarga, reanudación, orden de callbacks y fallo antes de
-publicar una diagonal. Las pruebas de C-CFR comprueban la caché con 2, 8 y 64
+celdas simultáneas y un hilo por estrategia. También cubren precarga,
+reanudación, orden de callbacks y fallo antes de publicar una diagonal. Para
+una estrategia compartida, comprueban el reparto de iteraciones, los contadores
+acumulados, la cancelación, los bloques incompletos, el exceso de hilos y la
+persistencia de checkpoints. Las pruebas de C-CFR comprueban la caché con 2, 8 y 64
 acciones, los menús incompatibles y la recuperación ante fallos de asignación.

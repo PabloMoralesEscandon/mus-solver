@@ -64,6 +64,11 @@ typedef struct {
      * Each worker owns one CFR store. Save callbacks run on the caller in
      * score order, before the complete diagonal is published. */
     size_t threads;
+    /* Threads that share each cell's strategy store. Zero and one use the
+     * sequential traversal. Iterations are divided among these threads.
+     * Multiple threads can produce different policies across runs because
+     * the order of concurrent updates is not deterministic. */
+    size_t threads_per_cell;
 } MusScoreTrainingOptions;
 
 /* Save the strategy before the coordinator publishes its value. */

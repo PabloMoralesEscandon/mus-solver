@@ -8,6 +8,7 @@ trap 'rm -rf -- "$tmp_dir"' EXIT HUP INT TERM
 "$solver" --help >"$tmp_dir/help.txt"
 grep -q -- '--iterations N' "$tmp_dir/help.txt"
 grep -q -- '--threads N' "$tmp_dir/help.txt"
+grep -q -- '--threads-per-cell N' "$tmp_dir/help.txt"
 grep -q -- '--evaluate' "$tmp_dir/help.txt"
 grep -q -- '--format FORMAT' "$tmp_dir/help.txt"
 grep -q -- '--reserve-information-sets N' "$tmp_dir/help.txt"
@@ -36,6 +37,25 @@ fi
 if "$solver" --evaluate --threads 2 \
     >"$tmp_dir/evaluate-threads.out" 2>"$tmp_dir/evaluate-threads.err"; then
     echo "--threads sin entrenamiento debio fallar" >&2
+    exit 1
+fi
+if "$solver" --format ordago-score --iterations 1 --threads-per-cell 0 \
+    --continuation "$tmp_dir/zero-cell-threads" \
+    >"$tmp_dir/zero-cell-threads.out" 2>"$tmp_dir/zero-cell-threads.err"; then
+    echo "--threads-per-cell 0 debio fallar" >&2
+    exit 1
+fi
+for format in single-bet raises-to-eight ordago; do
+    if "$solver" --format "$format" --iterations 1 --threads-per-cell 2 \
+        >"$tmp_dir/legacy-cell-threads.out" 2>"$tmp_dir/legacy-cell-threads.err"; then
+        echo "--threads-per-cell requiere ordago-score" >&2
+        exit 1
+    fi
+done
+if "$solver" --format ordago-score --evaluate --threads-per-cell 2 \
+    --continuation "$tmp_dir/evaluate-cell-threads" \
+    >"$tmp_dir/evaluate-cell-threads.out" 2>"$tmp_dir/evaluate-cell-threads.err"; then
+    echo "--threads-per-cell sin entrenamiento debio fallar" >&2
     exit 1
 fi
 if "$solver" --iterations 1 --reserve-information-sets 0 \
@@ -176,7 +196,8 @@ grep -q 'schema=mus.ordago-score/v4' "$tmp_dir/score-strategy.txt"
 grep -q 'marcador:0-0/objetivo:3' "$tmp_dir/score-strategy.txt"
 cmp "$tmp_dir/preserved.cfr.zst" "$tmp_dir/score/score-01-01.cfr.zst"
 "$solver" --format ordago-score --target 3 --iterations 2 --seed 7 --threads 2 \
-    --evaluation-samples 50 --continuation "$tmp_dir/score-continuous" \
+    --threads-per-cell 1 --evaluation-samples 50 \
+    --continuation "$tmp_dir/score-continuous" \
     >"$tmp_dir/score-continuous.out"
 cmp "$tmp_dir/score/values.txt" "$tmp_dir/score-continuous/values.txt"
 for checkpoint in "$tmp_dir/score/"*.zst; do
@@ -186,6 +207,19 @@ done
 "$solver" --format ordago-score --target 3 --continuation "$tmp_dir/score" \
     --export-strategy "$tmp_dir/score-reloaded.txt" >"$tmp_dir/score-reloaded.out"
 cmp "$tmp_dir/score-strategy.txt" "$tmp_dir/score-reloaded.txt"
+# Several workers update each cell's shared strategy. Check the iteration
+# totals and checkpoint loading without requiring identical parallel updates.
+"$solver" --format ordago-score --target 3 --iterations 3 --seed 7 \
+    --threads 2 --threads-per-cell 2 --evaluation-samples 20 \
+    --continuation "$tmp_dir/score-shared" \
+    --export-strategy "$tmp_dir/score-shared.txt" >"$tmp_dir/score-shared.out"
+[ "$(grep -c '^score-cell .* iterations=3 ' "$tmp_dir/score-shared.out")" -eq 9 ]
+grep -q 'training_iterations=3' "$tmp_dir/score-shared.txt"
+"$solver" --format ordago-score --target 3 \
+    --continuation "$tmp_dir/score-shared" \
+    --export-strategy "$tmp_dir/score-shared-reloaded.txt" \
+    >"$tmp_dir/score-shared-reloaded.out"
+cmp "$tmp_dir/score-shared.txt" "$tmp_dir/score-shared-reloaded.txt"
 # The normal target uses the same continuation and checkpoint workflow.
 "$solver" --format ordago-score --score 37:36 --iterations 2 --seed 7 \
     --evaluation-samples 50 --continuation "$tmp_dir/score-40" \
@@ -313,6 +347,47 @@ cmp "$tmp_dir/score-plus-three.cfr.zst" "$tmp_dir/score-split.cfr.zst"
     --evaluate --seed 13 --evaluation-samples 20 \
     --export-strategy "$tmp_dir/score-split.txt" >"$tmp_dir/score-split-evaluate.out"
 cmp "$tmp_dir/score-plus-three.txt" "$tmp_dir/score-split.txt"
+# Explicit one-thread checkpoint training keeps the original exact result.
+"$solver" --format ordago-score --target 3 --score 1:1 \
+    --continuation "$tmp_dir/score" \
+    --load-compressed "$tmp_dir/score/score-01-01.cfr.zst" \
+    --iterations 3 --threads 1 --report-every 1 \
+    --save-compressed "$tmp_dir/score-explicit-serial.cfr.zst" \
+    >"$tmp_dir/score-explicit-serial.out"
+cmp "$tmp_dir/score-plus-three.cfr.zst" "$tmp_dir/score-explicit-serial.cfr.zst"
+# Resume one shared strategy across report boundaries and a partial batch.
+"$solver" --format ordago-score --target 3 --score 1:1 \
+    --continuation "$tmp_dir/score" \
+    --load-compressed "$tmp_dir/score/score-01-01.cfr.zst" \
+    --iterations 5 --threads 3 --report-every 2 \
+    --save-compressed "$tmp_dir/score-shared-resume.cfr.zst" \
+    --export-strategy "$tmp_dir/score-shared-resume.txt" \
+    >"$tmp_dir/score-shared-resume.out"
+grep -q 'initial_iterations=2 added_iterations=5 total_iterations=7 continuation=frozen' \
+    "$tmp_dir/score-shared-resume.out"
+for iterations in 4 6 7; do
+    grep -q "report iterations=$iterations threads=3" "$tmp_dir/score-shared-resume.out"
+done
+[ "$(grep -c '^report ' "$tmp_dir/score-shared-resume.out")" -eq 3 ]
+grep -q 'training_iterations=7' "$tmp_dir/score-shared-resume.txt"
+"$solver" --format ordago-score --target 3 --score 1:1 \
+    --continuation "$tmp_dir/score" \
+    --load-compressed "$tmp_dir/score-shared-resume.cfr.zst" \
+    --iterations 3 --threads 8 --report-every 2 \
+    --save "$tmp_dir/score-shared-resumed-again.cfr" \
+    >"$tmp_dir/score-shared-resumed-again.out"
+grep -q 'report iterations=9 threads=8' "$tmp_dir/score-shared-resumed-again.out"
+grep -q 'report iterations=10 threads=8' "$tmp_dir/score-shared-resumed-again.out"
+[ "$(grep -c '^report ' "$tmp_dir/score-shared-resumed-again.out")" -eq 2 ]
+"$solver" --format ordago-score --target 3 --score 1:1 \
+    --continuation "$tmp_dir/score" \
+    --load "$tmp_dir/score-shared-resumed-again.cfr" \
+    --evaluate --evaluation-samples 20 \
+    --export-strategy "$tmp_dir/score-shared-resumed-again.txt" \
+    >"$tmp_dir/score-shared-resumed-evaluate.out"
+grep -q 'training_iterations=10' "$tmp_dir/score-shared-resumed-again.txt"
+grep -q 'evaluation scope=score-checkpoint-average-policy score=1:1 iterations=10' \
+    "$tmp_dir/score-shared-resumed-evaluate.out"
 cmp "$tmp_dir/score/values.txt" "$tmp_dir/score-values-preserved.txt"
 for checkpoint in "$tmp_dir/score/"*.zst; do
     name=${checkpoint##*/}
@@ -369,7 +444,7 @@ fi
 cmp "$tmp_dir/score/values.txt" "$tmp_dir/score-values-preserved.txt"
 cmp "$tmp_dir/score/score-01-01.cfr.zst" "$tmp_dir/preserved.cfr.zst"
 # A resume must save its work and must not reinitialize the training policy or RNG.
-for mode in no-save seed preload threads overflow wrong-score wrong-target old-version; do
+for mode in no-save seed preload threads-per-cell overflow wrong-score wrong-target old-version; do
     set -- --save "$tmp_dir/score-invalid-result.cfr"
     target=3
     score=1:1
@@ -380,7 +455,7 @@ for mode in no-save seed preload threads overflow wrong-score wrong-target old-v
         no-save) set -- ;;
         seed) set -- "$@" --seed 7 ;;
         preload) set -- "$@" --preload-ordago "$tmp_dir/prior.cfr" ;;
-        threads) set -- "$@" --threads 2 ;;
+        threads-per-cell) set -- "$@" --threads-per-cell 2 ;;
         overflow) iterations=18446744073709551615 ;;
         wrong-score) score=0:0 ;;
         wrong-target) target=4 ;;

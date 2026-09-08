@@ -7,6 +7,7 @@
 
 #include "cfr/info_node.h"
 #include "mus_solver/mus_score.h"
+#include "mus_solver/mus_training.h"
 
 Status mus_score_table_init(MusScoreTable *table, unsigned int target) {
     if (table == NULL || target == 0 || target > MUS_ORDAGO_WAGER)
@@ -305,6 +306,8 @@ typedef struct {
 static void *train_score_cell(void *raw_worker) {
     ScoreTrainingWorker *worker = raw_worker;
     const MusScoreTrainingOptions *options = worker->options;
+    const size_t threads = options->threads_per_cell == 0
+                               ? 1 : options->threads_per_cell;
     const uint64_t seed = options->seed +
         (uint64_t)(worker->a * MUS_ORDAGO_WAGER + worker->b);
     worker->store = (InfoStore){0};
@@ -319,6 +322,10 @@ static void *train_score_cell(void *raw_worker) {
         status = cfr_trainer_init_mccfr(
             &worker->trainer, &worker->game.game,
             mus_game_state_as_game_state(&worker->state), &worker->store, seed);
+    /* Prepare before reservation or preload to avoid growing a temporary
+     * sequential hash table that would immediately need conversion. */
+    if (status == CFR_STATUS_SUCCESS && threads > 1)
+        status = cfr_info_store_prepare_concurrent(&worker->store);
     if (status == CFR_STATUS_SUCCESS && options->reserve_information_sets != 0)
         status = cfr_info_store_reserve(&worker->store,
                                         options->reserve_information_sets);
@@ -326,7 +333,8 @@ static void *train_score_cell(void *raw_worker) {
         status = mus_score_preload_ordago(&worker->game, options->preload,
                                           &worker->store, &worker->preload_stats);
     if (status == CFR_STATUS_SUCCESS)
-        status = cfr_trainer_run(&worker->trainer, options->iterations);
+        status = mus_training_run(&worker->trainer, options->iterations, threads,
+                                   options->iterations, NULL, NULL);
     worker->cell = (MusScoreCell){
         .ready = true, .iterations = options->iterations,
         .evaluation_samples = options->evaluation_samples, .training_seed = seed,

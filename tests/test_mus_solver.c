@@ -17,6 +17,7 @@
 #include "mus_solver/mus_game.h"
 #include "mus_solver/mus_strategy.h"
 #include "mus_solver/mus_score.h"
+#include "mus_solver/mus_training.h"
 #include "../app/reservation_internal.h"
 
 static int failures;
@@ -1984,6 +1985,185 @@ static bool streams_equal(FILE *left, FILE *right) {
     return !ferror(left) && !ferror(right);
 }
 
+typedef struct {
+    pthread_t caller;
+    const MusGameState *root;
+    size_t initial_iterations;
+    TrainerStats initial_stats;
+    size_t amount;
+    size_t interval;
+    size_t completed;
+    size_t calls;
+    size_t fail_after;
+} SharedTrainingProgress;
+
+static Status check_shared_training_progress(const Trainer *trainer,
+                                             size_t completed, void *context) {
+    SharedTrainingProgress *progress = context;
+    const MusGameState *state = (const MusGameState *)trainer->state;
+    const size_t remaining = progress->amount - progress->completed;
+    const size_t batch = remaining < progress->interval ? remaining : progress->interval;
+    CHECK(pthread_equal(pthread_self(), progress->caller));
+    CHECK(completed == progress->completed + batch);
+    CHECK(trainer->training_iterations == progress->initial_iterations + completed);
+    CHECK(trainer->stats.iterations == progress->initial_stats.iterations + completed);
+    CHECK(trainer->stats.traversals == progress->initial_stats.traversals +
+          completed * trainer->game->strategic_player_count);
+    CHECK(trainer->stats.visited_nodes > progress->initial_stats.visited_nodes);
+    CHECK(trainer->stats.errors == progress->initial_stats.errors);
+    CHECK(state->undo_count == progress->root->undo_count);
+    CHECK(memcmp(&state->model, &progress->root->model, sizeof(state->model)) == 0);
+    CHECK(state->continuation == progress->root->continuation);
+    CHECK(cfr_game_validate_state(trainer->game, trainer->state) == CFR_STATUS_SUCCESS);
+
+    /* Progress callbacks must observe one stable store while workers wait. */
+    FILE *first = tmpfile();
+    FILE *second = tmpfile();
+    CHECK(first != NULL && second != NULL);
+    if (first != NULL && second != NULL) {
+        CHECK(cfr_checkpoint_write(first, trainer) == CFR_STATUS_SUCCESS);
+        CHECK(cfr_checkpoint_write(second, trainer) == CFR_STATUS_SUCCESS);
+        CHECK(streams_equal(first, second));
+        MusGameState restored_state = *progress->root;
+        InfoStore restored_store = {0};
+        Trainer restored;
+        rewind(first);
+        const Status status = cfr_checkpoint_read(
+            first, trainer->game, game_state(&restored_state), &restored_store, &restored);
+        CHECK(status == CFR_STATUS_SUCCESS);
+        if (status == CFR_STATUS_SUCCESS) {
+            CHECK(restored.training_iterations == trainer->training_iterations);
+            CHECK(restored.stats.iterations == trainer->stats.iterations);
+            CHECK(restored.stats.traversals == trainer->stats.traversals);
+            CHECK(restored.stats.visited_nodes == trainer->stats.visited_nodes);
+            CHECK(restored.stats.errors == trainer->stats.errors);
+            CHECK(cfr_info_store_destroy(&restored_store) == CFR_STATUS_SUCCESS);
+        }
+    }
+    if (first != NULL)
+        fclose(first);
+    if (second != NULL)
+        fclose(second);
+    progress->completed = completed;
+    progress->calls += 1;
+    return progress->fail_after != 0 && completed >= progress->fail_after
+               ? CFR_STATUS_IO_ERROR : CFR_STATUS_SUCCESS;
+}
+
+static void test_shared_training_runner(void) {
+    MusScoreTable table;
+    MusScoreGame score;
+    MusGameState state;
+    MusGameState serial_state;
+    InfoStore store = {0};
+    InfoStore serial_store = {0};
+    Trainer trainer;
+    Trainer serial;
+    CHECK(mus_score_table_init(&table, 3) == CFR_STATUS_SUCCESS);
+    CHECK(mus_score_game_init(&score, &table, 2, 2) == CFR_STATUS_SUCCESS);
+    CHECK(mus_score_game_state_init(&state, &score) == CFR_STATUS_SUCCESS);
+    const MusGameState root = state;
+    const MusScoreTable frozen_table = table;
+    serial_state = root;
+    CHECK(cfr_info_store_init(&store) == CFR_STATUS_SUCCESS);
+    CHECK(cfr_info_store_init(&serial_store) == CFR_STATUS_SUCCESS);
+    CHECK(cfr_trainer_init_mccfr(&trainer, &score.game, game_state(&state), &store, 31) ==
+          CFR_STATUS_SUCCESS);
+    CHECK(cfr_trainer_init_mccfr(&serial, &score.game, game_state(&serial_state),
+                                &serial_store, 31) == CFR_STATUS_SUCCESS);
+    CHECK(cfr_trainer_run(&serial, 3) == CFR_STATUS_SUCCESS);
+    CHECK(mus_training_run(&trainer, 2, 1, 1, NULL, NULL) == CFR_STATUS_SUCCESS);
+    SharedTrainingProgress progress = {
+        .caller = pthread_self(), .root = &root,
+        .initial_iterations = trainer.training_iterations, .initial_stats = trainer.stats,
+        .amount = 1, .interval = 1,
+    };
+    CHECK(mus_training_run(&trainer, 1, 1, 1, check_shared_training_progress, &progress) ==
+          CFR_STATUS_SUCCESS);
+    CHECK(progress.calls == 1 && progress.completed == 1);
+    FILE *actual = tmpfile();
+    FILE *expected = tmpfile();
+    CHECK(actual != NULL && expected != NULL);
+    if (actual != NULL && expected != NULL) {
+        CHECK(cfr_checkpoint_write(actual, &trainer) == CFR_STATUS_SUCCESS);
+        CHECK(cfr_checkpoint_write(expected, &serial) == CFR_STATUS_SUCCESS);
+        CHECK(streams_equal(actual, expected));
+    }
+    if (actual != NULL)
+        fclose(actual);
+    if (expected != NULL)
+        fclose(expected);
+    CHECK(cfr_info_store_destroy(&serial_store) == CFR_STATUS_SUCCESS);
+
+    const Trainer unchanged = trainer;
+    CHECK(mus_training_run(NULL, 1, 1, 1, NULL, NULL) == CFR_STATUS_INVALID_ARGUMENT);
+    CHECK(mus_training_run(&trainer, 1, 0, 1, NULL, NULL) == CFR_STATUS_INVALID_ARGUMENT);
+    CHECK(mus_training_run(&trainer, 1, 1, 0, NULL, NULL) == CFR_STATUS_INVALID_ARGUMENT);
+    CHECK(mus_training_run(&trainer, 0, 0, 1, NULL, NULL) == CFR_STATUS_INVALID_ARGUMENT);
+    CHECK(mus_training_run(&trainer, 0, 1, 0, NULL, NULL) == CFR_STATUS_INVALID_ARGUMENT);
+    CHECK(mus_training_run(&trainer, 0, 8, 1, check_shared_training_progress, &progress) ==
+          CFR_STATUS_SUCCESS);
+    CHECK(mus_training_run(&trainer, 0, 8, 1, NULL, NULL) == CFR_STATUS_SUCCESS);
+    CHECK(progress.calls == 1);
+    CHECK(memcmp(&trainer, &unchanged, sizeof(trainer)) == 0);
+
+    /* Statistics may start below the checkpoint's training iteration count. */
+    CHECK(cfr_trainer_reset_stats(&trainer) == CFR_STATUS_SUCCESS);
+    CHECK(cfr_trainer_run(&trainer, 1) == CFR_STATUS_SUCCESS);
+    progress = (SharedTrainingProgress){
+        .caller = pthread_self(), .root = &root,
+        .initial_iterations = trainer.training_iterations, .initial_stats = trainer.stats,
+        .amount = 5, .interval = 2,
+    };
+    CHECK(mus_training_run(&trainer, 5, 3, 2, check_shared_training_progress, &progress) ==
+          CFR_STATUS_SUCCESS);
+    CHECK(progress.calls == 3 && progress.completed == 5);
+    CHECK(trainer.training_iterations == 9);
+    CHECK(trainer.stats.iterations == 6 && trainer.stats.traversals == 12);
+
+    progress = (SharedTrainingProgress){
+        .caller = pthread_self(), .root = &root,
+        .initial_iterations = trainer.training_iterations, .initial_stats = trainer.stats,
+        .amount = 5, .interval = 2, .fail_after = 2,
+    };
+    CHECK(mus_training_run(&trainer, 5, 8, 2, check_shared_training_progress, &progress) ==
+          CFR_STATUS_IO_ERROR);
+    CHECK(progress.calls == 1 && progress.completed == 2);
+    CHECK(trainer.training_iterations == 11 && trainer.stats.iterations == 8);
+    CHECK(trainer.stats.traversals == 16 && trainer.stats.errors == 0);
+
+    FILE *checkpoint = tmpfile();
+    CHECK(checkpoint != NULL);
+    if (checkpoint != NULL) {
+        CHECK(cfr_checkpoint_write(checkpoint, &trainer) == CFR_STATUS_SUCCESS);
+        CHECK(cfr_info_store_destroy(&store) == CFR_STATUS_SUCCESS);
+        state = root;
+        rewind(checkpoint);
+        const Status status = cfr_checkpoint_read(checkpoint, &score.game,
+                                                  game_state(&state), &store, &trainer);
+        CHECK(status == CFR_STATUS_SUCCESS);
+        if (status == CFR_STATUS_SUCCESS) {
+            progress = (SharedTrainingProgress){
+                .caller = pthread_self(), .root = &root,
+                .initial_iterations = trainer.training_iterations,
+                .initial_stats = trainer.stats, .amount = 3, .interval = 100,
+            };
+            CHECK(mus_training_run(&trainer, 3, SIZE_MAX, 100,
+                                    check_shared_training_progress, &progress) ==
+                  CFR_STATUS_SUCCESS);
+            CHECK(progress.calls == 1 && progress.completed == 3);
+            CHECK(trainer.training_iterations == 14 && trainer.stats.iterations == 11);
+            CHECK(trainer.stats.traversals == 22 && trainer.stats.errors == 0);
+            CHECK(mus_training_run(&trainer, 1, 1, 1, NULL, NULL) == CFR_STATUS_SUCCESS);
+            CHECK(trainer.training_iterations == 15 && trainer.stats.iterations == 12);
+        }
+        fclose(checkpoint);
+    }
+    CHECK(memcmp(&table, &frozen_table, sizeof(table)) == 0);
+    CHECK(state.undo_count == 0 && memcmp(&state.model, &root.model, sizeof(state.model)) == 0);
+    CHECK(cfr_info_store_destroy(&store) == CFR_STATUS_SUCCESS);
+}
+
 static void test_training_resume_and_export(void) {
     MusGameState continuous_state;
     MusGameState split_state;
@@ -3197,6 +3377,7 @@ static void test_score_parallel_training(void) {
         saved.diagonals = 0;
         saved.compare = true;
         options.threads = thread_counts[i];
+        options.threads_per_cell = 1;
         CHECK(mus_score_table_init(&parallel, 3) == CFR_STATUS_SUCCESS);
         CHECK(mus_score_train(&parallel, 2, &options, test_parallel_score_cell,
                               test_parallel_score_diagonal, &saved) == CFR_STATUS_SUCCESS);
@@ -3226,6 +3407,68 @@ static void test_score_parallel_training(void) {
         for (size_t b = 0; b < 3; b += 1) {
             if (saved.checkpoints[a][b] != NULL)
                 fclose(saved.checkpoints[a][b]);
+        }
+    }
+}
+
+static Status test_shared_score_cell(const MusScoreGame *score, const Trainer *trainer,
+                                     const MusScoreCell *cell, void *context) {
+    const MusGameState *state = (const MusGameState *)trainer->state;
+    CHECK(cell->iterations == 3 && trainer->training_iterations == 3);
+    CHECK(trainer->stats.iterations == 3 && trainer->stats.traversals == 6);
+    CHECK(trainer->stats.visited_nodes > 0 && trainer->stats.errors == 0);
+    CHECK(state->undo_count == 0 && state->model.phase == MUS_PHASE_DEAL_PLAYER_0);
+    CHECK(state->continuation == score->continuation);
+    CHECK(cfr_game_validate_state(&score->game, trainer->state) == CFR_STATUS_SUCCESS);
+    double value = 10;
+    CHECK(mus_score_evaluate(score, trainer->store, cell->evaluation_samples,
+                            cell->training_seed ^ UINT64_C(0xd1b54a32d192ed03),
+                            &value) == CFR_STATUS_SUCCESS);
+    CHECK(value == cell->value);
+    return test_parallel_score_cell(score, trainer, cell, context);
+}
+
+static void test_score_shared_strategy_training(void) {
+    MusScoreTable table;
+    MusScoreTrainingOptions options = {
+        .iterations = 3, .evaluation_samples = 50, .seed = 7,
+        .threads = 2, .threads_per_cell = 2,
+    };
+    ScoreParallelSave saved = {.caller = pthread_self()};
+    CHECK(mus_score_table_init(&table, 3) == CFR_STATUS_SUCCESS);
+    CHECK(mus_score_train(&table, 2, &options, test_shared_score_cell,
+                          test_parallel_score_diagonal, &saved) == CFR_STATUS_SUCCESS);
+    CHECK(saved.cells == 6 && saved.diagonals == 3);
+    options.threads = SIZE_MAX;
+    options.threads_per_cell = SIZE_MAX;
+    CHECK(mus_score_train(&table, 0, &options, test_shared_score_cell,
+                          test_parallel_score_diagonal, &saved) == CFR_STATUS_SUCCESS);
+    CHECK(saved.cells == 9 && saved.diagonals == 5);
+    CHECK(mus_score_train(&table, 0, &options, test_shared_score_cell,
+                          test_parallel_score_diagonal, &saved) == CFR_STATUS_SUCCESS);
+    CHECK(saved.cells == 9 && saved.diagonals == 5);
+    for (unsigned int a = 0; a < 3; a += 1) {
+        for (unsigned int b = 0; b < 3; b += 1) {
+            MusScoreGame score;
+            MusGameState state;
+            InfoStore store = {0};
+            Trainer restored;
+            CHECK(table.cells[a][b].ready && table.cells[a][b].iterations == 3);
+            CHECK(mus_score_game_init(&score, &table, a, b) == CFR_STATUS_SUCCESS);
+            CHECK(mus_score_game_state_init(&state, &score) == CFR_STATUS_SUCCESS);
+            CHECK(saved.checkpoints[a][b] != NULL);
+            if (saved.checkpoints[a][b] != NULL) {
+                rewind(saved.checkpoints[a][b]);
+                const Status status = cfr_checkpoint_read(
+                    saved.checkpoints[a][b], &score.game, game_state(&state), &store, &restored);
+                CHECK(status == CFR_STATUS_SUCCESS);
+                if (status == CFR_STATUS_SUCCESS) {
+                    CHECK(restored.training_iterations == 3);
+                    CHECK(restored.stats.iterations == 3 && restored.stats.traversals == 6);
+                    CHECK(cfr_info_store_destroy(&store) == CFR_STATUS_SUCCESS);
+                }
+                fclose(saved.checkpoints[a][b]);
+            }
         }
     }
 }
@@ -3325,6 +3568,8 @@ int main(void) {
     test_score_keys_and_full_match();
     test_score_training_and_persistence();
     test_score_parallel_training();
+    test_score_shared_strategy_training();
+    test_shared_training_runner();
     test_ordago_reservation_limits();
     test_apply_undo_and_contract();
     test_cached_hand_summary_validation();

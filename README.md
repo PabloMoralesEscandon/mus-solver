@@ -240,15 +240,16 @@ build/release/mus-solver \
 El coordinador resuelve las diagonales desde `2 × (objetivo - 1)` hasta la suma
 del marcador solicitado. Calcula todos los marcadores de esas diagonales;
 `0:0` a 40 requiere 1.600 celdas. Esto puede costar mucho más que entrenar una
-mano aislada. Se mantiene un almacén CFR de destino por trabajador y se libera después
+mano aislada. Se mantiene un almacén CFR de destino por celda simultánea y se libera después
 de guardar cada estrategia. La tabla permanece inmutable durante el
 entrenamiento y la evaluación de cada diagonal, y sus valores se publican
 juntos al terminarla.
 
 `--threads N` entrena hasta N celdas independientes de una misma diagonal en
-paralelo; el valor predeterminado es 1. Cada celda conserva su semilla, recorrido
-MCCFR y evaluación, por lo que el número de hilos no cambia las tablas ni los
-checkpoints. Las estrategias se guardan en el mismo orden que en la ejecución
+paralelo; el valor predeterminado es 1. Con `--threads-per-cell 1`, cada celda
+conserva su semilla, recorrido MCCFR y evaluación, por lo que cambiar solo
+`--threads` no cambia las tablas ni los checkpoints. Las estrategias se guardan
+en el mismo orden que en la ejecución
 secuencial. La memoria puede crecer hasta N almacenes CFR; conviene ajustar los
 hilos a la memoria disponible, especialmente lejos del objetivo. El paralelismo
 está limitado por el número de celdas de cada diagonal.
@@ -258,6 +259,31 @@ está limitado por el número de celdas de cada diagonal.
     --iterations 1000 --evaluation-samples 10000 --seed 7 \
     --threads 4 --continuation marcador-40
 ```
+
+`--threads-per-cell M` permite que hasta M hilos entrenen **la misma estrategia**
+dentro de cada celda; también vale 1 por defecto. Cada hilo tiene su estado,
+generador aleatorio y espacio de recorrido, y todos actualizan el mismo almacén
+CFR concurrente. Las iteraciones por celda se reparten entre esos hilos; no se
+multiplican por M. Para entrenar una sola celda cada vez con ocho hilos:
+
+```sh
+./build/release/mus-solver --format ordago-score \
+    --iterations 1000 --evaluation-samples 10000 --seed 7 \
+    --threads 1 --threads-per-cell 8 --continuation marcador-40
+```
+
+Ambas opciones se pueden combinar: `--threads 2 --threads-per-cell 4` mantiene
+hasta dos estrategias simultáneas, cada una con hasta cuatro hilos. Compartir
+la estrategia evita un almacén completo por hilo, pero añade estados, espacios
+de recorrido y las tablas hash del acceso concurrente. La memoria adicional
+depende del tamaño del entrenamiento.
+
+El entrenamiento de una estrategia con varios hilos usa el mismo MCCFR
+concurrente que `ordago`. Conserva la abstracción y los formatos de checkpoint,
+pero el orden de las actualizaciones depende del planificador: la misma semilla
+no garantiza tablas ni checkpoints idénticos. Cada celda se evalúa y guarda
+después de que terminen todos sus hilos. La tabla de continuación permanece fija
+hasta publicar la diagonal completa.
 
 Emite un informe `score-cell` por celda y un `score-table` para
 el marcador solicitado. Al reanudar, `score-resume` muestra cuántas celdas ya
@@ -413,7 +439,27 @@ checkpoints publicados y su tabla. Las exportaciones TXT no se sobrescriben.
 Para seguir desde el resultado, se utiliza ese nuevo archivo con `--load` o
 `--load-compressed`, según su formato.
 No se permite `--seed` al añadir iteraciones: se restaura el flujo aleatorio
-guardado. Tampoco se admite `--preload-ordago`. Se mantiene un hilo.
+guardado. Tampoco se admite `--preload-ordago`.
+
+Al reanudar un checkpoint, `--threads N` reparte las nuevas iteraciones entre
+hilos que comparten **esa única estrategia**, igual que en `ordago`. Por ejemplo:
+
+```sh
+build/release/mus-solver \
+    --format ordago-score --target 40 --score 30:30 \
+    --continuation marcador-40 \
+    --load-compressed marcador-40/score-30-30.cfr.zst \
+    --iterations 100000 --threads 8 --report-every 1000 \
+    --save-compressed score-30-30-parallel.cfr.zst
+```
+
+`--threads-per-cell` se reserva para el coordinador de tablas y no se admite
+con `--load` o `--load-compressed`. Los informes esperan a que todos los hilos
+alcancen el final del bloque; después de unirlos se guardan los contadores
+globales y el flujo aleatorio del hilo principal. Los flujos auxiliares se
+derivan de este al reanudar. Dividir una ejecución paralela entre procesos no
+garantiza el mismo resultado que ejecutarla sin interrupciones. Un hilo mantiene
+la reanudación exacta del recorrido secuencial.
 
 Los informes de `--report-every` muestran el contador total, incluidas las
 iteraciones anteriores. El informe `score-checkpoint` separa
