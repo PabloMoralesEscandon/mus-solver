@@ -98,12 +98,9 @@ static Status preload_node(const InfoNode *source, void *raw_context) {
     return CFR_STATUS_SUCCESS;
 }
 
-Status mus_score_preload_ordago(const MusScoreGame *game,
+static Status validate_preload(const MusScoreGame *game,
                                const MusScorePreloadOptions *options,
-                               InfoStore *destination,
-                               MusScorePreloadStats *stats) {
-    if (stats != NULL)
-        *stats = (MusScorePreloadStats){0};
+                               InfoStore *destination) {
     if (game == NULL || !mus_score_game_matches(&game->game) ||
         game->continuation == NULL || game->continuation->target == 0 ||
         game->continuation->target > MUS_ORDAGO_WAGER ||
@@ -126,12 +123,129 @@ Status mus_score_preload_ordago(const MusScoreGame *game,
     if (source->store == NULL || source->store == destination)
         return CFR_STATUS_INVALID_ARGUMENT;
     InfoStoreStats store_stats;
-    Status status = cfr_info_store_get_stats(destination, &store_stats);
+    return cfr_info_store_get_stats(destination, &store_stats);
+}
+
+Status mus_score_preload_ordago(const MusScoreGame *game,
+                               const MusScorePreloadOptions *options,
+                               InfoStore *destination,
+                               MusScorePreloadStats *stats) {
+    if (stats != NULL)
+        *stats = (MusScorePreloadStats){0};
+    Status status = validate_preload(game, options, destination);
     if (status != CFR_STATUS_SUCCESS)
         return status;
     PreloadContext context = {.game = game, .options = options, .destination = destination};
-    status = cfr_info_store_visit_sorted(source->store, preload_node, &context);
+    status = cfr_info_store_visit_sorted(options->source->store, preload_node, &context);
     if (stats != NULL)
         *stats = context.stats;
     return status;
+}
+
+static Status initialize_from_ordago(InfoNode *node, void *raw_context) {
+    MusScorePrior *context = raw_context;
+    const MusScorePreloadOptions *options = &context->options;
+    MusOrdagoInformationSet information;
+    InfoSetKey candidates[MUS_ORDAGO_WAGER + 1];
+    Action actions[MUS_GAME_MAX_LEGAL_ACTIONS];
+    Utility prior[MUS_GAME_MAX_LEGAL_ACTIONS] = {0};
+    bool shared[MUS_GAME_MAX_LEGAL_ACTIONS] = {false};
+    size_t candidate_count = 0, count = 0;
+    Status status = mus_score_game_information_set_decode(node->key,
+        context->game->continuation->target, &information);
+    if (status != CFR_STATUS_SUCCESS)
+        return status;
+    const bool later = information.hand_kind != MUS_ORDAGO_HAND_EXACT &&
+                       information.phase != MUS_PHASE_GRANDE;
+    status = mus_ordago_game_information_set_legal_actions(&information, actions,
+        MUS_GAME_MAX_LEGAL_ACTIONS, &count);
+    if (status != CFR_STATUS_SUCCESS || count != node->action_count)
+        return CFR_STATUS_INVALID_ARGUMENT;
+    status = mus_score_information_set_ordago_candidates(context->game, node->key,
+        candidates, MUS_ORDAGO_WAGER + 1, &candidate_count);
+    if (status != CFR_STATUS_SUCCESS)
+        return status;
+    bool found = false;
+    for (size_t c = 0; c < candidate_count; ++c) {
+        const InfoNode *source;
+        status = cfr_info_store_find_const(options->source->store, candidates[c], &source);
+        if (status == CFR_STATUS_NOT_FOUND)
+            continue;
+        if (status != CFR_STATUS_SUCCESS)
+            return status;
+        Action old_actions[MUS_GAME_MAX_LEGAL_ACTIONS];
+        size_t old_count = 0;
+        status = mus_ordago_game_information_set_decode(source->key, &information);
+        if (status == CFR_STATUS_SUCCESS)
+            status = mus_ordago_game_information_set_legal_actions(&information, old_actions,
+                MUS_GAME_MAX_LEGAL_ACTIONS, &old_count);
+        if (status != CFR_STATUS_SUCCESS || source->action_count != old_count)
+            return CFR_STATUS_FORMAT_ERROR;
+        /* The source is immutable. Summing strategy mass marginalizes the old
+         * settled-score feature with the source's accumulated reach weights. */
+        for (size_t j = 0; j < old_count; ++j) {
+            const double mass = source->strategy_sums[j];
+            if (!isfinite(mass) || mass < 0)
+                return CFR_STATUS_NUMERIC_ERROR;
+            if (mass > 0) found = true;
+            for (size_t i = 0; i < count; ++i) {
+                if (actions[i] != old_actions[j]) continue;
+                shared[i] = true;
+                prior[i] += mass;
+                if (!isfinite(prior[i]))
+                    return CFR_STATUS_NUMERIC_ERROR;
+            }
+        }
+    }
+    if (!found) {
+        if (context->stats != NULL)
+            __atomic_fetch_add(&context->stats->missing_source_nodes, 1, __ATOMIC_RELAXED);
+        return CFR_STATUS_SUCCESS;
+    }
+    double mass = 0, total = 0;
+    bool expanded = false;
+    for (size_t i = 0; i < count; ++i) {
+        mass += prior[i];
+        expanded |= !shared[i];
+    }
+    if (!isfinite(mass))
+        return CFR_STATUS_NUMERIC_ERROR;
+    for (size_t i = 0; i < count; ++i) {
+        const double probability = mass > 0 ? prior[i] / mass : 1.0 / (double)count;
+        prior[i] = options->weight * ((1 - options->uniform_mix) * probability +
+                                      options->uniform_mix / (double)count);
+        total += prior[i];
+        if (!isfinite(total) || prior[i] <= 0)
+            return CFR_STATUS_NUMERIC_ERROR;
+    }
+    status = cfr_info_node_apply_deltas(node, prior, prior, count);
+    if (status == CFR_STATUS_SUCCESS && context->stats != NULL) {
+        __atomic_fetch_add(&context->stats->imported_nodes, 1, __ATOMIC_RELAXED);
+        if (later)
+            __atomic_fetch_add(&context->stats->imported_later_nodes, 1, __ATOMIC_RELAXED);
+        if (expanded)
+            __atomic_fetch_add(&context->stats->expanded_action_nodes, 1, __ATOMIC_RELAXED);
+    }
+    return status;
+}
+
+Status mus_score_prior_attach(MusScorePrior *prior, const MusScoreGame *game,
+                              const MusScorePreloadOptions *options,
+                              InfoStore *destination, MusScorePreloadStats *stats) {
+    if (prior == NULL)
+        return CFR_STATUS_INVALID_ARGUMENT;
+    Status status = validate_preload(game, options, destination);
+    if (status != CFR_STATUS_SUCCESS)
+        return status;
+    InfoStoreStats source_stats, destination_stats;
+    status = cfr_info_store_get_stats(options->source->store, &source_stats);
+    if (status == CFR_STATUS_SUCCESS)
+        status = cfr_info_store_get_stats(destination, &destination_stats);
+    if (status != CFR_STATUS_SUCCESS)
+        return status;
+    *prior = (MusScorePrior){.game = game, .options = *options, .stats = stats};
+    if (stats != NULL)
+        *stats = (MusScorePreloadStats){.source_nodes = source_stats.size,
+                                      .existing_nodes = destination_stats.size};
+    return cfr_info_store_set_initializer(destination, initialize_from_ordago, prior);
 }

@@ -31,7 +31,7 @@ typedef struct {
 } MusScoreGame;
 
 typedef struct {
-    /* Borrow an ordago trainer whose store remains unchanged during preload. */
+    /* Borrow an ordago trainer whose store remains unchanged during use. */
     const Trainer *source;
     /* Synthetic regret and average-strategy mass per imported node. */
     double weight;
@@ -49,9 +49,40 @@ typedef struct {
     size_t expanded_action_nodes;
     size_t skipped_history_nodes;
     size_t skipped_illegal_nodes;
+    size_t missing_source_nodes;
+    size_t imported_later_nodes;
 } MusScorePreloadStats;
 
+/* Keep this binding alive while its destination store can create nodes.
+ * Read stats only when destination workers have stopped. */
 typedef struct {
+    const MusScoreGame *game;
+    MusScorePreloadOptions options;
+    MusScorePreloadStats *stats;
+} MusScorePrior;
+
+/* Called with this cell's workers paused. Different cells can call concurrently.
+ * Borrowed objects must not be modified or retained by the callback. */
+typedef Status (*MusScoreProgressCallback)(const MusScoreGame *game,
+    const Trainer *trainer, size_t completed, const MusScorePreloadStats *stats,
+    void *context);
+
+/* Load a checkpoint against the source game's exact schema. The store starts
+ * zeroed. Initialize the trainer with the supplied game, state, and store.
+ * Different cells can load concurrently. An error can leave an owned store;
+ * the coordinator destroys that store. Retain game and state only in trainer. */
+typedef Status (*MusScoreLoadCell)(const MusScoreGame *game, MusGameState *state,
+    InfoStore *store, Trainer *trainer, void *context);
+
+typedef struct {
+    /* Immutable source table, with every requested cell ready. */
+    const MusScoreTable *table;
+    MusScoreLoadCell load_cell;
+    void *context;
+} MusScoreExtension;
+
+typedef struct {
+    /* New iterations per cell. With extension, add to the loaded counter. */
     size_t iterations;
     size_t evaluation_samples;
     uint64_t seed;
@@ -69,6 +100,17 @@ typedef struct {
      * Multiple threads can produce different policies across runs because
      * the order of concurrent updates is not deterministic. */
     size_t threads_per_cell;
+    /* Zero reports only at completion. Counts total iterations per cell. */
+    size_t report_every;
+    MusScoreProgressCallback progress;
+    void *progress_context;
+    /* Load prior score checkpoints before training each missing destination
+     * cell. Preserve learning arrays, counters, and RNG. Rebind terminal
+     * continuation values to the destination's completed higher diagonals.
+     * The cell's rules and information keys stay unchanged. This carries old
+     * regrets into a changed continuation model, rather than replaying all
+     * iterations under the final fixed payoffs. */
+    const MusScoreExtension *extension;
 } MusScoreTrainingOptions;
 
 /* Save the strategy before the coordinator publishes its value. */
@@ -104,6 +146,27 @@ Status mus_score_preload_ordago(const MusScoreGame *game,
                                const MusScorePreloadOptions *options,
                                InfoStore *destination,
                                MusScorePreloadStats *stats);
+/* Produce legacy candidate keys for any score decision. Collected points are
+ * current scores minus the cell's initial scores. Restore the legacy prior
+ * wager total by adding these payments to pending accepted wagers. Enumerate
+ * the possible maximum settled scores without using an opponent's cards.
+ * Other observed features remain unchanged. At most 41 keys are returned.
+ * Success with count zero means the legacy budget excludes this response.
+ * An error preserves keys and count. */
+Status mus_score_information_set_ordago_candidates(
+    const MusScoreGame *game, InfoSetKey key, InfoSetKey *keys,
+    size_t capacity, size_t *count);
+/* Seed every new node, in all lances, from compatible legacy average policies.
+ * Combine their strategy sums, restrict by action identity, and apply the
+ * configured uniform mixture. A missing source policy leaves a uniform node.
+ * Existing nodes are preserved. Requires exclusive destination access during
+ * attachment. The source and binding must outlive subsequent insertions.
+ * Checkpoints retain seeded arrays but not this binding. Attach it again after
+ * loading to initialize future nodes from the source. Evaluation and text
+ * export do not create nodes or use this hook for missing decisions. */
+Status mus_score_prior_attach(MusScorePrior *prior, const MusScoreGame *game,
+                              const MusScorePreloadOptions *options,
+                              InfoStore *destination, MusScorePreloadStats *stats);
 Status mus_score_terminal_utility(const MusGameState *state, Player player,
                                   Utility *utility);
 /* Generates a schema with the cell identity and all higher continuations. */

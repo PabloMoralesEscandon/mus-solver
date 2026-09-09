@@ -243,17 +243,19 @@ if "$solver" --format ordago --score 0:0 --iterations 1 \
     exit 1
 fi
 # Transfer the same source policy from plain and compressed checkpoints.
-"$solver" --format ordago --iterations 2 --seed 17 --reserve-information-sets 256 \
+"$solver" --format ordago --iterations 2 --seed 48 --reserve-information-sets 256 \
     --save "$tmp_dir/prior.cfr" >"$tmp_dir/prior.out"
-"$solver" --format ordago --iterations 2 --seed 17 --reserve-information-sets 256 \
+"$solver" --format ordago --iterations 2 --seed 48 --reserve-information-sets 256 \
     --save-compressed "$tmp_dir/prior.cfr.zst" >"$tmp_dir/prior-zstd.out"
 cp "$tmp_dir/prior.cfr" "$tmp_dir/prior-preserved.cfr"
 "$solver" --format ordago-score --target 3 --score 1:1 --iterations 2 --seed 7 \
     --evaluation-samples 20 --continuation "$tmp_dir/preloaded-resume" \
-    --preload-ordago "$tmp_dir/prior.cfr" --preload-weight 2 \
+    --preload-ordago "$tmp_dir/prior.cfr" --preload-weight 2 --report-every 1 \
     >"$tmp_dir/preloaded-partial.out"
 grep -Eq 'score-preload score=1:1 source_nodes=[1-9][0-9]* imported_nodes=[1-9]' \
     "$tmp_dir/preloaded-partial.out"
+grep -q 'score-report score=1:1 iterations=1' "$tmp_dir/preloaded-partial.out"
+grep -q 'score-report score=1:1 iterations=2' "$tmp_dir/preloaded-partial.out"
 cp "$tmp_dir/preloaded-resume/score-01-01.cfr.zst" "$tmp_dir/preloaded-preserved.cfr.zst"
 "$solver" --format ordago-score --target 3 --iterations 2 --seed 7 \
     --evaluation-samples 20 --continuation "$tmp_dir/preloaded-resume" \
@@ -443,8 +445,20 @@ if "$solver" --format ordago-score --target 3 --score 1:1 \
 fi
 cmp "$tmp_dir/score/values.txt" "$tmp_dir/score-values-preserved.txt"
 cmp "$tmp_dir/score/score-01-01.cfr.zst" "$tmp_dir/preserved.cfr.zst"
+# Resume with an immutable generic prior for newly reached nodes, including 14 workers.
+"$solver" --format ordago-score --target 3 --score 1:1 \
+    --continuation "$tmp_dir/score" \
+    --load-compressed "$tmp_dir/score/score-01-01.cfr.zst" \
+    --preload-ordago "$tmp_dir/prior.cfr" --threads 14 \
+    --iterations 14 --save-compressed "$tmp_dir/resumed-with-prior.cfr.zst" \
+    --export-strategy "$tmp_dir/resumed-with-prior.txt" >"$tmp_dir/resumed-with-prior.out"
+grep -q 'added_iterations=14' "$tmp_dir/resumed-with-prior.out"
+grep -q 'mode=lazy-all-lances' "$tmp_dir/resumed-with-prior.out"
+grep -q 'training_iterations=' "$tmp_dir/resumed-with-prior.txt"
+cmp "$tmp_dir/score/score-01-01.cfr.zst" "$tmp_dir/preserved.cfr.zst"
+cmp "$tmp_dir/prior.cfr" "$tmp_dir/prior-preserved.cfr"
 # A resume must save its work and must not reinitialize the training policy or RNG.
-for mode in no-save seed preload threads-per-cell overflow wrong-score wrong-target old-version; do
+for mode in no-save seed prior-weight threads-per-cell overflow wrong-score wrong-target old-version; do
     set -- --save "$tmp_dir/score-invalid-result.cfr"
     target=3
     score=1:1
@@ -454,7 +468,7 @@ for mode in no-save seed preload threads-per-cell overflow wrong-score wrong-tar
     case "$mode" in
         no-save) set -- ;;
         seed) set -- "$@" --seed 7 ;;
-        preload) set -- "$@" --preload-ordago "$tmp_dir/prior.cfr" ;;
+        prior-weight) set -- "$@" --preload-weight 2 ;;
         threads-per-cell) set -- "$@" --threads-per-cell 2 ;;
         overflow) iterations=18446744073709551615 ;;
         wrong-score) score=0:0 ;;
@@ -470,6 +484,68 @@ for mode in no-save seed preload threads-per-cell overflow wrong-score wrong-tar
     fi
     test ! -f "$tmp_dir/score-invalid-result.cfr"
 done
+
+# Extend completed score checkpoints and recompute higher values before lower cells.
+cp "$tmp_dir/score/values.txt" "$tmp_dir/extension-source-values.txt"
+"$solver" --format ordago-score --target 3 --score 1:1 \
+    --extend-continuation "$tmp_dir/score" --continuation "$tmp_dir/extended" \
+    --iterations 3 --evaluation-samples 1 --report-every 1 >"$tmp_dir/extended-partial.out"
+grep -q 'score-report score=1:1 iterations=3 .*added_iterations=1' "$tmp_dir/extended-partial.out"
+grep -q 'score-cell score=1:1 target=3 iterations=5' "$tmp_dir/extended-partial.out"
+cp "$tmp_dir/extended/score-01-01.cfr.zst" "$tmp_dir/extended-preserved.cfr.zst"
+"$solver" --format ordago-score --target 3 \
+    --extend-continuation "$tmp_dir/score" --continuation "$tmp_dir/extended" \
+    --iterations 3 --evaluation-samples 1 --export-strategy "$tmp_dir/extended.txt" \
+    >"$tmp_dir/extended-resume.out"
+grep -q 'training_iterations=5' "$tmp_dir/extended.txt"
+grep -q 'different_settings_cells=0' "$tmp_dir/extended-resume.out"
+cmp "$tmp_dir/extended/score-01-01.cfr.zst" "$tmp_dir/extended-preserved.cfr.zst"
+"$solver" --format ordago-score --target 3 --threads 2 \
+    --extend-continuation "$tmp_dir/score" --continuation "$tmp_dir/extended-full" \
+    --iterations 3 --evaluation-samples 1 >"$tmp_dir/extended-full.out"
+cmp "$tmp_dir/extended/values.txt" "$tmp_dir/extended-full/values.txt"
+for checkpoint in "$tmp_dir/extended/"*.zst; do
+    name=${checkpoint##*/}
+    cmp "$checkpoint" "$tmp_dir/extended-full/$name"
+done
+# The top score has no continuations: its checkpoint must equal an exact resume.
+"$solver" --format ordago-score --target 3 --score 2:2 \
+    --continuation "$tmp_dir/score" --load-compressed "$tmp_dir/score/score-02-02.cfr.zst" \
+    --iterations 3 --save-compressed "$tmp_dir/extension-reference.cfr.zst" \
+    >"$tmp_dir/extension-reference.out"
+cmp "$tmp_dir/extension-reference.cfr.zst" "$tmp_dir/extended/score-02-02.cfr.zst"
+# Shared workers can extend a checkpoint and keep the generic initializer for new nodes.
+"$solver" --format ordago-score --target 3 --score 1:1 --threads-per-cell 14 \
+    --extend-continuation "$tmp_dir/score" --continuation "$tmp_dir/extended-14" \
+    --preload-ordago "$tmp_dir/prior.cfr" --iterations 14 --evaluation-samples 1 \
+    --report-every 14 --export-strategy "$tmp_dir/extended-14.txt" >"$tmp_dir/extended-14.out"
+grep -q 'score-cell score=1:1 target=3 iterations=16' "$tmp_dir/extended-14.out"
+grep -q 'training_iterations=16' "$tmp_dir/extended-14.txt"
+ln -s "$tmp_dir/score" "$tmp_dir/score-alias"
+for mode in same alias nested different-settings no-extension seed overflow; do
+    set -- --extend-continuation "$tmp_dir/score"
+    destination="$tmp_dir/extended"
+    iterations=3
+    case "$mode" in
+        same) destination="$tmp_dir/score" ;;
+        alias) destination="$tmp_dir/score-alias" ;;
+        nested) destination="$tmp_dir/score/new" ;;
+        different-settings) iterations=4 ;;
+        no-extension) set -- ;;
+        seed) set -- "$@" --seed 7 ;;
+        overflow) iterations=18446744073709551615 ;;
+    esac
+    if "$solver" --format ordago-score --target 3 --continuation "$destination" \
+        --iterations "$iterations" --evaluation-samples 1 "$@" \
+        >"$tmp_dir/extension-invalid-$mode.out" 2>"$tmp_dir/extension-invalid-$mode.err"; then
+        echo "opciones incompatibles con la ampliacion debieron fallar: $mode" >&2
+        exit 1
+    fi
+done
+cmp "$tmp_dir/score/values.txt" "$tmp_dir/extension-source-values.txt"
+cmp "$tmp_dir/score/score-01-01.cfr.zst" "$tmp_dir/preserved.cfr.zst"
+cmp "$tmp_dir/extended/score-01-01.cfr.zst" "$tmp_dir/extended-preserved.cfr.zst"
+test ! -d "$tmp_dir/score/new"
 
 # A checkpoint from a different score must not load in the selected cell.
 cp "$tmp_dir/score/score-01-01.cfr.zst" "$tmp_dir/score/score-00-00.cfr.zst"

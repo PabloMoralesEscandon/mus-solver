@@ -321,45 +321,55 @@ La carga valida el esquema de `ordago`, incluida la configuración de uno o dos
 muses. No acepta exportaciones de texto, otros formatos de juego ni checkpoints
 de ninguna versión de `ordago-score`.
 
-La precarga transforma las claves y empareja las probabilidades por **acción**.
-Desde `v3`, solo importa **mus, descartes y grande**. Las claves antiguas de
-chica, pares y juego/punto mezclan importes ya cobrados con pendientes y
-usan resultados calculados a partir de cartas ocultas. Esas claves se omiten;
-no se inventan repartos de tantos ni se transfieren sus políticas. Los nodos sin
-precarga empiezan uniformes. La política antigua es una ayuda de inicialización;
-su entrenamiento no acredita una estrategia válida para las reglas corregidas.
+La precarga del CLI inicializa cada nodo **cuando se crea**, en mus, descartes,
+grande, chica, pares y juego/punto. Comparte una sola estrategia genérica en RAM
+entre las celdas activas. No recorre ni copia todos sus nodos para cada marcador.
 
-La precarga omite respuestas que el límite del marcador hace inalcanzables y
-normaliza las probabilidades sobre las acciones que siguen permitidas. Si todas
-tenían probabilidad cero en el origen, usa una distribución uniforme. La política
-inicial es `0,95 × política transferida + 0,05 × uniforme`, con probabilidad
-positiva en todas las acciones del destino.
-`--preload-weight` fija la masa inicial por nodo, tanto de estrategia media como
-de regrets positivos **sintéticos**; el valor predeterminado es 1. No se copian
-los regrets antiguos, su escala de utilidad, las iteraciones, el estado aleatorio
-ni los valores de continuación. El contador de entrenamiento nuevo empieza en
-cero. Un peso mayor mantiene más influencia de la política anterior; no garantiza
-mejor convergencia. El entrenamiento vuelve a optimizar la utilidad de partida.
+Para traducir una decisión, calcula por jugador `cobrado = marcador actual −
+marcador inicial de la celda`. Reconstruye el acumulado antiguo sumando esos
+cobros a los envites aceptados pendientes. Conserva la mano abstracta, jugador,
+lance, historial de mus, fuerza previa e incrementos del envite activo.
+El máximo de puntos calculados de la genérica incluía resultados todavía
+ocultos: se enumeran sus valores posibles usando los cobros, los envites, los
+puntos de grande/chica al paso y el intervalo de tantos de pares. No se consultan
+las cartas rivales. Se suman las masas de estrategia de los candidatos existentes;
+esto pondera sus políticas por el peso acumulado en el entrenamiento antiguo.
+Es una aproximación a la política general, no una traducción exacta de todos los
+estados ni una garantía de que mejore la convergencia.
 
-El checkpoint de origen se carga una vez y permanece en memoria junto al almacén
-de la celda activa. Se importa como máximo un nodo por clave de origen admitida,
-sin expansión de marcadores. No cambia el checkpoint de origen ni sobrescribe
-nodos existentes al usar el helper.
+Las probabilidades se emparejan por **acción** y se normalizan sobre el menú
+legal del destino. La política inicial es `0,95 × política transferida +
+0,05 × uniforme`. Si no hay candidatos con masa de estrategia, o toda la masa
+corresponde a acciones prohibidas, el nodo empieza uniforme. Los contadores
+`missing_source_nodes` e `imported_later_nodes` permiten comprobar la cobertura.
 
-`score-preload-source` muestra el origen, esquema, iteraciones antiguas y peso.
-`score-preload` informa por celda de los nodos importados y de los omitidos por
-falta de historial (`skipped_history_nodes`) o por superar el presupuesto del
-marcador (`skipped_illegal_nodes`). Para reproducir una ejecución
-interrumpida, conserva el origen y repite las opciones de precarga: `values.txt`
-no almacena esa configuración. Las celdas ya publicadas se mantienen. Los
-checkpoints de destino son autónomos; su evaluación, exportación y reanudación
-con la API CFR no necesitan el origen. La precarga usa el esquema `ordago-score/v4`.
+`--preload-weight` fija la masa inicial por nodo de estrategia media y de regrets
+positivos **sintéticos**; por defecto vale 1. No copia regrets antiguos, unidades
+de utilidad, iteraciones, RNG ni valores de continuación. El aprendizaje nuevo
+optimiza la utilidad de ganar la partida. Los nodos existentes se conservan.
+
+`--report-every 1000` permite seguir las iteraciones y la cobertura de la precarga
+dentro de cada marcador mediante líneas `score-report`.
+
+`score-preload-source` identifica el origen y sus parámetros; `score-preload`
+informa por celda con `mode=lazy-all-lances`. Conserva el checkpoint genérico y
+repite las opciones al reanudar para inicializar también los nodos que aparezcan
+después. `values.txt` no guarda la configuración del prior y las celdas publicadas
+no se vuelven a entrenar. Para rehacerlas con esta precarga, usa un directorio nuevo.
+
+Los checkpoints y TXT contienen los nodos materializados, incluida su
+inicialización y aprendizaje. Se pueden cargar sin la genérica, pero entonces
+los nodos nuevos empiezan uniformes. La evaluación mantiene la política uniforme
+para nodos ausentes y no materializa nodos; tampoco el TXT contiene un fallback
+implícito a la genérica. La precarga no cambia el esquema `ordago-score/v4`.
 
 La API de [mus_score.h](include/mus_solver/mus_score.h) ofrece
-`mus_score_information_set_from_ordago()` para convertir una clave y
-`mus_score_preload_ordago()` para inicializar un almacén ya creado. También
-puede aplicarse automáticamente desde el coordinador, con una tabla inicializada
-y los callbacks de persistencia habituales:
+`mus_score_prior_attach()` para instalar la inicialización de todos los lances
+en un almacén nuevo o restaurado. El origen permanece inmutable y el binding debe
+vivir mientras se creen nodos. Los helpers anteriores
+`mus_score_information_set_from_ordago()` y `mus_score_preload_ordago()` conservan
+su operación limitada a mus, descartes y grande por compatibilidad. El coordinador
+usa automáticamente el nuevo binding:
 
 ```c
 MusScorePreloadOptions prior = {
@@ -376,6 +386,48 @@ MusScoreTrainingOptions training = {
 Status status = mus_score_train(&table, 0, &training,
                                 save_cell, save_diagonal, context);
 ```
+
+### Ampliar una tabla ya entrenada
+
+`--extend-continuation ORIGEN` carga los checkpoints de una tabla de marcadores
+y añade `--iterations N` a **cada marcador** solicitado. Usa otro directorio como
+destino. Por ejemplo, para pasar de 10M a 50M por marcador hasta 30–30:
+
+```sh
+build/release/mus-solver \
+    --format ordago-score --target 40 --score 30:30 \
+    --extend-continuation entrenamiento-10m/continuacion \
+    --continuation entrenamiento-50m/continuacion \
+    --iterations 40000000 --threads 1 --threads-per-cell 14 \
+    --report-every 1000 --evaluation-samples 1000 \
+    --preload-ordago-compressed ordago-100m.cfr.zst --preload-weight 1
+```
+
+El origen debe contener todos los marcadores solicitados, con el mismo objetivo
+y esquema, y no tener un entrenamiento activo. El destino debe estar separado
+del origen. No se admite `--seed` ni `--load`: cada marcador restaura su RNG.
+Se conservan los regrets, la estrategia acumulada, los contadores y las semillas
+originales. La genérica es opcional y solo inicializa nodos nuevos.
+
+El coordinador valida cada checkpoint contra la tabla **antigua**. Después
+asocia el entrenamiento a la tabla **nueva**: completa y evalúa una diagonal,
+guarda sus checkpoints y publica sus valores antes de bajar a la siguiente.
+Las claves y reglas del marcador no cambian. Los checkpoints de salida llevan
+el hash de las nuevas continuaciones y se cargan con la nueva tabla. La carga
+ordinaria mantiene la comprobación estricta de esquema.
+
+Esta ampliación conserva aprendizaje de una aproximación anterior de los
+valores de continuación. Un contador de 50M significa 10M anteriores más 40M
+nuevos; no significa que los 50M se hayan ejecutado bajo los valores finales.
+
+`extension.txt` guarda el origen canónico, su tabla y los parámetros de la
+ampliación. Al reanudar, repite el mismo comando: las diagonales publicadas se
+conservan y cada marcador pendiente vuelve a cargar su checkpoint del origen.
+Los checkpoints de una diagonal incompleta pueden recalcularse. Para ampliar
+otra vez desde 50M, utiliza esta nueva tabla como origen y otro destino.
+Cambiar de origen, iteraciones añadidas, evaluación o precarga en una ampliación
+parcial produce un error. El origen y sus checkpoints deben permanecer inmutables.
+`score-report` muestra `iterations` acumuladas y `added_iterations` de esta ejecución.
 
 ### Persistencia y evaluación
 
@@ -419,7 +471,7 @@ las estrategias de celdas ya publicadas no se sobrescriben al reanudar.
 `--load-compressed` carga el estado completo de un único marcador: regrets,
 estrategia acumulada, contador, estadísticas y estado aleatorio. En este modo,
 `--iterations N` añade **N iteraciones a ese checkpoint**, sin entrenar otras
-celdas ni volver a precargar la estrategia general. Por ejemplo, un checkpoint
+celdas. Por ejemplo, un checkpoint
 de 100.000 iteraciones pasa a 200.000 con:
 
 ```sh
@@ -439,7 +491,11 @@ checkpoints publicados y su tabla. Las exportaciones TXT no se sobrescriben.
 Para seguir desde el resultado, se utiliza ese nuevo archivo con `--load` o
 `--load-compressed`, según su formato.
 No se permite `--seed` al añadir iteraciones: se restaura el flujo aleatorio
-guardado. Tampoco se admite `--preload-ordago`.
+guardado. Se admite `--preload-ordago` o `--preload-ordago-compressed` junto con
+entrenamiento: inicializa únicamente nodos nuevos y conserva el aprendizaje
+restaurado. Usa de nuevo el mismo origen y `--preload-weight` para mantener la
+configuración. Estas opciones no se admiten para una evaluación o exportación
+sin entrenamiento.
 
 Al reanudar un checkpoint, `--threads N` reparte las nuevas iteraciones entre
 hilos que comparten **esa única estrategia**, igual que en `ordago`. Por ejemplo:

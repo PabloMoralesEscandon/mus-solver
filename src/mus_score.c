@@ -300,28 +300,62 @@ typedef struct {
     Trainer trainer;
     MusScoreCell cell;
     MusScorePreloadStats preload_stats;
+    MusScorePrior prior;
     Status status;
 } ScoreTrainingWorker;
+
+static Status report_score_training(const Trainer *trainer, size_t completed,
+                                     void *context) {
+    const ScoreTrainingWorker *worker = context;
+    return worker->options->progress(&worker->game, trainer, completed,
+        &worker->preload_stats, worker->options->progress_context);
+}
 
 static void *train_score_cell(void *raw_worker) {
     ScoreTrainingWorker *worker = raw_worker;
     const MusScoreTrainingOptions *options = worker->options;
     const size_t threads = options->threads_per_cell == 0
                                ? 1 : options->threads_per_cell;
-    const uint64_t seed = options->seed +
+    uint64_t seed = options->seed +
         (uint64_t)(worker->a * MUS_ORDAGO_WAGER + worker->b);
     worker->store = (InfoStore){0};
+    worker->trainer = (Trainer){0};
     worker->preload_stats = (MusScorePreloadStats){0};
     Status status = mus_score_game_init(&worker->game, worker->table,
                                         worker->a, worker->b);
-    if (status == CFR_STATUS_SUCCESS)
+    if (status == CFR_STATUS_SUCCESS && options->extension != NULL) {
+        const MusScoreExtension *extension = options->extension;
+        const MusScoreCell *source_cell = &extension->table->cells[worker->a][worker->b];
+        MusScoreGame source_game;
+        seed = source_cell->training_seed;
+        status = mus_score_game_init(&source_game, extension->table, worker->a, worker->b);
+        if (status == CFR_STATUS_SUCCESS)
+            status = mus_score_game_state_init(&worker->state, &source_game);
+        if (status == CFR_STATUS_SUCCESS)
+            status = extension->load_cell(&source_game, &worker->state, &worker->store,
+                                           &worker->trainer, extension->context);
+        if (status == CFR_STATUS_SUCCESS &&
+            (worker->trainer.game != &source_game.game ||
+             worker->trainer.state != mus_game_state_as_game_state(&worker->state) ||
+             worker->trainer.store != &worker->store ||
+             worker->trainer.variant != CFR_TRAINER_VARIANT_MCCFR_EXTERNAL ||
+             worker->trainer.training_iterations != source_cell->iterations))
+            status = CFR_STATUS_INCOMPATIBLE_GAME;
+        if (status == CFR_STATUS_SUCCESS) {
+            /* Loading still enforces the old continuation hash. Only after a
+             * valid load do we use the new payoff model with the same keys. */
+            status = mus_score_game_state_init(&worker->state, &worker->game);
+            worker->trainer.game = &worker->game.game;
+        }
+    } else if (status == CFR_STATUS_SUCCESS) {
         status = mus_score_game_state_init(&worker->state, &worker->game);
-    if (status == CFR_STATUS_SUCCESS)
-        status = cfr_info_store_init(&worker->store);
-    if (status == CFR_STATUS_SUCCESS)
-        status = cfr_trainer_init_mccfr(
-            &worker->trainer, &worker->game.game,
-            mus_game_state_as_game_state(&worker->state), &worker->store, seed);
+        if (status == CFR_STATUS_SUCCESS)
+            status = cfr_info_store_init(&worker->store);
+        if (status == CFR_STATUS_SUCCESS)
+            status = cfr_trainer_init_mccfr(
+                &worker->trainer, &worker->game.game,
+                mus_game_state_as_game_state(&worker->state), &worker->store, seed);
+    }
     /* Prepare before reservation or preload to avoid growing a temporary
      * sequential hash table that would immediately need conversion. */
     if (status == CFR_STATUS_SUCCESS && threads > 1)
@@ -330,13 +364,14 @@ static void *train_score_cell(void *raw_worker) {
         status = cfr_info_store_reserve(&worker->store,
                                         options->reserve_information_sets);
     if (status == CFR_STATUS_SUCCESS && options->preload != NULL)
-        status = mus_score_preload_ordago(&worker->game, options->preload,
-                                          &worker->store, &worker->preload_stats);
+        status = mus_score_prior_attach(&worker->prior, &worker->game, options->preload,
+                                         &worker->store, &worker->preload_stats);
     if (status == CFR_STATUS_SUCCESS)
         status = mus_training_run(&worker->trainer, options->iterations, threads,
-                                   options->iterations, NULL, NULL);
+            options->report_every == 0 ? options->iterations : options->report_every,
+            options->progress == NULL ? NULL : report_score_training, worker);
     worker->cell = (MusScoreCell){
-        .ready = true, .iterations = options->iterations,
+        .ready = true, .iterations = worker->trainer.training_iterations,
         .evaluation_samples = options->evaluation_samples, .training_seed = seed,
     };
     if (status == CFR_STATUS_SUCCESS)
@@ -356,6 +391,29 @@ Status mus_score_train(MusScoreTable *table, unsigned int minimum_sum,
         options->evaluation_samples == 0 ||
         minimum_sum > 2U * (unsigned int)(table->target - 1))
         return CFR_STATUS_INVALID_ARGUMENT;
+    if (options->extension != NULL) {
+        const MusScoreExtension *extension = options->extension;
+        if (extension->table == table || !valid_table(extension->table) ||
+            extension->table->target != table->target || extension->load_cell == NULL)
+            return CFR_STATUS_INVALID_ARGUMENT;
+        for (unsigned int a = 0; a < table->target; ++a) {
+            for (unsigned int b = 0; b < table->target; ++b) {
+                if (a + b < minimum_sum)
+                    continue;
+                const MusScoreCell *source = &extension->table->cells[a][b];
+                const MusScoreCell *destination = &table->cells[a][b];
+                if (!source->ready)
+                    return CFR_STATUS_NOT_FOUND;
+                if (source->iterations > SIZE_MAX - options->iterations)
+                    return CFR_STATUS_INVALID_ARGUMENT;
+                if (destination->ready &&
+                    (destination->iterations != source->iterations + options->iterations ||
+                     destination->evaluation_samples != options->evaluation_samples ||
+                     destination->training_seed != source->training_seed))
+                    return CFR_STATUS_INCOMPATIBLE_GAME;
+            }
+        }
+    }
     size_t worker_count = options->threads == 0 ? 1 : options->threads;
     if (worker_count > table->target)
         worker_count = table->target;

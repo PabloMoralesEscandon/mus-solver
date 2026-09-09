@@ -4052,6 +4052,83 @@ Status mus_score_information_set_from_ordago(
     return status == CFR_STATUS_INVALID_ARGUMENT ? CFR_STATUS_NOT_FOUND : status;
 }
 
+Status mus_score_information_set_ordago_candidates(
+    const MusScoreGame *game, InfoSetKey key, InfoSetKey *keys,
+    size_t capacity, size_t *count) {
+    if (game == NULL || !mus_score_game_matches(&game->game) ||
+        game->continuation == NULL || keys == NULL || count == NULL)
+        return CFR_STATUS_INVALID_ARGUMENT;
+    MusOrdagoInformationSet information;
+    Status status = mus_score_game_information_set_decode(
+        key, game->continuation->target, &information);
+    if (status != CFR_STATUS_SUCCESS)
+        return status;
+    if (information.hand_kind == MUS_ORDAGO_HAND_EXACT) {
+        if (capacity == 0)
+            return CFR_STATUS_BUFFER_TOO_SMALL;
+        keys[0] = key;
+        *count = 1;
+        return CFR_STATUS_SUCCESS;
+    }
+    int paid[2];
+    for (int player = 0; player < 2; ++player) {
+        paid[player] = information.scores[player] - game->initial_scores[player];
+        if (game->initial_scores[player] >= game->continuation->target || paid[player] < 0)
+            return CFR_STATUS_INVALID_ARGUMENT;
+    }
+    /* In reachable legacy histories, a rejected opening has previous_wager=1.
+     * Thus each payment equals its contribution to the legacy wager total. */
+    const int wagers = information.prior_wager_total + paid[0] + paid[1];
+    if (wagers > MUS_ORDAGO_WAGER ||
+        (information.phase == MUS_PHASE_GRANDE && wagers != 0))
+        return CFR_STATUS_INVALID_ARGUMENT;
+    int minimum_total = wagers, maximum_total = wagers;
+    for (int lance = 0; lance < information.previous_strength_count; ++lance) {
+        const MusLanceStrength strength = information.previous_strengths[lance];
+        if (lance < 2 && strength == MUS_LANCE_STRENGTH_NONE) {
+            minimum_total += 1;
+            maximum_total += 1;
+        } else if (lance == 2 && strength != MUS_LANCE_STRENGTH_PARES_SKIPPED_NONE) {
+            /* The old model also settled the winner's intrinsic pair points. */
+            minimum_total += 1;
+            maximum_total += 3;
+        }
+    }
+    int minimum = (minimum_total + 1) / 2;
+    if (minimum < paid[0]) minimum = paid[0];
+    if (minimum < paid[1]) minimum = paid[1];
+    int maximum = maximum_total < MUS_ORDAGO_WAGER ? maximum_total : MUS_ORDAGO_WAGER;
+    if (information.bet_stage == MUS_BET_RESPONSE) {
+        const int active = ordago_active_numeric_wager(information.current_wager,
+            information.previous_wager, information.current_wager_is_ordago);
+        if (active > 0 && maximum >= MUS_ORDAGO_WAGER - wagers - active)
+            maximum = MUS_ORDAGO_WAGER - wagers - active - 1;
+    }
+    if (minimum > maximum) {
+        *count = 0;
+        return CFR_STATUS_SUCCESS;
+    }
+    const size_t required = (size_t)(maximum - minimum + 1);
+    if (capacity < required)
+        return CFR_STATUS_BUFFER_TOO_SMALL;
+    information.score_enabled = false;
+    information.scores[0] = information.scores[1] = 0;
+    information.prior_wager_total = (uint8_t)wagers;
+    information.max_settled_score = (uint8_t)minimum;
+    InfoSetKey first;
+    status = mus_ordago_game_information_set_encode(&information, &first);
+    if (status != CFR_STATUS_SUCCESS)
+        return status;
+    InfoSetKey stride = (InfoSetKey)MUS_ORDAGO_TOTAL_WAGER_RADIX * MUS_ORDAGO_SITUATION_COUNT;
+    if (information.bet_stage == MUS_BET_RESPONSE)
+        stride *= (InfoSetKey)MUS_ORDAGO_WAGER_RADIX * MUS_ORDAGO_WAGER_RADIX *
+                  MUS_ORDAGO_WAGER_ACTION_MASK_RADIX * MUS_ORDAGO_WAGER_ACTION_MASK_RADIX * 2;
+    for (size_t i = 0; i < required; ++i)
+        keys[i] = first + (InfoSetKey)i * stride;
+    *count = required;
+    return CFR_STATUS_SUCCESS;
+}
+
 /* Each score cell uses a separate store and a distinct checkpoint schema. */
 bool mus_score_game_matches(const Game *game) {
     return game != NULL && game->context == &MUS_SCORE_FORMAT &&
