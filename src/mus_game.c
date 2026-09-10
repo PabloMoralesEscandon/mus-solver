@@ -4232,17 +4232,24 @@ Status mus_ordago_game_information_set_set_hand(
     return CFR_STATUS_SUCCESS;
 }
 
-Status mus_ordago_game_information_set_encode(
-    const MusOrdagoInformationSet *information, InfoSetKey *result) {
+static Status encode_ordago_information_set(
+    const MusOrdagoInformationSet *information, unsigned int target, InfoSetKey *result) {
     MusGameModel model = {0};
     MusOrdagoInformationSet decoded = {0};
     int hand_code = -1;
     int situation;
     InfoSetKey key;
-    if (information == NULL || result == NULL ||
+    if (information == NULL || result == NULL || target > MUS_ORDAGO_WAGER ||
+        information->score_enabled != (target != 0) ||
         !player_is_valid(information->player) ||
         (information->mus_stopped && !player_is_valid(information->mus_stop_player)) ||
         information->mus_count > MUS_GAME_MAX_MUSES)
+        return CFR_STATUS_INVALID_ARGUMENT;
+    if (target != 0 &&
+        (information->scores[0] >= target || information->scores[1] >= target ||
+         information->max_settled_score !=
+             (information->scores[0] > information->scores[1]
+                  ? information->scores[0] : information->scores[1])))
         return CFR_STATUS_INVALID_ARGUMENT;
     model.phase = (uint8_t)information->phase;
     model.current_player = (uint8_t)information->player;
@@ -4298,11 +4305,18 @@ Status mus_ordago_game_information_set_encode(
                 return CFR_STATUS_INVALID_ARGUMENT;
             key = key * ordago_strength_radix(lance) + strength;
         }
-        key = key * MUS_ORDAGO_SCORE_RADIX + information->max_settled_score;
+        if (target != 0) {
+            for (int player = 0; player < MUS_GAME_PLAYER_COUNT; ++player)
+                key = key * MUS_ORDAGO_SCORE_RADIX + information->scores[player];
+        } else {
+            key = key * MUS_ORDAGO_SCORE_RADIX + information->max_settled_score;
+        }
         key = key * MUS_ORDAGO_TOTAL_WAGER_RADIX + information->prior_wager_total;
         if (information->bet_stage == MUS_BET_RESPONSE) {
-            key = key * MUS_ORDAGO_WAGER_RADIX + information->current_wager;
-            key = key * MUS_ORDAGO_WAGER_RADIX + information->previous_wager;
+            if (target == 0) {
+                key = key * MUS_ORDAGO_WAGER_RADIX + information->current_wager;
+                key = key * MUS_ORDAGO_WAGER_RADIX + information->previous_wager;
+            }
             for (int player = 0; player < 2; ++player)
                 key = key * MUS_ORDAGO_WAGER_ACTION_MASK_RADIX +
                       information->used_wager_action_masks[player];
@@ -4310,10 +4324,30 @@ Status mus_ordago_game_information_set_encode(
         }
     }
     key = key * MUS_ORDAGO_SITUATION_COUNT + situation;
-    if (mus_ordago_game_information_set_decode(key, &decoded) != CFR_STATUS_SUCCESS)
+    if (decode_ordago_information_set(key, target, &decoded) != CFR_STATUS_SUCCESS)
+        return CFR_STATUS_INVALID_ARGUMENT;
+    if (target != 0 && phase_is_betting(information->phase) &&
+        (decoded.current_wager != information->current_wager ||
+         decoded.previous_wager != information->previous_wager ||
+         decoded.numeric_wager_count != information->numeric_wager_count ||
+         decoded.current_wager_is_ordago != information->current_wager_is_ordago ||
+         memcmp(decoded.used_wager_action_masks, information->used_wager_action_masks,
+                sizeof(decoded.used_wager_action_masks)) != 0))
         return CFR_STATUS_INVALID_ARGUMENT;
     *result = key;
     return CFR_STATUS_SUCCESS;
+}
+
+Status mus_ordago_game_information_set_encode(
+    const MusOrdagoInformationSet *information, InfoSetKey *result) {
+    return encode_ordago_information_set(information, 0, result);
+}
+
+Status mus_score_game_information_set_encode(
+    const MusOrdagoInformationSet *information, unsigned int target, InfoSetKey *result) {
+    if (target == 0)
+        return CFR_STATUS_INVALID_ARGUMENT;
+    return encode_ordago_information_set(information, target, result);
 }
 
 Status mus_ordago_game_information_set_legal_actions(

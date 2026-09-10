@@ -134,6 +134,8 @@ static Status parse_observation(json_object *obj, MusAdapterObservation *o,
                                        "known_hand_scores",
                                        "hand_scores_complete",
                                        "match_scores",
+                                       "hand_start_scores",
+                                       "pending_wager_total",
                                        "history",
                                        "legal_actions"};
     if (!fields(obj, keys, sizeof(keys) / sizeof(keys[0])))
@@ -214,6 +216,18 @@ static Status parse_observation(json_object *obj, MusAdapterObservation *o,
         for (int p = 0; p < 2; ++p)
             o->match_scores[p] = (int)numbers[p];
     }
+    if (json_object_object_get_ex(obj, "hand_start_scores", &value)) {
+        if (!int_array(value, 2, 0, 39, numbers))
+            return CFR_STATUS_INVALID_ARGUMENT;
+        o->has_hand_start_scores = true;
+        for (int p = 0; p < 2; ++p)
+            o->hand_start_scores[p] = (int)numbers[p];
+    }
+    if (json_object_object_get_ex(obj, "pending_wager_total", &value)) {
+        if (!integer(value, 0, MUS_ADAPTER_MAX_AMOUNT, &o->pending_wager_total))
+            return CFR_STATUS_INVALID_ARGUMENT;
+        o->has_pending_wager_total = true;
+    }
     if (json_object_object_get_ex(obj, "history", &value)) {
         if (!json_object_is_type(value, json_type_array))
             return CFR_STATUS_INVALID_ARGUMENT;
@@ -275,6 +289,17 @@ static json_object *decision_json(const MusAdapterDecision *d) {
                            d->reason ? json_object_new_string(d->reason) : NULL);
     json_object_object_add(diagnostic, "score_proxy",
                            json_object_new_boolean(d->score_proxy));
+    json_object_object_add(diagnostic, "strategy",
+                           json_object_new_string(d->score_strategy ? "ordago-score" : "ordago"));
+    json_object_object_add(diagnostic, "strategy_reason",
+                           json_object_new_string(d->strategy_reason));
+    json_object *scores = NULL;
+    if (d->score_strategy) {
+        scores = json_object_new_array();
+        for (int p = 0; p < 2; ++p)
+            json_object_array_add(scores, json_object_new_int(d->strategy_scores[p]));
+    }
+    json_object_object_add(diagnostic, "strategy_scores", scores);
     json_object_object_add(diagnostic, "ordago_factor",
                            json_object_new_double(d->ordago_factor));
     json_object_object_add(diagnostic, "real_total",
@@ -338,6 +363,7 @@ static bool emit(json_object *out) {
 
 int main(int argc, char **argv) {
     const char *path = NULL;
+    const char *score_table = NULL, *score_strategies = NULL;
     bool compressed = true, text_strategy = false;
     uint64_t seed = 0;
     MusAdapterConfig config = mus_adapter_default_config();
@@ -348,6 +374,9 @@ int main(int argc, char **argv) {
                  "       mus-bot --load-compressed FILE [--seed N] "
                  "[--no-score-adjustment]\n"
                  "       mus-bot --load FILE [--seed N] [--no-score-adjustment]\n"
+                 "Add --score-table values.txt --score-strategies DIR for hybrid play.\n"
+                 "Hybrid observations require hand_start_scores. Trained betting\n"
+                 "observations also require pending_wager_total.\n"
                  "Read one observation per JSON line. Write one decision per JSON "
                  "line.\n"
                  "The maximum input line length is 1 MiB. See docs/adapter.md.");
@@ -359,6 +388,10 @@ int main(int argc, char **argv) {
             text_strategy = !strcmp(argv[i], "--strategy");
             compressed = !strcmp(argv[i], "--load-compressed");
             path = argv[++i];
+        } else if (!strcmp(argv[i], "--score-table") && i + 1 < argc && !score_table) {
+            score_table = argv[++i];
+        } else if (!strcmp(argv[i], "--score-strategies") && i + 1 < argc && !score_strategies) {
+            score_strategies = argv[++i];
         } else if (!strcmp(argv[i], "--seed") && i + 1 < argc) {
             char *end;
             const char *arg = argv[++i];
@@ -377,6 +410,10 @@ int main(int argc, char **argv) {
             return 2;
         }
     }
+    if ((score_table == NULL) != (score_strategies == NULL)) {
+        fputs("error: score_table_and_strategies_required\n", stderr);
+        return 2;
+    }
     if (!path) {
         fputs("error: checkpoint_required\n", stderr);
         return 2;
@@ -385,8 +422,11 @@ int main(int argc, char **argv) {
     Status status = text_strategy
                         ? mus_adapter_open_text(path, &config, seed, &adapter)
                         : mus_adapter_load(path, compressed, &config, seed, &adapter);
+    if (status == CFR_STATUS_SUCCESS && score_table != NULL)
+        status = mus_adapter_enable_score_text(adapter, score_table, score_strategies);
     if (status != CFR_STATUS_SUCCESS) {
         fprintf(stderr, "error: %s\n", status_code(status));
+        mus_adapter_destroy(adapter);
         return 1;
     }
     char *line = malloc(MAX_LINE + 2U);

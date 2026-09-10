@@ -5,6 +5,7 @@
 
 #include "cfr/checkpoint.h"
 #include "mus_solver/mus_adapter.h"
+#include "mus_solver/mus_score.h"
 #include "mus_solver/mus_strategy.h"
 
 static int failures;
@@ -68,7 +69,8 @@ static InfoSetKey put(InfoStore *store, MusOrdagoInformationSet info, Action fir
     InfoSetKey key = -1;
     Action actions[16];
     size_t count = 0;
-    OK(mus_ordago_game_information_set_encode(&info, &key));
+    OK(info.score_enabled ? mus_score_game_information_set_encode(&info, 40, &key)
+                           : mus_ordago_game_information_set_encode(&info, &key));
     OK(mus_ordago_game_information_set_legal_actions(&info, actions, 16, &count));
     InfoNode *node = NULL;
     OK(cfr_info_store_get_or_create(store, key, count, &node));
@@ -509,14 +511,112 @@ static void write_fixture(const char *path) {
     OK(cfr_info_store_destroy(&store));
 }
 
+static MusOrdagoInformationSet score_info(MusOrdagoInformationSet info, int a, int b) {
+    info.score_enabled = true;
+    info.scores[0] = (uint8_t)a;
+    info.scores[1] = (uint8_t)b;
+    info.max_settled_score = (uint8_t)(a > b ? a : b);
+    return info;
+}
+
+static void write_score_fixture(const char *directory) {
+    MusScoreTable table;
+    OK(mus_score_table_init(&table, 40));
+    for (int a = 0; a < 40; ++a)
+        for (int b = 0; b < 40; ++b)
+            if (a + b >= 60)
+                table.cells[a][b] = (MusScoreCell){true, 0, 50000000, 1000, 7};
+    char path[4096];
+    snprintf(path, sizeof(path), "%s/values.txt", directory);
+    FILE *file = fopen(path, "w");
+    CHECK(file != NULL);
+    if (file == NULL)
+        return;
+    OK(mus_score_table_write(file, &table));
+    CHECK(fclose(file) == 0);
+    for (int a = 0; a < 40; ++a) {
+        for (int b = 0; b < 40; ++b) {
+            if (!table.cells[a][b].ready)
+                continue;
+            MusScoreGame game;
+            MusGameState state;
+            Trainer trainer;
+            InfoStore store = {0};
+            OK(mus_score_game_init(&game, &table, (unsigned int)a, (unsigned int)b));
+            OK(mus_score_game_state_init(&state, &game));
+            OK(cfr_info_store_init(&store));
+            for (int p = 0; p < 2; ++p) {
+                double aggressive = (p == 0 ? a >= b : b >= a) ? 0.25 : 0.75;
+                const MusGamePhase phases[] = {MUS_PHASE_GRANDE, MUS_PHASE_CHICA,
+                    MUS_PHASE_PARES, MUS_PHASE_JUEGO, MUS_PHASE_PUNTO};
+                for (size_t phase = 0; phase < sizeof(phases) / sizeof(phases[0]); ++phase) {
+                    MusOrdagoInformationSet info = score_info(info_base(phases[phase], (Player)p), a, b);
+                    info.bet_stage = p == 0 ? MUS_BET_FIRST_TO_ACT : MUS_BET_SECOND_AFTER_PASS;
+                    put(&store, info, MUS_ACTION_ORDAGO, aggressive, MUS_ACTION_PASS);
+                    if (phases[phase] == MUS_PHASE_CHICA && a == 30 && b == 30 && p == 0) {
+                        info.previous_strengths[0] = MUS_LANCE_STRENGTH_BOTH;
+                        info.prior_wager_total = 4;
+                        put(&store, info, MUS_ACTION_ORDAGO, 0.2, MUS_ACTION_PASS);
+                        info.prior_wager_total = 0;
+                        info.scores[0] = info.max_settled_score = 34;
+                        put(&store, info, MUS_ACTION_ORDAGO, 0.7, MUS_ACTION_PASS);
+                    }
+                }
+                MusOrdagoInformationSet mus = score_info(info_base(
+                    p == 0 ? MUS_PHASE_MUS_PLAYER_0 : MUS_PHASE_MUS_PLAYER_1, (Player)p), a, b);
+                put(&store, mus, MUS_ACTION_MUS, aggressive, MUS_ACTION_NO_MUS);
+                MusOrdagoInformationSet discard = score_info(info_base(
+                    p == 0 ? MUS_PHASE_DISCARD_PLAYER_0 : MUS_PHASE_DISCARD_PLAYER_1, (Player)p), a, b);
+                if (p == 1)
+                    discard.discard_counts[0][0] = 2;
+                put(&store, discard, MUS_ACTION_DISCARD_MASK(1), aggressive,
+                    MUS_ACTION_DISCARD_MASK(15));
+                MusOrdagoInformationSet offered_info = score_info(
+                    offered(40, 1, (Player)p, 0, 0, 0, true), a, b);
+                put(&store, offered_info, MUS_ACTION_ACCEPT, aggressive, MUS_ACTION_REJECT);
+            }
+            if (a == 30 && b == 30) {
+                const MusOrdagoInformationSet bets[] = {
+                    offered(2, 1, CFR_PLAYER_0, 0, 1, 1, false),
+                    offered(4, 1, CFR_PLAYER_0, 0, 2, 1, false),
+                    offered(4, 2, CFR_PLAYER_0, 1, 1, 2, false),
+                    offered(6, 2, CFR_PLAYER_0, 1, 2, 2, false)};
+                const double weights[] = {0.2, 0.8, 0.4, 0.3};
+                for (size_t i = 0; i < 4; ++i)
+                    put(&store, score_info(bets[i], a, b), MUS_ACTION_ACCEPT, weights[i],
+                        MUS_ACTION_ORDAGO);
+            }
+            if (a == 35 && b == 35) {
+                MusOrdagoInformationSet info = score_info(
+                    info_base(MUS_PHASE_GRANDE, CFR_PLAYER_0), a, b);
+                info.mus_stop_player = CFR_PLAYER_1;
+                put(&store, info, MUS_ACTION_BET_TWO, 0.6, MUS_ACTION_PASS);
+            }
+            OK(cfr_trainer_init_mccfr(&trainer, &game.game,
+                mus_game_state_as_game_state(&state), &store, 7));
+            trainer.training_iterations = 50000000;
+            snprintf(path, sizeof(path), "%s/score-%02d-%02d.txt", directory, a, b);
+            file = fopen(path, "w");
+            CHECK(file != NULL);
+            if (file != NULL) {
+                OK(mus_score_strategy_write_text(file, &trainer));
+                CHECK(fclose(file) == 0);
+            }
+            OK(cfr_info_store_destroy(&store));
+        }
+    }
+}
+
 int main(int argc, char **argv) {
     test_encoder();
     test_all_phases_and_boundaries();
     test_lookup_and_translation();
     test_score_and_fallback();
     test_missing_corrupt_and_legal_gaps();
-    if (argc == 2)
+    if (argc >= 2)
         write_fixture(argv[1]);
+    if (argc == 3)
+        write_score_fixture(argv[2]);
     if (failures) {
         fprintf(stderr, "%d adapter checks failed\n", failures);
         return 1;

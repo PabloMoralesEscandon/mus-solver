@@ -1,6 +1,7 @@
 # Adaptador para partidas de dos jugadores
 
-`mus-bot` utiliza un checkpoint `ordago` como política de referencia. Recibe
+`mus-bot` utiliza una estrategia genérica `ordago` y puede añadir estrategias
+`ordago-score/v4` para los marcadores ya entrenados. Recibe
 observaciones de un motor de partida y devuelve una distribución y una acción.
 El motor conserva el estado real, determina las acciones legales, resuelve los
 lances y actualiza el marcador. El adaptador no necesita las cartas del rival.
@@ -18,6 +19,38 @@ make
 build/release/mus-bot --strategy mus-ordago-100m.txt --seed 17
 ```
 
+Para activar la selección por marcador:
+
+```sh
+build/release/mus-bot --strategy mus-ordago-100m.txt \
+  --score-table entrenamiento-50m/continuacion/values.txt \
+  --score-strategies entrenamiento-50m/txt --seed 17
+```
+
+Las dos opciones `--score-*` se utilizan juntas. Sin ellas se conserva el
+comportamiento genérico anterior y no hacen falta campos nuevos en las peticiones.
+Con ellas, `hand_start_scores` es obligatorio en cada petición. Las decisiones
+de apuestas en un marcador entrenado también requieren `pending_wager_total`.
+La [guía de integración](adapter-integration.md) explica cómo producir estos
+datos desde el motor y cómo mantenerlos durante una mano.
+
+Se elige la estrategia por el **marcador al inicio de la mano**, usando las
+celdas publicadas en `values.txt`. La tabla entrenada hasta 30–30 incluye
+30–30 y todos los marcadores con suma al menos 60, como 39–21; no exige que
+ambos jugadores tengan 30. El adaptador consulta la cobertura real de la tabla,
+sin codificar ese umbral. Si el marcador inicial está fuera, se utiliza la
+genérica y sus heurísticas habituales durante toda esa mano.
+
+Si empieza en 30–30 y se cobran cuatro tantos, se sigue consultando
+`score-30-30.txt` con las puntuaciones públicas 34–30 en la clave. Solo al
+empezar otra mano cambia el marcador inicial. El motor vuelve a normalizar
+entonces las posiciones a mano y postre.
+
+En un marcador entrenado se usan sus políticas en mus, descartes y todos los
+lances, **sin el multiplicador de órdago ni el límite heurístico de cantidades
+de la genérica**. El menú del modelo con marcador determina las acciones
+abstractas y `legal_actions` sigue siendo la autoridad para la acción real.
+
 **El modo recomendado es `--strategy` con el exportador de texto ordenado.**
 El archivo se abre en lectura y cada consulta busca sus claves mediante saltos
 por posición en disco. El orden de las claves actúa como índice: no hay que
@@ -25,7 +58,20 @@ recorrer previamente los 33 GB ni construir una tabla en RAM. Se leen las filas
 necesarias y se conservan como máximo 256 resultados en caché, unos 40 KiB. No
 se modifica el archivo ni se realiza entrenamiento.
 
-El archivo debe proceder de `mus_ordago_strategy_write_text` o del CLI del
+El modo híbrido mantiene esa caché para la genérica y otra para **un solo TXT de
+marcador**. Cambiar de celda cierra el archivo anterior y descarta su caché: las
+claves iguales de dos celdas nunca comparten probabilidades. No carga los 190
+almacenes en RAM ni construye un índice del conjunto de estrategias.
+
+Al activar el modo híbrido se lee la tabla y se comprueban las cabeceras de
+todos sus TXT publicados. Cada `score-AA-BB.txt` debe coincidir con el esquema
+completo de su celda, incluido el hash de continuaciones y las iteraciones de
+`values.txt`. Un archivo ausente, una versión antigua o una mezcla incompatible
+de exportaciones produce un error; no se sustituye silenciosamente por la
+genérica. Los archivos deben permanecer inmutables durante el uso. La comprobación
+de filas sigue siendo bajo demanda, no una validación integral de todos los TXT.
+
+El TXT genérico debe proceder de `mus_ordago_strategy_write_text` o del CLI del
 solver con `--format ordago --export-strategy`, tener claves en orden creciente
 y permanecer inmutable mientras esté abierto. Se comprueban la cabecera, las
 filas consultadas, sus acciones y probabilidades. El texto no tiene checksum;
@@ -75,6 +121,8 @@ repetidos. El historial admite importes que no pertenezcan a la lista actual.
 | `known_hand_scores` | Tantos públicamente resueltos **de esta mano**, limitados a 40 por jugador; predeterminado `[0,0]`. No incluir resultados calculados mirando cartas ocultas. |
 | `hand_scores_complete` | Si todos los tantos de los lances anteriores ya son públicos; predeterminado false. No autoriza usar información oculta. |
 | `match_scores` | Marcador público actual `[mano, postre]`, incluidos los tantos ya anotados; predeterminado `[0,0]`. Cada valor debe estar entre 0 y 39. |
+| `hand_start_scores` | Marcador `[mano, postre]` al inicio de esta mano, entre 0 y 39. Obligatorio con tablas de marcador. No se cambia al cobrar un deje. Ningún valor puede superar el marcador actual; en mus, descartes y grande debe coincidir con él. |
+| `pending_wager_total` | Suma de envites numéricos **aceptados y todavía pendientes** de los lances anteriores. Obligatorio al decidir apuestas con una estrategia de marcador. Excluye dejes cobrados, tantos de lances al paso, tantos intrínsecos y la oferta del lance actual. En mus, descartes y grande es cero. |
 | `history` | Acciones públicas **del lance actual**, desde su inicio; predeterminado `[]`. Cada evento añade `player` a una acción. Conservar también las acciones del bot. |
 | `legal_actions` | Obligatorio: lista no vacía de acciones autorizadas por el motor real. |
 
@@ -113,6 +161,9 @@ misma semilla producen las mismas acciones. Un error no avanza ese generador.
 `diagnostic` contiene:
 
 - `method`: `exact`, `interpolated`, `nearest`, `fallback` o `mus_limit`.
+- `strategy`: `ordago` o `ordago-score`.
+- `strategy_scores`: marcador inicial de la celda consultada, o null para la genérica.
+- `strategy_reason`: `score_table_disabled`, `untrained_start_score` o `trained_start_score`.
 - `sources`: hasta dos claves del checkpoint, sus pesos, distancias y cantidades
   abstractas `total`, `covered`, `prior_total` y `settled_score`. Las claves se
   envían como texto decimal para conservar precisión en clientes JavaScript.
@@ -123,7 +174,8 @@ misma semilla producen las mismas acciones. Un error no avanza ese generador.
   públicos. `exact` significa que se encontró la clave consultada; con esta
   marca, su componente de tanteo sigue siendo una aproximación.
 - `lookup_count`: número de consultas al almacén, como máximo 64.
-- `ordago_factor`: multiplicador aplicado por el marcador.
+- `ordago_factor`: multiplicador aplicado por el marcador; siempre 1 al utilizar
+  `ordago-score`, incluso con interpolación, proximidad o respaldo.
 - `adjustments`: acción abstracta (identificador C), acción real resultante y
   masa aportada por cada fuente, antes de la corrección de marcador y de la
   normalización final.
@@ -138,7 +190,7 @@ probabilidades publicadas: no puede distinguir ese caso de una distribución
 uniforme entrenada. Por ello pueden variar el respaldo y las decisiones de
 esos estados entre ambos modos.
 
-## Heurísticas
+## Heurísticas de la genérica
 
 1. Una clave representable y con datos conserva la estrategia media antes de
    los ajustes de acciones y marcador.
@@ -174,12 +226,41 @@ ignora ganadores desconocidos. La consulta de estados cercanos puede perder
 información sobre la insistencia del rival. Estas aproximaciones son parte del
 contrato, no una garantía de equilibrio ni de mejora sobre otro traductor.
 
+## Traducción dentro de un marcador entrenado
+
+Una clave exacta conserva las probabilidades publicadas antes de proyectar las
+acciones sobre la lista legal del motor y normalizar. No se aplica el factor
+por marcador; `score_proxy` es false porque las claves usan los dos marcadores
+cobrados y los envites pendientes explícitos. `known_hand_scores`,
+`hand_scores_complete` y `prior_wager_total` siguen siendo los datos de la ruta
+genérica; no sustituyen a `pending_wager_total` en esta ruta.
+
+Los envites arbitrarios conservan la interpolación de la última cantidad y la
+búsqueda de hasta 64 candidatos. En esta búsqueda **no se cambian las
+puntuaciones públicas, el acumulado pendiente ni la celda inicial**. Solo se
+aproxima la secuencia de apuestas del lance actual, conservando también mano,
+posición, mus y fuerza previa. Las cantidades se proyectan sobre `legal_actions`
+sin aplicar el antiguo límite `max(distancias) − total_actual`.
+
+Un nodo no encontrado en una celda entrenada no cambia la selección a la
+genérica. Si no hay datos entre sus candidatos, se conserva el respaldo
+documentado: pasar, no querer, no mus o el primer descarte canónico legal.
+El diagnóstico sigue indicando `strategy=ordago-score`, `method=fallback` y
+`reason=no_trained_candidate`. Este respaldo del adaptador es una heurística;
+no equivale a una política aprendida ni a la distribución uniforme que usa la
+evaluación del solver para nodos ausentes. Un dato corrupto devuelve error.
+
 ## Biblioteca C
 
 La API está en `include/mus_solver/mus_adapter.h`:
 
 - `mus_adapter_open_text`: abrir un exportador de texto ordenado para consultas
   en disco. Es la API recomendada para jugar con memoria acotada.
+- `mus_adapter_enable_score_text`: añadir una tabla y su directorio de TXT a un
+  adaptador genérico ya creado. Recibe la ruta de `values.txt` y el directorio
+  con los archivos `score-AA-BB.txt`. Se llama una vez, antes de las consultas.
+  Un error conserva la configuración anterior. La tabla se copia y los archivos
+  se consultan en lectura, sin modificar sus contenidos.
 - `mus_adapter_load`: cargar un checkpoint binario completo en RAM; se conserva
   para compatibilidad y comparación.
 - `mus_adapter_create`: utilizar un `InfoStore` prestado, útil para integración
@@ -198,6 +279,8 @@ puede ajustar el desplazamiento y las cotas del factor de marcador.
 `mus_ordago_game_information_set_set_hand` construye la abstracción desde las
 cartas propias. `mus_ordago_game_information_set_encode` complementa al
 decodificador existente sin cambiar las claves ni el esquema del entrenamiento.
+`mus_score_game_information_set_encode` realiza la operación equivalente para
+las claves con marcador, incluidos ambos tanteos y los contratos pendientes.
 
 ## Validación y medición
 
@@ -212,6 +295,19 @@ interpolación, historial repetido, límites numéricos, marcador, respaldo,
 compatibilidad binaria y errores del protocolo. Comprueba también la ida y
 vuelta del codificador con las 330 manos y las situaciones de las pruebas del
 solver existente.
+
+Las pruebas híbridas cubren el umbral mediante la tabla, ambos asientos, mus y
+descartes, la separación de cachés, los cobros dentro de una mano, los contratos
+pendientes, el respeto a las políticas sin sesgo, las aproximaciones de apuestas
+y el rechazo de archivos incompatibles. El codificador de marcador se contrasta
+con claves producidas por estados avanzados mediante el motor del solver.
+
+La comprobación del adaptador híbrido con la ejecución real de 50M contrastó
+926 consultas en 13 marcadores, ambos asientos, mus y los cinco lances. Las
+probabilidades coincidieron con las políticas exportadas con tolerancia de
+`1e-12`, siempre con `ordago_factor=1`. En esa muestra, el proceso alcanzó
+2.516 KiB de RSS y no usó swap. Es una comprobación de integración; no mide la
+calidad de juego ni la convergencia de las estrategias.
 
 El benchmark abre una vez, mide consultas sin contar aciertos de su caché y
 prueba ambos asientos, lances, mus y descartes. Compara la mezcla con traducir

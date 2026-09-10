@@ -44,6 +44,14 @@ typedef struct {
     int known_hand_scores[2]; /* Public points from this hand only, capped at 40. */
     bool hand_scores_complete;
     int match_scores[2]; /* Public current match scores, including awarded points. */
+    /* Required when score tables are enabled. Fixed until the next hand. */
+    bool has_hand_start_scores;
+    int hand_start_scores[2];
+    /* Accepted numeric wagers still pending from earlier lances. Excludes
+     * dejes, intrinsic points, passed lances, and the current lance's offer.
+     * Required for betting decisions in a trained score cell. */
+    bool has_pending_wager_total;
+    int64_t pending_wager_total;
     const MusBotEvent *history; /* Current lance only. No hidden cards. */
     size_t history_count;
     const MusBotAction *legal_actions; /* Authoritative list from the real engine. */
@@ -81,6 +89,9 @@ typedef struct {
     MusAdapterMethod method;
     const char *reason; /* Static string, or NULL. */
     bool score_proxy;
+    bool score_strategy;
+    int strategy_scores[2]; /* Initial cell scores; meaningful with score_strategy. */
+    const char *strategy_reason; /* Static routing diagnostic. */
     double ordago_factor;
     int64_t real_total, real_covered;
     size_t lookup_count;
@@ -109,6 +120,14 @@ Status mus_adapter_load(const char *path, bool compressed,
 /* Opens a sorted text export. Reads rows on demand with a fixed 256-entry cache. */
 Status mus_adapter_open_text(const char *path, const MusAdapterConfig *config,
                              uint64_t seed, MusAdapter **adapter_out);
+/* Enable hybrid play using an immutable values.txt and score-AA-BB.txt exports.
+ * Validate all published cells at setup. Keep at most one score file open in
+ * addition to the generic backend. Queries select by hand_start_scores.
+ * Unpublished cells keep the generic behavior. Trained cells never use the
+ * generic score bias, even if their query requires interpolation or fallback.
+ * Call once, before queries. An error preserves the adapter configuration. */
+Status mus_adapter_enable_score_text(MusAdapter *adapter, const char *values_path,
+                                      const char *strategies_directory);
 /* The caller must keep store alive and must not modify it during a query. */
 Status mus_adapter_create(const InfoStore *store, const MusAdapterConfig *config,
                           uint64_t seed, MusAdapter **adapter_out);

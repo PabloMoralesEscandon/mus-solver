@@ -2,6 +2,7 @@
 #define _FILE_OFFSET_BITS 64
 #include <ctype.h>
 #include <errno.h>
+#include <inttypes.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -10,7 +11,7 @@
 
 #include "mus_text_strategy.h"
 
-/* All v9 export rows fit in this bound, including fifteen discard actions. */
+/* Generic and score export rows fit here, including fifteen discard actions. */
 #define LINE_CAPACITY 4096
 #define CACHE_CAPACITY 256
 
@@ -62,8 +63,9 @@ static Status row_key(const char *line, InfoSetKey *key) {
     return CFR_STATUS_SUCCESS;
 }
 
-Status mus_text_strategy_open(const char *path, MusTextStrategy **out) {
-    if (!path || !out)
+Status mus_text_strategy_open_schema(const char *path, const char *expected_schema,
+                                      size_t expected_iterations, MusTextStrategy **out) {
+    if (!path || !expected_schema || !out)
         return CFR_STATUS_INVALID_ARGUMENT;
     FILE *stream = fopen(path, "rb");
     if (!stream)
@@ -89,8 +91,23 @@ Status mus_text_strategy_open(const char *path, MusTextStrategy **out) {
                 status = CFR_STATUS_FORMAT_ERROR;
             else {
                 *end = '\0';
-                if (strcmp(schema, MUS_ORDAGO_STRATEGY_SCHEMA_ID))
+                if (strcmp(schema, expected_schema))
                     status = CFR_STATUS_INCOMPATIBLE_GAME;
+                if (status == CFR_STATUS_SUCCESS && expected_iterations != 0) {
+                    const char *field = "variant=mccfr-external training_iterations=";
+                    const char *tail = end + 1;
+                    if (strncmp(tail, field, strlen(field)) ||
+                        !isdigit((unsigned char)tail[strlen(field)])) {
+                        status = CFR_STATUS_FORMAT_ERROR;
+                    } else {
+                        errno = 0;
+                        uintmax_t iterations = strtoumax(tail + strlen(field), &end, 10);
+                        if (errno || *end != ' ')
+                            status = CFR_STATUS_FORMAT_ERROR;
+                        else if (iterations != expected_iterations)
+                            status = CFR_STATUS_INCOMPATIBLE_GAME;
+                    }
+                }
             }
         }
     }
@@ -121,6 +138,10 @@ Status mus_text_strategy_open(const char *path, MusTextStrategy **out) {
     strategy->file_size = attributes.st_size;
     *out = strategy;
     return CFR_STATUS_SUCCESS;
+}
+
+Status mus_text_strategy_open(const char *path, MusTextStrategy **out) {
+    return mus_text_strategy_open_schema(path, MUS_ORDAGO_STRATEGY_SCHEMA_ID, 0, out);
 }
 
 void mus_text_strategy_close(MusTextStrategy *strategy) {

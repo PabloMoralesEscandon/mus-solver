@@ -801,8 +801,9 @@ checkpoint `ordago` para responder a observaciones de partidas reales de dos
 jugadores. Admiten envites arbitrarios y repetidos mediante interpolación y
 mezcla de estados próximos, con ajustes sencillos por marcador y un máximo de
 un mus. El motor externo conserva las reglas, las acciones legales y el tanteo.
-El adaptador utiliza estrategias `ordago`; no carga las políticas ni las tablas
-de continuación de `ordago-score`.
+El modo híbrido añade las estrategias `ordago-score/v4`: selecciona la celda por
+el marcador al inicio de la mano y utiliza sus probabilidades sin el sesgo de
+marcador de la genérica. Los marcadores no publicados siguen usando `ordago`.
 
 El CLI requiere la biblioteca de desarrollo de json-c y `pkg-config`, además
 de las dependencias del solver. Con `--strategy` consulta las filas necesarias
@@ -811,7 +812,15 @@ estrategia en RAM. Recibe una observación JSON por línea:
 
 ```sh
 build/release/mus-bot --strategy mus-ordago-100m.txt --seed 17
+
+# Usar las estrategias con marcador donde estén entrenadas:
+build/release/mus-bot --strategy mus-ordago-100m.txt \
+    --score-table entrenamiento-50m/continuacion/values.txt \
+    --score-strategies entrenamiento-50m/txt --seed 17
 ```
 
 El [contrato del adaptador](docs/adapter.md) documenta el protocolo, la API,
 las aproximaciones, los diagnósticos y el benchmark reproducible.
+La [guía de integración](docs/adapter-integration.md) explica los nuevos campos,
+la contabilidad de tantos y el cambio de estrategia entre manos. El bot mantiene
+la genérica y como máximo un TXT de marcador abiertos, con cachés acotadas.

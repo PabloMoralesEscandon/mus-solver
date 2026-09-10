@@ -87,6 +87,7 @@ test: $(TEST_BINARY) $(DEBUG_BINARY) $(DEBUG_DIR)/mus-bot $(DEBUG_DIR)/mus_adapt
 	./tests/test_cli.sh ./$(DEBUG_BINARY)
 	./$(DEBUG_DIR)/mus_adapter_tests
 	python3 tests/test_adapter_cli.py ./$(DEBUG_DIR)/mus-bot ./$(DEBUG_DIR)/mus_adapter_tests
+	python3 tests/test_hybrid_adapter_cli.py ./$(DEBUG_DIR)/mus-bot ./$(DEBUG_DIR)/mus_adapter_tests
 
 test-tsan:
 	$(MAKE) BUILD_DIR=$(BUILD_DIR)/test-tsan \

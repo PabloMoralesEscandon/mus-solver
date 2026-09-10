@@ -129,6 +129,10 @@ bool mus_score_game_matches(const Game *game);
 Status mus_score_game_state_init(MusGameState *state, const MusScoreGame *game);
 Status mus_score_game_information_set_decode(
     InfoSetKey key, unsigned int target, MusOrdagoInformationSet *information);
+/* Encode public score information without changing its scores or pending wagers.
+ * The owning cell's initial score is carried by its strategy file, not the key. */
+Status mus_score_game_information_set_encode(
+    const MusOrdagoInformationSet *information, unsigned int target, InfoSetKey *result);
 /* Convert only mus, discard, and grande keys. Both earned arguments must be
  * zero. Later lances and responses outside the destination wager budget return
  * NOT_FOUND. Legacy later-lance keys mix collected and pending amounts and

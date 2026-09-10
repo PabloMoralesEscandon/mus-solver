@@ -2363,6 +2363,13 @@ static const uint8_t SCORE_HAND_B[8] = {1, 1, 0, 0, 1, 1, 0, 0};
 
 static void check_legacy_candidate(const MusScoreGame *score, InfoSetKey key,
                                     InfoSetKey expected) {
+    MusOrdagoInformationSet decoded;
+    InfoSetKey round_trip = -1;
+    CHECK(mus_score_game_information_set_decode(key, score->continuation->target, &decoded) ==
+          CFR_STATUS_SUCCESS);
+    CHECK(mus_score_game_information_set_encode(&decoded, score->continuation->target,
+                                                &round_trip) == CFR_STATUS_SUCCESS);
+    CHECK(round_trip == key);
     InfoSetKey candidates[41];
     size_t count = 0;
     CHECK(mus_score_information_set_ordago_candidates(score, key, candidates, 41, &count) ==
@@ -3072,6 +3079,36 @@ static void test_score_response_codec(void) {
         score_deal(&game, &state, SCORE_HAND_A, SCORE_HAND_B);
         score_check_response_tree(&game, &state);
     }
+    CHECK(mus_score_game_init(&game, &table, 30, 30) == CFR_STATUS_SUCCESS);
+    score_deal(&game, &state, SCORE_HAND_A, SCORE_HAND_B);
+    score_apply(&game, &state, MUS_ACTION_BET_TWO);
+    MusOrdagoInformationSet decoded;
+    InfoSetKey original = score_information_key(&game, &state), encoded = -1;
+    CHECK(mus_score_game_information_set_decode(original, 40, &decoded) == CFR_STATUS_SUCCESS);
+    CHECK(mus_score_game_information_set_encode(&decoded, 40, &encoded) == CFR_STATUS_SUCCESS);
+    CHECK(encoded == original);
+    for (int field = 0; field < 9; ++field) {
+        MusOrdagoInformationSet invalid = decoded;
+        switch (field) {
+        case 0: invalid.score_enabled = false; break;
+        case 1: invalid.max_settled_score = 29; break;
+        case 2: invalid.scores[0] = invalid.max_settled_score = 40; break;
+        case 3: invalid.current_wager = 3; break;
+        case 4: invalid.previous_wager = 2; break;
+        case 5: invalid.used_wager_action_masks[0] = 0; break;
+        case 6: invalid.numeric_wager_count = 2; break;
+        case 7: invalid.prior_wager_total = 1; break;
+        case 8: invalid.current_wager_is_ordago = true; break;
+        }
+        encoded = -1;
+        CHECK(mus_score_game_information_set_encode(&invalid, 40, &encoded) ==
+              CFR_STATUS_INVALID_ARGUMENT);
+        CHECK(encoded == -1);
+    }
+    CHECK(mus_score_game_information_set_encode(&decoded, 0, &encoded) == CFR_STATUS_INVALID_ARGUMENT);
+    CHECK(mus_score_game_information_set_encode(&decoded, 41, &encoded) == CFR_STATUS_INVALID_ARGUMENT);
+    CHECK(mus_ordago_game_information_set_encode(&decoded, &encoded) == CFR_STATUS_INVALID_ARGUMENT);
+    CHECK(encoded == -1);
 }
 
 /* Expected menus are written independently of the game's action generator. */

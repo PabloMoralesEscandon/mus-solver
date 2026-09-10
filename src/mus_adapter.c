@@ -5,6 +5,7 @@
 
 #include "cfr/checkpoint.h"
 #include "mus_solver/mus_adapter.h"
+#include "mus_solver/mus_score.h"
 #include "mus_text_strategy.h"
 
 /* At most two owners of each numeric increment and five numeric wagers. */
@@ -36,6 +37,10 @@ struct MusAdapter {
     const InfoStore *store;
     InfoStore owned_store;
     MusTextStrategy *text_strategy;
+    MusScoreTable *score_table;
+    char *score_directory;
+    MusTextStrategy *score_text;
+    int open_scores[2];
     MusAdapterConfig config;
     uint64_t rng;
     BetTemplate templates[TEMPLATE_CAPACITY];
@@ -227,12 +232,131 @@ Status mus_adapter_open_text(const char *path, const MusAdapterConfig *config,
     return CFR_STATUS_SUCCESS;
 }
 
+static char *score_text_path(const char *directory, int a, int b) {
+    size_t length = strlen(directory);
+    if (length > SIZE_MAX - 32)
+        return NULL;
+    char *path = malloc(length + 32);
+    if (path != NULL)
+        snprintf(path, length + 32, "%s/score-%02d-%02d.txt", directory, a, b);
+    return path;
+}
+
+static Status open_score_text(const MusScoreTable *table, const char *directory,
+                              int a, int b, MusTextStrategy **out) {
+    MusScoreGame game;
+    Status status = mus_score_game_init(&game, table, (unsigned int)a, (unsigned int)b);
+    if (status != CFR_STATUS_SUCCESS)
+        return status;
+    char *path = score_text_path(directory, a, b);
+    if (path == NULL)
+        return CFR_STATUS_OUT_OF_MEMORY;
+    status = mus_text_strategy_open_schema(path, game.schema, table->cells[a][b].iterations, out);
+    free(path);
+    return status;
+}
+
+Status mus_adapter_enable_score_text(MusAdapter *a, const char *values_path,
+                                      const char *directory) {
+    if (a == NULL || a->score_table != NULL || values_path == NULL || directory == NULL)
+        return CFR_STATUS_INVALID_ARGUMENT;
+    FILE *stream = fopen(values_path, "r");
+    if (stream == NULL)
+        return CFR_STATUS_IO_ERROR;
+    MusScoreTable *table = malloc(sizeof(*table));
+    Status status = table == NULL ? CFR_STATUS_OUT_OF_MEMORY
+                                  : mus_score_table_read(stream, table);
+    if (fclose(stream) != 0 && status == CFR_STATUS_SUCCESS)
+        status = CFR_STATUS_IO_ERROR;
+    if (status == CFR_STATUS_SUCCESS && table->target != 40)
+        status = CFR_STATUS_INCOMPATIBLE_GAME;
+    for (int x = 0; x < 40 && status == CFR_STATUS_SUCCESS; ++x) {
+        for (int y = 0; y < 40 && status == CFR_STATUS_SUCCESS; ++y) {
+            if (!table->cells[x][y].ready)
+                continue;
+            MusTextStrategy *text = NULL;
+            status = open_score_text(table, directory, x, y, &text);
+            mus_text_strategy_close(text);
+        }
+    }
+    char *copy = NULL;
+    if (status == CFR_STATUS_SUCCESS) {
+        size_t length = strlen(directory) + 1;
+        copy = malloc(length);
+        if (copy == NULL)
+            status = CFR_STATUS_OUT_OF_MEMORY;
+        else
+            memcpy(copy, directory, length);
+    }
+    if (status != CFR_STATUS_SUCCESS) {
+        free(table);
+        free(copy);
+        return status;
+    }
+    a->score_table = table;
+    a->score_directory = copy;
+    return CFR_STATUS_SUCCESS;
+}
+
 void mus_adapter_destroy(MusAdapter *a) {
     if (a != NULL) {
         mus_text_strategy_close(a->text_strategy);
+        mus_text_strategy_close(a->score_text);
+        free(a->score_table);
+        free(a->score_directory);
         (void)cfr_info_store_destroy(&a->owned_store);
         free(a);
     }
+}
+
+static Status encode_information(const MusOrdagoInformationSet *info, InfoSetKey *key) {
+    return info->score_enabled ? mus_score_game_information_set_encode(info, 40, key)
+                                : mus_ordago_game_information_set_encode(info, key);
+}
+
+static Status select_strategy(MusAdapter *a, const MusAdapterObservation *o,
+                               MusOrdagoInformationSet *info, MusAdapterDecision *d) {
+    d->strategy_reason = "score_table_disabled";
+    if (a->score_table == NULL)
+        return CFR_STATUS_SUCCESS;
+    if (!o->has_hand_start_scores)
+        return CFR_STATUS_INVALID_ARGUMENT;
+    for (int p = 0; p < 2; ++p) {
+        if (o->hand_start_scores[p] < 0 || o->hand_start_scores[p] > o->match_scores[p] ||
+            ((mus_phase(o->phase) || discard_phase(o->phase) || o->phase == MUS_PHASE_GRANDE) &&
+             o->hand_start_scores[p] != o->match_scores[p]))
+            return CFR_STATUS_INVALID_ARGUMENT;
+    }
+    int x = o->hand_start_scores[0], y = o->hand_start_scores[1];
+    d->strategy_reason = "untrained_start_score";
+    if (!a->score_table->cells[x][y].ready)
+        return CFR_STATUS_SUCCESS;
+    if (phase_index(o->phase) >= 0 && !o->has_pending_wager_total)
+        return CFR_STATUS_INVALID_ARGUMENT;
+    if ((mus_phase(o->phase) || discard_phase(o->phase) || o->phase == MUS_PHASE_GRANDE) &&
+        o->pending_wager_total != 0)
+        return CFR_STATUS_INVALID_ARGUMENT;
+    if (a->score_text == NULL || a->open_scores[0] != x || a->open_scores[1] != y) {
+        MusTextStrategy *text = NULL;
+        Status status = open_score_text(a->score_table, a->score_directory, x, y, &text);
+        if (status != CFR_STATUS_SUCCESS)
+            return status;
+        mus_text_strategy_close(a->score_text);
+        a->score_text = text;
+        a->open_scores[0] = x;
+        a->open_scores[1] = y;
+    }
+    d->score_strategy = true;
+    d->strategy_scores[0] = x;
+    d->strategy_scores[1] = y;
+    d->strategy_reason = "trained_start_score";
+    info->score_enabled = true;
+    info->scores[0] = (uint8_t)o->match_scores[0];
+    info->scores[1] = (uint8_t)o->match_scores[1];
+    info->max_settled_score = (uint8_t)(o->match_scores[0] > o->match_scores[1]
+        ? o->match_scores[0] : o->match_scores[1]);
+    info->prior_wager_total = (uint8_t)(o->pending_wager_total > 40 ? 40 : o->pending_wager_total);
+    return CFR_STATUS_SUCCESS;
 }
 
 static Status replay(const MusAdapterObservation *o, size_t count, RealBet *r) {
@@ -296,6 +420,7 @@ static Status observation_info(const MusAdapterObservation *o,
     if (o == NULL || !valid_player(o->player) || !valid_player(o->mus_stop_player) ||
         o->mus_count > 1 || o->previous_strength_count > 3 ||
         o->prior_wager_total < 0 || o->prior_wager_total > MUS_ADAPTER_MAX_AMOUNT ||
+        o->pending_wager_total < 0 || o->pending_wager_total > MUS_ADAPTER_MAX_AMOUNT ||
         (o->history_count && o->history == NULL) || !o->legal_actions ||
         !o->legal_action_count)
         return CFR_STATUS_INVALID_ARGUMENT;
@@ -398,8 +523,9 @@ static Status lookup(const MusAdapter *a, const Candidate *c, MusAdapterDecision
         &c->information, actions, MUS_GAME_MAX_LEGAL_ACTIONS, count);
     if (status != CFR_STATUS_SUCCESS)
         return CFR_STATUS_FORMAT_ERROR;
-    if (a->text_strategy)
-        return mus_text_strategy_find(a->text_strategy, c->key, &c->information,
+    MusTextStrategy *text = c->information.score_enabled ? a->score_text : a->text_strategy;
+    if (text)
+        return mus_text_strategy_find(text, c->key, &c->information,
                                       actions, *count, probabilities);
     const InfoNode *node;
     status = cfr_info_store_find_const(a->store, c->key, &node);
@@ -423,7 +549,8 @@ static Status lookup(const MusAdapter *a, const Candidate *c, MusAdapterDecision
 }
 
 static MusBotAction translate_action(Action action, const MusAdapterObservation *o,
-                                     const RealBet *r, MusBotAction fallback) {
+                                     const RealBet *r, MusBotAction fallback,
+                                     bool score_strategy) {
     MusBotAction target = {.kind = MUS_BOT_PASS};
     switch (action) {
     case MUS_ACTION_PASS:
@@ -462,7 +589,8 @@ static MusBotAction translate_action(Action action, const MusAdapterObservation 
     if (target.kind != MUS_BOT_RAISE)
         return is_legal(o, target) ? target : fallback;
     int distance0 = 40 - o->match_scores[0], distance1 = 40 - o->match_scores[1];
-    int64_t cap = (distance0 > distance1 ? distance0 : distance1) - r->total;
+    int64_t cap = score_strategy ? MUS_ADAPTER_MAX_AMOUNT
+        : (distance0 > distance1 ? distance0 : distance1) - r->total;
     MusBotAction best = {MUS_BOT_RAISE, 0};
     int64_t best_distance = INT64_MAX;
     for (size_t i = 0; i < o->legal_action_count; ++i) {
@@ -498,7 +626,8 @@ static void add_policy(MusAdapterDecision *d, const Candidate *c, double weight,
     for (size_t i = 0; i < count; ++i) {
         if (p[i] == 0 || weight == 0)
             continue;
-        MusBotAction action = translate_action(actions[i], o, real, fallback);
+        MusBotAction action = translate_action(actions[i], o, real, fallback,
+                                               d->score_strategy);
         size_t j = 0;
         while (j < d->choice_count && !same_action(d->choices[j].action, action))
             ++j;
@@ -557,6 +686,8 @@ static void nearest_candidates(const MusAdapter *a, const MusAdapterObservation 
                                const MusOrdagoInformationSet *base, const RealBet *real,
                                Candidate best[MUS_ADAPTER_MAX_LOOKUPS], size_t *count) {
     *count = 0;
+    if (base->score_enabled && o->pending_wager_total > 40)
+        return;
     bool response = real->stage == MUS_BET_RESPONSE;
     size_t templates = response ? a->template_count : 1;
     for (size_t t_index = 0; t_index < templates; ++t_index) {
@@ -578,6 +709,15 @@ static void nearest_candidates(const MusAdapter *a, const MusAdapterObservation 
             c.information.bet_stage = real->stage;
         int active =
             response ? (t.ordago ? (t.covered == 1 ? 0 : t.covered) : t.total) : 0;
+        if (base->score_enabled) {
+            /* Scores and pending contracts are public. Never move them to find
+             * another node. Only approximate the current betting sequence. */
+            c.distance = difference(real->ordago ? 40 : real->total, t.total) +
+                         difference(real->covered, t.covered);
+            if (encode_information(&c.information, &c.key) == CFR_STATUS_SUCCESS)
+                insert_candidate(best, count, c);
+            continue;
+        }
         int upper = o->previous_strength_count ? 40 : 0;
         for (int prior = 0; prior <= upper; ++prior) {
             for (int score = 0; score <= upper; ++score) {
@@ -593,7 +733,7 @@ static void nearest_candidates(const MusAdapter *a, const MusAdapterObservation 
                     continue;
                 c.information.prior_wager_total = (uint8_t)prior;
                 c.information.max_settled_score = (uint8_t)score;
-                if (mus_ordago_game_information_set_encode(&c.information, &c.key) ==
+                if (encode_information(&c.information, &c.key) ==
                     CFR_STATUS_SUCCESS)
                     insert_candidate(best, count, c);
             }
@@ -616,10 +756,15 @@ static Status decide_impl(MusAdapter *a, const MusAdapterObservation *o,
     Status status = observation_info(o, &base, &real);
     if (status != CFR_STATUS_SUCCESS)
         return status;
+    status = select_strategy(a, o, &base, d);
+    if (status != CFR_STATUS_SUCCESS)
+        return status;
+    int64_t prior_total = d->score_strategy ? o->pending_wager_total : o->prior_wager_total;
     MusBotAction fallback;
     if (!fallback_action(o, &real, &fallback))
         return CFR_STATUS_INVALID_ARGUMENT;
-    d->score_proxy = !o->hand_scores_complete && o->previous_strength_count > 0;
+    d->score_proxy = !d->score_strategy && !o->hand_scores_complete &&
+                     o->previous_strength_count > 0;
     d->ordago_factor = 1;
     d->real_total = real.total;
     d->real_covered = real.covered;
@@ -641,9 +786,9 @@ static Status decide_impl(MusAdapter *a, const MusAdapterObservation *o,
         if (betting && real.representable && real.total < 40)
             use_bet(&exact.information, &real);
         bool exact_possible = !betting || (real.representable && real.total < 40 &&
-                                           o->prior_wager_total <= 40);
+                                           prior_total <= 40);
         if (exact_possible &&
-            mus_ordago_game_information_set_encode(&exact.information, &exact.key) ==
+            encode_information(&exact.information, &exact.key) ==
                 CFR_STATUS_SUCCESS) {
             attempted[attempted_count++] = exact.key;
             status =
@@ -656,7 +801,7 @@ static Status decide_impl(MusAdapter *a, const MusAdapterObservation *o,
         }
         /* Interpolate only the last increment. The preceding history must fit v9. */
         if (!found && betting && o->history_count && !real.ordago &&
-            o->prior_wager_total <= 40 &&
+            prior_total <= 40 &&
             o->history[o->history_count - 1].action.kind == MUS_BOT_RAISE) {
             RealBet prefix;
             status = replay(o, o->history_count - 1, &prefix);
@@ -704,7 +849,7 @@ static Status decide_impl(MusAdapter *a, const MusAdapterObservation *o,
                                        .distance =
                                            2 * difference(amount, real.increment)};
                         use_bet(&c.information, &mapped);
-                        if (mus_ordago_game_information_set_encode(
+                        if (encode_information(
                                 &c.information, &c.key) != CFR_STATUS_SUCCESS)
                             continue;
                         candidates[side] = c;
@@ -778,7 +923,7 @@ static Status decide_impl(MusAdapter *a, const MusAdapterObservation *o,
         d->choices[0] = (MusBotChoice){fallback, 1};
         d->choice_count = 1;
     }
-    if (a->config.score_adjustment && betting) {
+    if (a->config.score_adjustment && betting && !d->score_strategy) {
         double factor =
             ((40 - o->match_scores[o->player]) + a->config.score_offset) /
             ((40 - o->match_scores[1 - o->player]) + a->config.score_offset);
