@@ -53,7 +53,31 @@ DEPENDENCY_FILES := $(RELEASE_OBJECTS:.o=.d) $(DEBUG_OBJECTS:.o=.d) \
 .PHONY: all lto debug test test-tsan test-sanitize dependencies cfr-release \
 	cfr-debug clean benchmark-score benchmark-score-threads benchmark-evaluation
 
-all: $(RELEASE_BINARY) $(RELEASE_DIR)/mus-bot
+all: $(RELEASE_BINARY) $(RELEASE_DIR)/mus-bot $(RELEASE_DIR)/mus-match-eval
+
+MATCH_SOURCES := app/mus_match_eval_cli.c app/match_evaluation.c \
+	Simulador-Mus/src/mus_sim.c Simulador-Mus/src/mus_log.c
+RELEASE_MATCH_OBJECTS := $(patsubst %.c,$(RELEASE_DIR)/%.o,$(MATCH_SOURCES))
+DEBUG_MATCH_OBJECTS := $(patsubst %.c,$(DEBUG_DIR)/%.o,$(MATCH_SOURCES))
+
+$(RELEASE_DIR)/mus-match-eval: $(RELEASE_MATCH_OBJECTS) $(RELEASE_LIBRARY) cfr-release
+	$(CC) $(LDFLAGS) $(RELEASE_LINK_FLAGS) $(THREAD_FLAGS) $(RELEASE_MATCH_OBJECTS) \
+		$(RELEASE_LIBRARY) $(RELEASE_CFR_LIBRARY) $(LDLIBS) -o $@
+
+$(DEBUG_DIR)/mus-match-eval: $(DEBUG_MATCH_OBJECTS) $(DEBUG_LIBRARY) cfr-debug
+	$(CC) $(LDFLAGS) $(THREAD_FLAGS) $(DEBUG_MATCH_OBJECTS) \
+		$(DEBUG_LIBRARY) $(DEBUG_CFR_LIBRARY) $(LDLIBS) -o $@
+
+-include $(RELEASE_MATCH_OBJECTS:.o=.d) $(DEBUG_MATCH_OBJECTS:.o=.d)
+
+$(DEBUG_DIR)/mus_match_tests: $(DEBUG_DIR)/tests/test_match_evaluation.o \
+		$(filter-out $(DEBUG_DIR)/app/mus_match_eval_cli.o,$(DEBUG_MATCH_OBJECTS)) \
+		$(DEBUG_LIBRARY) cfr-debug
+	$(CC) $(LDFLAGS) $(THREAD_FLAGS) $(DEBUG_DIR)/tests/test_match_evaluation.o \
+		$(filter-out $(DEBUG_DIR)/app/mus_match_eval_cli.o,$(DEBUG_MATCH_OBJECTS)) \
+		$(DEBUG_LIBRARY) $(DEBUG_CFR_LIBRARY) $(LDLIBS) -o $@
+
+-include $(DEBUG_DIR)/tests/test_match_evaluation.d
 
 benchmark-score: $(RELEASE_DIR)/benchmark-score
 
@@ -81,11 +105,11 @@ lto:
 
 debug: $(DEBUG_BINARY) $(TEST_BINARY) $(DEBUG_DIR)/mus-bot $(DEBUG_DIR)/mus_adapter_tests \
 	$(DEBUG_DIR)/mus_hotpaths_tests $(DEBUG_DIR)/mus_adapter_configuration_tests \
-	$(DEBUG_DIR)/mus_ordago_public_tests
+	$(DEBUG_DIR)/mus_ordago_public_tests $(DEBUG_DIR)/mus-match-eval $(DEBUG_DIR)/mus_match_tests
 
 test: $(TEST_BINARY) $(DEBUG_BINARY) $(DEBUG_DIR)/mus-bot $(DEBUG_DIR)/mus_adapter_tests \
 	$(DEBUG_DIR)/mus_hotpaths_tests $(DEBUG_DIR)/mus_adapter_configuration_tests \
-	$(DEBUG_DIR)/mus_ordago_public_tests
+	$(DEBUG_DIR)/mus_ordago_public_tests $(DEBUG_DIR)/mus-match-eval $(DEBUG_DIR)/mus_match_tests
 	./$(TEST_BINARY)
 	./$(DEBUG_DIR)/mus_hotpaths_tests
 	./$(DEBUG_DIR)/mus_ordago_public_tests
@@ -94,6 +118,8 @@ test: $(TEST_BINARY) $(DEBUG_BINARY) $(DEBUG_DIR)/mus-bot $(DEBUG_DIR)/mus_adapt
 	python3 tests/test_score_recovery.py ./$(DEBUG_BINARY)
 	python3 tests/test_score_regions.py ./$(DEBUG_BINARY) ./$(DEBUG_DIR)/mus-bot
 	python3 tests/test_score_statistics.py ./$(DEBUG_BINARY)
+	./$(DEBUG_DIR)/mus_match_tests
+	python3 tests/test_match_evaluation.py ./$(DEBUG_BINARY) ./$(DEBUG_DIR)/mus-match-eval
 	./$(DEBUG_DIR)/mus_adapter_tests
 	./$(DEBUG_DIR)/mus_adapter_configuration_tests
 	python3 tests/test_adapter_cli.py ./$(DEBUG_DIR)/mus-bot ./$(DEBUG_DIR)/mus_adapter_tests

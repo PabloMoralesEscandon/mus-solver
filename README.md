@@ -176,9 +176,16 @@ Los artefactos principales son:
 
 - `build/release/mus-solver`
 - `build/release/libmus_solver.a`
+- `build/release/mus-match-eval`
 
 `make dependencies` ejecuta además las baterías independientes de `C-CFR` y
 `Simulador-Mus`.
+
+`mus-match-eval` evalúa partidas completas con las decisiones reales del
+adaptador, incluidas sus traducciones y respaldos. Informa victorias y cobertura
+por fase, marcador y acción. Puede comparar dos políticas o una política contra
+un rival de control; admite genéricas y tablas híbridas. Véanse los
+[comandos y límites de la evaluación del bot](docs/match-evaluation.md).
 
 ## Variante con marcador: `ordago-score`
 

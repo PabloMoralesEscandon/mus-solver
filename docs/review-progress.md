@@ -47,7 +47,7 @@ rendimiento del bot desplegado son métricas diferentes.
 | J09 | Región opcional de continuaciones cerrada por incrementos y giro | Completado |
 | J10 | Incertidumbre y presupuesto de evaluación | Completado; integración terminal ensayada sin activar |
 | J11 | Precisar el alcance del diagnóstico de repartos fijos | Completado |
-| J12 | Evaluar partidas con la política desplegada del bot | Pendiente |
+| J12 | Evaluar partidas con la política desplegada del bot | Completado |
 | J13 | Conservar disponibilidad de política en TXT | Pendiente |
 | J14 | Rechazar explícitamente el adaptador incompatible con dos muses | Completado |
 | J15 | Rechazar fases de azar/terminal en la clave rápida | Completado |
@@ -886,3 +886,91 @@ numérica y decisiones del bot conservan su implementación compilada.
 `ordago`: 0,3998 → 0,4008 s (+0,25 %); `ordago-public`: 0,4035 → 0,4068 s
 (+0,82 %), con el mismo RSS. No se activa el límite y estas variaciones no
 constituyen una pérdida relevante. No se atribuye ninguna mejora al algoritmo.
+
+## J12: partidas con la política realmente desplegada
+
+Se añade `mus-match-eval`, documentado en [match-evaluation.md](match-evaluation.md).
+Ejecuta partidas completas en el simulador de dos jugadores corregido en J02.
+Cada jugador usa una instancia real de `MusAdapter`, con su selector de celda,
+interpolación, vecinos, traducción, respaldo y muestreo. Admite políticas
+`ordago`/`ordago-public` binarias, comprimidas o TXT, y el selector híbrido por
+marcador. Incluye dos rivales de control, comparación entre políticas y una
+traza pública opcional que exige un archivo nuevo.
+
+La observación contiene solo cartas propias y datos públicos, orientados a
+mano/postre en cada mano. Se conservan los dejes cobrados y contratos pendientes
+por separado; se registran declaraciones de pares y descartes. El menú del
+experimento contiene totales numéricos 2–40, validados por el simulador, con
+incrementos ajenos a la abstracción entrenada. Permite un mus; rechaza el build
+de dos muses como el bot. Alterna la primera mano y falla al alcanzar el límite
+de manos, sin publicar una tasa que omita partidas incompletas.
+
+La salida informa de victorias, manos y cobertura por método, fase, marcador
+inicial, acción y backend. Las distribuciones del JSON son marginales; el CSV
+conserva conjuntamente los datos públicos de cada decisión. El valor del perfil
+medio para la tabla sigue siendo otra medición. No se presenta esta frecuencia
+de victorias como explotabilidad ni como prueba de fuerza con entrenamiento
+mínimo. El muestreo de cartas y el de decisiones son flujos separados; comparar
+políticas distintas no garantiza repetir las mismas cartas.
+
+Claude: **APPROVE**, tarea `task_f9649e40ccdc`, dispatch `ctx_670ca1778437`,
+mensaje `msg_be2f75bf6bb4`; [informe](review-performance/J12-claude.md).
+Se añaden sus comprobaciones de `hand_scores_complete` y las tres declaraciones
+de pares omitidos. `prior_wager_total` tras rechazos ya se comprobaba en los
+casos de deje. Se mantiene la advertencia sobre muestras pequeñas, sin añadir
+un error estándar binomial ingenuo que daría cero tras observar cero victorias.
+La repetición emparejada de repartos queda como extensión opcional: no forma
+parte de la acción J12 y necesita controlar también mus y descartes.
+
+Pasan la batería completa, las pruebas del simulador, las nuevas pruebas de
+anfitrión y CLI con ASan/UBSan y el rechazo explícito de dos muses. Los guiones
+comprueban veinte tantos pendientes, dejes numéricos y de órdago, órdago querido,
+descartes, conservación de resultados ante errores, límites e identidad exacta
+con el simulador pasivo independiente. Los CLI prueban los tres backends,
+selección híbrida, determinismo, cobertura y conservación de archivos fuente.
+
+### Rendimiento
+
+Los ejecutables release `mus-solver`, `mus-bot` y `libmus_solver.a` son idénticos
+byte a byte al padre `d80d01b`: este bloque no altera el código compilado que
+entrena o decide en el bot. El motor adicional se enlaza solo con la herramienta
+nueva. El único ajuste del simulador hace explícitas conversiones a `uint64_t`
+que ya ocurrían en `combinaciones`, para cumplir las flags estrictas del root.
+
+[Medición reproducible](review-performance/J12.json): tres repeticiones de
+1.000 partidas en CPU0, semilla 7, sin otras compilaciones/pruebas propias.
+Políticas genéricas congeladas de 500 iteraciones; celda 39:39 de 500 iteraciones
+y 1.000 muestras. Son cargas de funcionamiento, no estrategias convergidas.
+La herramienta nueva no tiene un ejecutable padre equivalente: se mide su
+coste absoluto y no se atribuye una aceleración al algoritmo.
+
+| Política A / rival / salida | Tiempo total mediano | Solo juego | RSS máximo mediano |
+|---|---:|---:|---:|
+| Histórica binaria / three / 0:0 | 1,097 s | 0,159 s | 476,4 MiB |
+| Histórica TXT / three / 0:0 | 1,013 s | 1,011 s | 2,77 MiB |
+| Pública binaria / three / 0:0 | 3,158 s | 0,0247 s | 1.278,1 MiB |
+| Pública TXT / three / 0:0 | 0,141 s | 0,140 s | 2,74 MiB |
+| Dos públicas binarias / 35:35 | 6,278 s | 0,0140 s | 2.559,2 MiB |
+| Híbrida TXT / three / 39:39 | 0,0123 s | 0,0110 s | 3,05 MiB |
+
+El total incluye carga, partida y salida; el tiempo interno excluye carga y
+JSON final. La RAM de binarios grandes corresponde a las políticas cargadas,
+incluidas dos instancias en la comparación. El TXT consulta bajo demanda.
+Los casos genéricos ejercitan exactos, interpolados, vecinos, respaldo y límite
+de mus. TXT v1 y binario pueden recorrer partidas distintas por la pérdida de
+masa cero pendiente de J13; sus diferencias no son comparaciones de igual
+política efectiva ni de igual trabajo. Los tiempos internos más breves sirven
+como referencia local, sin inferir diferencias finas.
+
+El primer ensayo de RSS se descartó: el lanzador Python había leído TXT completos
+y contaminaba el máximo heredado. Las cifras finales usan hashes en streaming
+y un lanzador C pequeño, guardado en el JSON, que obtiene el RSS del hijo con
+`wait4`. No se mezclan esas muestras. No hay una regresión que active el límite
+sobre el entrenamiento o el bot existentes, cuyos archivos son idénticos.
+
+Claude comprobó también los hashes y las seis medianas: tarea `task_c44afa5d78b9`,
+dispatch `ctx_915ee5e34ff2`, mensaje `msg_d97b1df75d77`. Aprobó con la condición
+de explicar el posprocesado del JSON, ya incorporada: se sustituyeron las
+salidas completas repetidas por su SHA256, sin cambiar ninguna muestra ni
+resumen. El script incorporado reproduce ese formato compacto; el ejecutado
+guardaba las salidas completas. El cast del simulador quedó en `2fda65e`.
