@@ -52,7 +52,7 @@ rendimiento del bot desplegado son métricas diferentes.
 | J14 | Rechazar explícitamente el adaptador incompatible con dos muses | Completado |
 | J15 | Rechazar fases de azar/terminal en la clave rápida | Completado |
 | J16 | Gramática explícita para opciones enteras sin signo | Completado |
-| J17 | Bloqueo ligado al proceso y contrato de durabilidad | Pendiente |
+| J17 | Bloqueo ligado al proceso y contrato de durabilidad | Bloqueo completado; sincronización de archivos pendiente |
 | J18 | Reducir el coste de codificación y generación de candidatos | Pendiente |
 | J19 | Distribución y memoria de trabajadores por diagonal | Pendiente |
 | J20 | Invalidar objetos al cambiar la configuración | Pendiente |
@@ -490,3 +490,50 @@ dispatch `ctx_798be744111e`, mensaje `msg_3e7ffcc8daaa`.
 Se conserva `score_table_disabled` como motivo de ruta porque `strategy` ya
 identifica la política pública. No se añade una inferencia de esquema a los
 almacenes prestados: deben usar el constructor explícito documentado.
+
+## J17: bloqueo ligado al proceso
+
+Los coordinadores bloquean el directorio de continuación mediante `flock` y
+mantienen su descriptor abierto hasta terminar. El bloqueo es exclusivo al
+entrenar y compartido al evaluar, exportar, reanudar un checkpoint individual
+o usar la tabla como origen de una ampliación. El sistema lo libera al morir
+el proceso, sin manejadores de señales. `training.lock` conserva únicamente
+los metadatos del último escritor; no determina la propiedad del bloqueo.
+
+La primera revisión detectó que crear un archivo en un origen antiguo
+impedía usar tablas archivadas en solo lectura. Se cambió el objeto bloqueado
+al directorio: ningún lector crea o modifica archivos en el origen. No se usa
+una excepción que deje una tabla sin protección. La documentación delimita el
+contrato a sistemas locales que admitan este bloqueo cooperativo. No se deben
+mezclar coordinadores antiguos ni mover el directorio durante su uso.
+
+Validación final: `make -j4 test`, pruebas de procesos normales y ASan/UBSan.
+Se comprueban exclusión entre escritores, conservación del archivo de metadatos
+ante un intento denegado, liberación y reanudación tras SIGTERM/SIGINT/SIGKILL,
+metadatos huérfanos, lectores compartidos, exclusión del escritor durante una
+ampliación y conservación exacta del origen. Una tabla sin `training.lock` y
+con directorio 0555 se puede ampliar sin añadir ni modificar archivos. Las
+rutas de lectura rechazan a un escritor activo y los errores liberan todos los
+descriptores. La espera de las pruebas lee primero el PID publicado para evitar
+competir con la adquisición inicial; los hijos restauran la disposición de SIGINT.
+
+Revisión inicial: `task_0c76291401dd`, dispatch `ctx_38f5104e593b`, mensaje
+`msg_06c73a6f218a`, **REQUEST_CHANGES** por el origen antiguo de solo lectura.
+Revisión del diseño final: `task_30a9ed61396b`, dispatch `ctx_c7e9ed872af1`,
+mensaje `msg_d048409a4812`, **APPROVE**.
+[Revisión inicial](review-performance/J17-lock-claude-initial.md) y
+[revisión final](review-performance/J17-lock-claude-final.md).
+
+[Rendimiento final y script](review-performance/J17-lock.json): tres pares
+alternados, CPU0, padre `0373fc1`. Público, 500 iteraciones: 5,6404 → 5,3596 s
+(−4,98 %), RSS −0,11 %, mismos contadores. Tabla de 45 celdas con 1.000 iteraciones
+y 10.000 muestras por celda: 3,7880 → 3,8372 s (+1,30 %), RSS +0,01 %.
+Ampliar esas celdas en 1.000 iteraciones: 3,9366 → 3,9248 s (−0,30 %),
+RSS −0,16 %. Los 46 archivos de política y valores son idénticos entre versiones;
+los orígenes quedan intactos, sin archivos adicionales. La biblioteca del solver
+y el bot conservan su SHA256. No se activa una regresión grave ni se atribuyen
+las pequeñas variaciones a una aceleración del código.
+
+Este bloque resuelve el bloqueo huérfano y la exclusión entre procesos.
+La sincronización de archivos/directorios ante pérdida de energía sigue
+pendiente; la recuperación de celdas no publicadas corresponde a J08.

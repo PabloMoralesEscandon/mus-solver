@@ -6,6 +6,7 @@
 #endif
 
 #include <errno.h>
+#include <fcntl.h>
 #include <inttypes.h>
 #include <math.h>
 #include <stdbool.h>
@@ -15,6 +16,7 @@
 #include <string.h>
 #include <time.h>
 #include <sys/stat.h>
+#include <sys/file.h>
 #include <unistd.h>
 
 #include "cfr/checkpoint.h"
@@ -701,6 +703,47 @@ static void report_score_lock(const char *path) {
     (void)fclose(stream);
 }
 
+/* Lock the directory inode so old or read-only sources need no extra file.
+ * training.lock is diagnostic metadata only. The directory must stay in place
+ * while in use. Closing this descriptor releases the kernel lock. */
+static Status acquire_score_lock(const char *directory, bool exclusive, int *result) {
+    const int descriptor = open(directory, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+    if (descriptor < 0) {
+        fprintf(stderr, "error: no se pudo abrir el directorio para bloquear '%s': %s\n",
+                directory, strerror(errno));
+        return CFR_STATUS_IO_ERROR;
+    }
+    if (flock(descriptor, (exclusive ? LOCK_EX : LOCK_SH) | LOCK_NB) != 0) {
+        const int error = errno;
+        if (error == EWOULDBLOCK || error == EAGAIN) {
+            fprintf(stderr, "error: no se pudo adquirir el bloqueo '%s'; "
+                            "hay otro entrenamiento, ampliacion o lector\n", directory);
+            char *path = score_path(directory, "training.lock");
+            if (path != NULL) { report_score_lock(path); free(path); }
+        } else {
+            fprintf(stderr, "error: el sistema no pudo bloquear '%s': %s\n", directory, strerror(error));
+        }
+        (void)close(descriptor);
+        return CFR_STATUS_IO_ERROR;
+    }
+    Status status = CFR_STATUS_SUCCESS;
+    if (exclusive) {
+        char *path = score_path(directory, "training.lock");
+        status = path == NULL ? CFR_STATUS_OUT_OF_MEMORY : CFR_STATUS_SUCCESS;
+        FILE *stream = path == NULL ? NULL : fopen(path, "w");
+        if (path != NULL)
+            status = stream == NULL ? CFR_STATUS_IO_ERROR : write_score_lock(stream);
+        if (stream != NULL && fclose(stream) != 0) status = CFR_STATUS_IO_ERROR;
+        free(path);
+    }
+    if (status != CFR_STATUS_SUCCESS) {
+        (void)close(descriptor);
+        return status;
+    }
+    *result = descriptor;
+    return CFR_STATUS_SUCCESS;
+}
+
 static bool print_score_resume(const MusScoreTable *table, const CliOptions *options,
                                const MusScoreTable *source) {
     size_t count = 0, mismatched = 0;
@@ -836,6 +879,7 @@ static int run_score_checkpoint(const CliOptions *options) {
     Trainer preload_trainer;
     MusScorePrior prior;
     MusScorePreloadStats preload_stats;
+    int continuation_lock = -1;
     const MusScorePreloadOptions preload = {
         .source = &preload_trainer, .weight = options->preload_weight,
         .uniform_mix = MUS_SCORE_PRELOAD_DEFAULT_UNIFORM_MIX,
@@ -847,6 +891,8 @@ static int run_score_checkpoint(const CliOptions *options) {
     status = check_score_output_path(options->continuation_dir, options->save_path);
     if (status == CFR_STATUS_SUCCESS)
         status = check_score_output_path(options->continuation_dir, options->export_path);
+    if (status == CFR_STATUS_SUCCESS)
+        status = acquire_score_lock(options->continuation_dir, false, &continuation_lock);
     if (status != CFR_STATUS_SUCCESS)
         goto done;
     FILE *stream = fopen(path, "r");
@@ -960,26 +1006,29 @@ done:
     free(preload_state);
     free(state);
     free(path);
+    if (continuation_lock >= 0 && close(continuation_lock) != 0 && status == CFR_STATUS_SUCCESS)
+        status = CFR_STATUS_IO_ERROR;
     if (status != CFR_STATUS_SUCCESS)
         fprintf(stderr, "error: checkpoint ordago-score: %s\n", status_name(status));
     return status == CFR_STATUS_SUCCESS ? 0 : EXIT_RUNTIME_ERROR;
 }
 
-static Status read_score_extension(const CliOptions *options, MusScoreTable *source) {
+static Status read_score_extension(const CliOptions *options, MusScoreTable *source,
+                                    int *source_lock) {
+    Status status = check_score_output_path(options->extend_continuation_dir, options->continuation_dir);
+    if (status != CFR_STATUS_SUCCESS)
+        return status;
     char *path = score_path(options->extend_continuation_dir, "values.txt");
-    char *lock = score_path(options->extend_continuation_dir, "training.lock");
-    if (path == NULL || lock == NULL) {
-        free(path);
-        free(lock);
+    if (path == NULL) {
         return CFR_STATUS_OUT_OF_MEMORY;
     }
-    const bool active = access(lock, F_OK) == 0;
-    FILE *stream = active ? NULL : fopen(path, "r");
-    Status status = stream == NULL ? CFR_STATUS_IO_ERROR : mus_score_table_read(stream, source);
+    status = acquire_score_lock(options->extend_continuation_dir, false, source_lock);
+    FILE *stream = status == CFR_STATUS_SUCCESS ? fopen(path, "r") : NULL;
+    if (status == CFR_STATUS_SUCCESS)
+        status = stream == NULL ? CFR_STATUS_IO_ERROR : mus_score_table_read(stream, source);
     if (stream != NULL && fclose(stream) != 0 && status == CFR_STATUS_SUCCESS)
         status = CFR_STATUS_IO_ERROR;
     free(path);
-    free(lock);
     if (status != CFR_STATUS_SUCCESS)
         return status;
     if (source->target != options->score_target)
@@ -1002,7 +1051,7 @@ static Status read_score_extension(const CliOptions *options, MusScoreTable *sou
                 return CFR_STATUS_IO_ERROR;
         }
     }
-    return check_score_output_path(options->extend_continuation_dir, options->continuation_dir);
+    return CFR_STATUS_SUCCESS;
 }
 
 /* Compare immutable extension settings before accepting published destination
@@ -1137,14 +1186,13 @@ static int run_score(const CliOptions *options) {
         .preload_stats = options->preload_ordago_path == NULL ? NULL : &preload_stats,
     };
     char *path = score_path(options->continuation_dir, "values.txt");
-    char *lock_path = score_path(options->continuation_dir, "training.lock");
-    bool locked = false;
-    if (path == NULL || lock_path == NULL) {
+    int lock = -1, source_lock = -1;
+    if (path == NULL) {
         status = CFR_STATUS_OUT_OF_MEMORY;
         goto done;
     }
     if (options->extend_continuation_dir != NULL) {
-        status = read_score_extension(options, &source_table);
+        status = read_score_extension(options, &source_table, &source_lock);
         if (status != CFR_STATUS_SUCCESS)
             goto done;
     }
@@ -1158,23 +1206,10 @@ static int run_score(const CliOptions *options) {
             status = CFR_STATUS_IO_ERROR;
             goto done;
         }
-        FILE *lock = fopen(lock_path, "wx");
-        if (lock == NULL) {
-            const bool exists = errno == EEXIST;
-            fprintf(stderr, "error: no se pudo crear '%s'; "
-                            "compruebe si hay otro entrenamiento\n", lock_path);
-            if (exists)
-                report_score_lock(lock_path);
-            status = CFR_STATUS_IO_ERROR;
-            goto done;
-        }
-        locked = true;
-        status = write_score_lock(lock);
-        if (fclose(lock) != 0)
-            status = CFR_STATUS_IO_ERROR;
-        if (status != CFR_STATUS_SUCCESS)
-            goto done;
     }
+    status = acquire_score_lock(options->continuation_dir, options->iterations_set, &lock);
+    if (status != CFR_STATUS_SUCCESS)
+        goto done;
     FILE *stream = fopen(path, "r");
     if (stream != NULL) {
         status = mus_score_table_read(stream, &table);
@@ -1300,9 +1335,10 @@ done:
     free(preload_state);
     if (store_initialized)
         (void)cfr_info_store_destroy(&store);
-    if (locked)
-        (void)remove(lock_path);
-    free(lock_path);
+    if (lock >= 0 && close(lock) != 0 && status == CFR_STATUS_SUCCESS)
+        status = CFR_STATUS_IO_ERROR;
+    if (source_lock >= 0 && close(source_lock) != 0 && status == CFR_STATUS_SUCCESS)
+        status = CFR_STATUS_IO_ERROR;
     free(path);
     if (status != CFR_STATUS_SUCCESS)
         fprintf(stderr, "error: ordago-score: %s\n", status_name(status));

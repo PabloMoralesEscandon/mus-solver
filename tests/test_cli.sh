@@ -321,7 +321,7 @@ for version in 1 2 3; do
         exit 1
     fi
     cmp "$tmp_dir/score-v$version/values.txt" "$tmp_dir/score-v$version-preserved.txt"
-    test ! -f "$tmp_dir/score-v$version/training.lock"
+    test -f "$tmp_dir/score-v$version/training.lock"
 done
 for source in "$tmp_dir/raises.cfr" "$tmp_dir/continuous.cfr"; do
     if "$solver" --format ordago-score --target 3 --iterations 1 \

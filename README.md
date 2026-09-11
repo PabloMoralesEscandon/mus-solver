@@ -482,10 +482,29 @@ El directorio contiene:
 - `score-AA-BB.cfr.zst`: checkpoint CFR de cada marcador, con la estrategia
   media y los acumuladores necesarios para reanudar el entrenamiento mediante
   la CLI o la API de C-CFR.
-- `training.lock`: bloqueo con PID, nombre del equipo y fecha UTC de inicio.
-  El error de bloqueo muestra esos datos. Si un proceso termina abruptamente,
-  hay que comprobar en ese equipo que el proceso indicado ya no se ejecuta
-  antes de borrar este archivo y reanudar.
+- `training.lock`: metadatos del último escritor: PID, equipo y fecha UTC de inicio.
+  El bloqueo real se mantiene sobre un descriptor del **directorio**. Es
+  exclusivo para entrenar y compartido para leer o ampliar desde esa tabla.
+  Al terminar, incluso por SIGINT, SIGTERM o SIGKILL, el sistema lo libera.
+  El archivo de metadatos permanece y se reutiliza: su existencia o su PID
+  escrito no indican que siga ocupado. No hay que borrarlo para reanudar.
+  Las ampliaciones mantienen protegido el origen hasta terminar, sin crear
+  archivos en él. Esto admite tablas antiguas archivadas en solo lectura.
+  Todos los coordinadores que escriban en la tabla deben usar este protocolo;
+  no se deben mezclar coordinadores antiguos que solo comprueban la existencia
+  del archivo. El error de adquisición muestra los últimos metadatos del escritor.
+
+El bloqueo es cooperativo: no impide cambios mediante editores o herramientas
+de copia. Este contrato se limita a sistemas de archivos locales con soporte
+para `flock` sobre directorios; no ofrece coordinación entre equipos a través
+de un sistema de archivos de red. El directorio debe permanecer en su ubicación.
+Un sistema que rechace esa operación produce un error; no se continúa sin bloqueo.
+
+Una señal termina el trabajo en curso; el bloqueo se libera sin ejecutar código
+desde un manejador de señales. La recuperación sigue partiendo de las diagonales
+publicadas. Este bloqueo entre procesos no cambia el contrato de persistencia
+ante un corte de energía: la sincronización de archivos y directorios se trata
+por separado.
 
 Repetir el comando del coordinador con el mismo directorio conserva las diagonales terminadas
 y completa las pendientes. Una diagonal interrumpida se vuelve a entrenar.
