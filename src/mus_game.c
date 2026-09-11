@@ -4097,7 +4097,11 @@ Status mus_score_information_set_ordago_candidates(
     int minimum = (minimum_total + 1) / 2;
     if (minimum < paid[0]) minimum = paid[0];
     if (minimum < paid[1]) minimum = paid[1];
-    int maximum = maximum_total < MUS_ORDAGO_WAGER ? maximum_total : MUS_ORDAGO_WAGER;
+    /* Each player already owns its public payments. Even if every pending
+     * point goes to one player, the other's payments cannot move with it. */
+    const int minimum_paid = paid[0] < paid[1] ? paid[0] : paid[1];
+    const int maximum_score = maximum_total - minimum_paid;
+    int maximum = maximum_score < MUS_ORDAGO_WAGER ? maximum_score : MUS_ORDAGO_WAGER;
     if (information.bet_stage == MUS_BET_RESPONSE) {
         const int active = ordago_active_numeric_wager(information.current_wager,
             information.previous_wager, information.current_wager_is_ordago);

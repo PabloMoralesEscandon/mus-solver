@@ -2784,6 +2784,85 @@ static void test_score_prior_all_lances(void) {
     CHECK(cfr_info_store_destroy(&source_store) == CFR_STATUS_SUCCESS);
 }
 
+static void test_score_prior_paid_bounds(void) {
+    MusScoreTable table;
+    MusScoreGame score;
+    MusGameState state, legacy;
+    InfoStore source_store = {0}, destination = {0};
+    Trainer source;
+    MusScorePrior prior;
+    MusScorePreloadStats stats;
+    const uint8_t kings[8] = {1, 0, 0, 0, 0, 0, 0, 3};
+    const uint8_t jacks[8] = {1, 0, 0, 0, 0, 3, 0, 0};
+    CHECK(mus_score_table_init(&table, 40) == CFR_STATUS_SUCCESS);
+    CHECK(mus_score_game_init(&score, &table, 30, 29) == CFR_STATUS_SUCCESS);
+    CHECK(cfr_info_store_init(&source_store) == CFR_STATUS_SUCCESS);
+    CHECK(cfr_info_store_init(&destination) == CFR_STATUS_SUCCESS);
+    CHECK(mus_ordago_game_state_init(&legacy) == CFR_STATUS_SUCCESS);
+    CHECK(cfr_trainer_init_mccfr(&source, ordago_game(), game_state(&legacy),
+                                &source_store, 7) == CFR_STATUS_SUCCESS);
+    ordago_deal(&legacy, kings, jacks);
+    ordago_apply(&legacy, MUS_ACTION_NO_MUS);
+    score_deal(&score, &state, kings, jacks);
+    const Action history[] = {MUS_ACTION_BET_TWO, MUS_ACTION_REJECT,
+        MUS_ACTION_PASS, MUS_ACTION_BET_TWO, MUS_ACTION_REJECT};
+    for (size_t i = 0; i < sizeof(history) / sizeof(history[0]); ++i) {
+        ordago_apply(&legacy, history[i]);
+        score_apply(&score, &state, history[i]);
+    }
+    CHECK(state.model.phase == MUS_PHASE_PARES);
+    CHECK(state.model.paid_scores[0] == 1 && state.model.paid_scores[1] == 1);
+    CHECK(state.model.prior_wager_total == 0);
+    InfoSetKey key, candidates[41];
+    size_t count = 0;
+    CHECK(cfr_game_information_set_key(&score.game, game_state(&state), &key) ==
+          CFR_STATUS_SUCCESS);
+    CHECK(mus_score_information_set_ordago_candidates(&score, key, candidates, 41,
+                                                      &count) == CFR_STATUS_SUCCESS);
+    CHECK(count == 1);
+    const InfoSetKey valid_key = ordago_information_key(&legacy);
+    CHECK(candidates[0] == valid_key);
+    CHECK(mus_score_information_set_ordago_candidates(&score, key, candidates, 1,
+                                                      &count) == CFR_STATUS_SUCCESS);
+    MusOrdagoInformationSet information;
+    CHECK(mus_ordago_game_information_set_decode(valid_key, &information) == CFR_STATUS_SUCCESS);
+    CHECK(information.max_settled_score == 1);
+    /* Total two with one already paid to each player cannot have maximum two. */
+    information.max_settled_score = 2;
+    InfoSetKey impossible_key;
+    CHECK(mus_ordago_game_information_set_encode(&information, &impossible_key) == CFR_STATUS_SUCCESS);
+    seed_legacy_action(&source_store, valid_key, MUS_ACTION_PASS, 1);
+    seed_legacy_action(&source_store, impossible_key, MUS_ACTION_ORDAGO, 99);
+    const MusScorePreloadOptions options = {.source = &source, .weight = 2, .uniform_mix = .05};
+    CHECK(mus_score_prior_attach(&prior, &score, &options, &destination, &stats) == CFR_STATUS_SUCCESS);
+    Action actions[MUS_GAME_MAX_LEGAL_ACTIONS];
+    CHECK(cfr_game_legal_actions(&score.game, game_state(&state), actions,
+                                MUS_GAME_MAX_LEGAL_ACTIONS, &count) == CFR_STATUS_SUCCESS);
+    InfoNode *node;
+    CHECK(cfr_info_store_get_or_create(&destination, key, count, &node) == CFR_STATUS_SUCCESS);
+    Probability average[MUS_GAME_MAX_LEGAL_ACTIONS];
+    CHECK(cfr_info_node_average_strategy(node, average, count) == CFR_STATUS_SUCCESS);
+    for (size_t i = 0; i < count; ++i) {
+        const double expected = .05 / (double)count + (actions[i] == MUS_ACTION_PASS ? .95 : 0);
+        CHECK(fabs(average[i] - expected) < 1e-12);
+    }
+    /* Add a pending pair wager: total 5..7 includes intrinsic pair points.
+     * With one public point per player, the maximum can only be 3..6. */
+    score_apply(&score, &state, MUS_ACTION_BET_TWO);
+    score_apply(&score, &state, MUS_ACTION_ACCEPT);
+    CHECK(state.model.phase == MUS_PHASE_JUEGO && state.model.prior_wager_total == 2);
+    CHECK(cfr_game_information_set_key(&score.game, game_state(&state), &key) == CFR_STATUS_SUCCESS);
+    CHECK(mus_score_information_set_ordago_candidates(&score, key, candidates, 41,
+                                                      &count) == CFR_STATUS_SUCCESS);
+    CHECK(count == 4);
+    for (size_t i = 0; i < count; ++i) {
+        CHECK(mus_ordago_game_information_set_decode(candidates[i], &information) == CFR_STATUS_SUCCESS);
+        CHECK(information.max_settled_score == 3 + i);
+    }
+    CHECK(cfr_info_store_destroy(&destination) == CFR_STATUS_SUCCESS);
+    CHECK(cfr_info_store_destroy(&source_store) == CFR_STATUS_SUCCESS);
+}
+
 static void score_pass_to_end(const MusScoreGame *game, MusGameState *state) {
     size_t count = 0;
     while (state->model.phase != MUS_PHASE_TERMINAL && count < 8) {
@@ -3990,6 +4069,7 @@ int main(void) {
     test_score_preload_key_mapping();
     test_score_preload_policy();
     test_score_prior_all_lances();
+    test_score_prior_paid_bounds();
     test_score_wager_menus_and_settlement();
     test_score_reduced_match_scoring_cases();
     test_score_export_rejects_foreign_games();

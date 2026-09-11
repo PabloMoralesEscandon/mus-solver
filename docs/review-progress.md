@@ -40,7 +40,7 @@ rendimiento del bot desplegado son métricas diferentes.
 | J02 | Recuento diferido en el simulador de dos/cuatro jugadores | Pendiente |
 | J03 | Reintento tras fallo al guardar una diagonal | Completado |
 | J04 | Rechazar TXT truncado a su cabecera | Completado |
-| J05 | Excluir candidatos de precarga incompatibles con los dejes | Pendiente |
+| J05 | Excluir candidatos de precarga incompatibles con los dejes | Completado |
 | J06 | Usar operaciones de confianza en la evaluación exacta local | Pendiente |
 | J07 | Mezclar bits en la tabla de mejor respuesta | Pendiente |
 | J08 | Reutilizar celdas terminadas de una diagonal interrumpida | Pendiente |
@@ -113,3 +113,32 @@ Claude: **APPROVE**, mensaje `msg_14473ef1c4fa`. Se añadieron los casos sugerid
 de variante desconocida y texto sobrante, se dio nombre propio al fixture vacío
 y se documentó el contrato en la cabecera interna. Las pruebas de CLI del bot
 se repitieron tras estos ajustes.
+
+## J05: máximos históricos compatibles con los pagos
+
+El máximo histórico se acota por el total posible menos el menor de los pagos
+ya recibidos por cada jugador. Los puntos públicamente cobrados por el rival
+no pueden atribuirse al otro jugador al distribuir los contratos pendientes.
+
+La regresión construye un deje de un punto para cada jugador antes de pares.
+Solo puede existir un máximo histórico de uno. Se carga una política correcta
+con masa 1 y otra incompatible, favorable al órdago, con masa 99. La prueba
+comprueba la lista de candidatos, la capacidad mínima del búfer y la política
+final de la precarga. Falló cuatro comprobaciones antes de la corrección.
+
+Pasan `make -j4 test` y las baterías de núcleo y rutas rápidas compiladas con
+`MUS_MAX_MUSES=2` en `build/review-j05-two`. Se comparan rendimiento y resultados
+sin precarga, y el tiempo/memoria de entrenar tablas con precarga. En este
+último caso puede cambiar la política porque se elimina información incompatible.
+[Rendimiento](review-performance/J05.json): sin precarga se conservan exactamente
+los checkpoints, valores y contadores de los cuatro marcadores de referencia.
+Con precarga, la mediana para 45 celdas pasa de 5,8819 a 5,8406 s (−0,70 %), y el
+RSS de 153.052 a 153.264 KiB (+0,14 %). Cambian 31 checkpoints y `values.txt`;
+cada versión es determinista en sus tres ejecuciones. No se activa el límite de
+regresión. Los archivos diferentes no demuestran por sí mismos mayor tasa de
+victoria del bot.
+
+Claude: **APPROVE**, tarea `task_c253677971f6`, dispatch `ctx_e1ceb4a7d0e0`,
+mensaje `msg_c373e2326959`. Se añadió su caso opcional de pagos a ambos jugadores
+más un contrato de pares pendiente, que exige el intervalo completo 3..6.
+Las pruebas del núcleo se repitieron con uno y dos muses tras añadirlo.
