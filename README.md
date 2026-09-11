@@ -735,7 +735,10 @@ visitados. Calcula:
 - mejora unilateral, NashConv y explotabilidad.
 
 Los formatos históricos acumulan valores contrafactuales por profundidad sin
-materializar el árbol completo. La evaluación de `ordago` desde la raíz no es
+materializar el árbol completo. El evaluador valida la raíz una vez y utiliza
+las operaciones de confianza disponibles durante el recorrido; conserva la
+alternativa pública si el descriptor no las proporciona. La evaluación de
+`ordago` desde la raíz no es
 viable con el evaluador general por su árbol de mus, descartes y envites
 aditivos. Por eso, `--format ordago --evaluate` calcula un diagnóstico acotado:
 promedia las métricas exactas de dos repartos fijos en el último lance, uno de
@@ -744,6 +747,19 @@ juego y otro de punto. La salida lo identifica con
 mide la explotabilidad desde la raíz ni restablece la garantía de convergencia.
 La API permite además evaluar cualquier subestado acotado mediante
 `mus_ordago_evaluation_metrics_from_state`.
+
+Para medir todas las pasadas del evaluador con una estrategia entrenada:
+
+```sh
+make benchmark-evaluation
+build/release/benchmark-evaluation single-bet 10000 root 1
+build/release/benchmark-evaluation raises-to-eight 10000 first-hand-fixed 1
+```
+
+El tiempo excluye el entrenamiento. `visited_nodes` e `information_sets`
+describen ese entrenamiento previo, no el número de nodos evaluados. El alcance
+`first-hand-fixed` fija la mano de P0 y enumera la de P1; sus métricas son un
+subproblema condicionado y no la explotabilidad de la raíz completa.
 
 ### Referencia reproducible
 

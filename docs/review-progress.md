@@ -41,7 +41,7 @@ rendimiento del bot desplegado son métricas diferentes.
 | J03 | Reintento tras fallo al guardar una diagonal | Completado |
 | J04 | Rechazar TXT truncado a su cabecera | Completado |
 | J05 | Excluir candidatos de precarga incompatibles con los dejes | Completado |
-| J06 | Usar operaciones de confianza en la evaluación exacta local | Pendiente |
+| J06 | Usar operaciones de confianza en la evaluación exacta local | Completado |
 | J07 | Mezclar bits en la tabla de mejor respuesta | Pendiente |
 | J08 | Reutilizar celdas terminadas de una diagonal interrumpida | Pendiente |
 | J09 | Región opcional de continuaciones cerrada por incrementos y giro | Pendiente |
@@ -257,3 +257,48 @@ cobra sus intrínsecos cuando el rival con duples rechaza. La prueba final pasa
 740 comprobaciones, tanto optimizada como con sanitizers. Se documenta también
 que los intrínsecos de lances rechazados pertenecen al equipo apostador.
 El commit del submódulo precede a la actualización del gitlink raíz: `c83774156560461ac4888573be3877cad982d478`.
+
+## J06: operaciones de confianza en el evaluador exacto
+
+Tras validar la raíz, el evaluador enlaza una copia local del descriptor con
+su tabla de operaciones de confianza, si existe. La selección se hace una vez;
+los wrappers conservan sus comprobaciones de argumentos. La alternativa es la
+tabla pública completa cuando no hay tabla de confianza; los dos descriptores
+actuales proporcionan enumeración de azar. El descriptor original no se modifica. La cota
+de profundidad de mejor respuesta se determina antes de sustituir el descriptor.
+No se cambian las pasadas ni la fórmula de evaluación.
+
+Pasa la batería completa. Las comparaciones existentes con el evaluador general
+verifican perfil, mejores respuestas y explotabilidad en ambos formatos. La
+prueba nueva verifica argumentos inválidos, rechazo de una raíz corrupta y
+conservación del estado y la salida. El benchmark reproduce el evaluador completo
+con todas sus pasadas y consultas a una estrategia entrenada, e identifica
+expresamente el alcance de cada raíz.
+
+Claude: **APPROVE**, tarea `task_9265c53eb2bc`, dispatch `ctx_b1b57b844ea7`,
+mensaje `msg_708ce4b05527`. Se corrige la explicación de la alternativa pública,
+se aclara que `visited_nodes` cuenta entrenamiento y se añade el objetivo
+`benchmark-evaluation`. Una prueba independiente compara la tabla pública sin
+`trusted_operations` con la ruta de confianza: métricas idénticas y conservación
+de raíz y descriptor. El binario del benchmark sigue siendo idéntico tras estos
+ajustes de comentarios/documentación/construcción.
+
+[Rendimiento](review-performance/J06.json), tres pares por carga, con estrategia
+entrenada durante 10.000 iteraciones y semilla 7:
+
+| Formato y alcance | Mediana anterior | Mediana actual | Relación |
+|---|---:|---:|---:|
+| single-bet, raíz completa | 192,052 s | 68,159 s | 2,82× |
+| single-bet, primera mano fijada, diez evaluaciones | 5,034 s | 0,579 s | 8,69× |
+| raises-to-eight, primera mano fijada | 18,692 s | 3,402 s | 5,49× |
+
+Las ocho métricas coinciden exactamente en todas las ejecuciones. Las raíces
+condicionadas no miden explotabilidad global; no se midió la raíz completa de
+raises-to-eight. Las ejecuciones antiguas de la raíz single-bet variaron entre
+178,44 y 302,16 s; se conservan todos los datos y no se presenta la relación como
+una garantía. El mayor incremento de RSS de evaluación es +2,13 %.
+
+En entrenamiento genérico: +10,44 % / −0,55 % / −0,12 % de tiempo para
+single-bet / raises-to-eight / ordago, con contadores iguales y RSS prácticamente
+igual. La tabla score pasa de 3,7458 a 3,7477 s (+0,05 %) y mantiene todos sus
+archivos idénticos. No se activa el límite de regresión.

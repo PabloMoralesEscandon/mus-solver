@@ -542,6 +542,12 @@ static Status evaluation_metrics_from_state(
         game, mus_game_state_as_game_state_const(root));
     if (status != CFR_STATUS_SUCCESS)
         return status;
+    /* Bind once after validating the root. The public wrappers retain their
+     * argument checks during traversal. */
+    Game traversal_game = *game;
+    if (game->trusted_operations != NULL)
+        traversal_game.operations = game->trusted_operations;
+    game = &traversal_game;
     state = *root;
     status = profile_value_recursive(game, &state, store,
                                      &metrics.profile_value_player_0);

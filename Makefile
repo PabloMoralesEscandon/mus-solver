@@ -51,11 +51,13 @@ DEPENDENCY_FILES := $(RELEASE_OBJECTS:.o=.d) $(DEBUG_OBJECTS:.o=.d) \
 	$(DEBUG_TEST_OBJECT:.o=.d)
 
 .PHONY: all lto debug test test-tsan test-sanitize dependencies cfr-release \
-	cfr-debug clean benchmark-score benchmark-score-threads
+	cfr-debug clean benchmark-score benchmark-score-threads benchmark-evaluation
 
 all: $(RELEASE_BINARY) $(RELEASE_DIR)/mus-bot
 
 benchmark-score: $(RELEASE_DIR)/benchmark-score
+
+benchmark-evaluation: $(RELEASE_DIR)/benchmark-evaluation
 
 benchmark-score-threads: $(RELEASE_DIR)/benchmark-score-threads
 
@@ -182,3 +184,10 @@ $(DEBUG_DIR)/mus_adapter_configuration_tests: $(DEBUG_DIR)/tests/test_adapter_co
 		$(DEBUG_CFR_LIBRARY) $(LDLIBS) -lm -o $@
 
 -include $(DEBUG_DIR)/tests/test_adapter_configuration.d
+
+$(RELEASE_DIR)/benchmark-evaluation: $(RELEASE_DIR)/tests/benchmark_evaluation.o \
+        $(RELEASE_LIBRARY) cfr-release
+	$(CC) $(LDFLAGS) $(RELEASE_LINK_FLAGS) $(THREAD_FLAGS) $< \
+		$(RELEASE_LIBRARY) $(RELEASE_CFR_LIBRARY) $(LDLIBS) -lm -o $@
+
+-include $(RELEASE_DIR)/tests/benchmark_evaluation.d

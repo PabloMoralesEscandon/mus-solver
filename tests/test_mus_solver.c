@@ -1928,6 +1928,33 @@ static void test_raises_to_eight_evaluator_on_subgame(void) {
     CHECK(cfr_info_store_destroy(&store) == CFR_STATUS_SUCCESS);
 }
 
+static void test_streaming_evaluator_error_outputs(void) {
+    InfoStore store = {0};
+    CHECK(cfr_info_store_init(&store) == CFR_STATUS_SUCCESS);
+    for (int raises = 0; raises < 2; raises += 1) {
+        Status (*evaluate)(const MusGameState *, const InfoStore *,
+                           EvaluationMetrics *) = raises
+            ? mus_raises_to_eight_evaluation_metrics_from_state
+            : mus_single_bet_evaluation_metrics_from_state;
+        MusGameState state;
+        CHECK((raises ? mus_raises_to_eight_game_state_init(&state)
+                      : mus_single_bet_game_state_init(&state)) == CFR_STATUS_SUCCESS);
+        EvaluationMetrics metrics;
+        memset(&metrics, 0xa5, sizeof(metrics));
+        const EvaluationMetrics sentinel = metrics;
+        CHECK(evaluate(NULL, &store, &metrics) == CFR_STATUS_INVALID_ARGUMENT);
+        CHECK(evaluate(&state, NULL, &metrics) == CFR_STATUS_INVALID_ARGUMENT);
+        CHECK(evaluate(&state, &store, NULL) == CFR_STATUS_INVALID_ARGUMENT);
+        CHECK(memcmp(&metrics, &sentinel, sizeof(metrics)) == 0);
+        state.model.phase = UINT8_MAX;
+        const MusGameState original = state;
+        CHECK(evaluate(&state, &store, &metrics) == CFR_STATUS_INVALID_ARGUMENT);
+        CHECK(memcmp(&metrics, &sentinel, sizeof(metrics)) == 0);
+        CHECK(memcmp(&state, &original, sizeof(state)) == 0);
+    }
+    CHECK(cfr_info_store_destroy(&store) == CFR_STATUS_SUCCESS);
+}
+
 static void test_ordago_evaluator_on_subgame(void) {
     const uint8_t low_a[MUS_GAME_CLASS_COUNT] = {1, 1, 1, 1, 0, 0, 0, 0};
     const uint8_t low_b[MUS_GAME_CLASS_COUNT] = {1, 1, 1, 0, 1, 0, 0, 0};
@@ -4100,6 +4127,7 @@ int main(void) {
     test_raises_to_eight_scoring();
     test_streaming_evaluator_on_subgame();
     test_raises_to_eight_evaluator_on_subgame();
+    test_streaming_evaluator_error_outputs();
     test_ordago_evaluator_on_subgame();
     test_training_resume_and_export();
     test_raises_to_eight_training_and_export();
