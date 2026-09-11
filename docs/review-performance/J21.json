@@ -1,0 +1,983 @@
+{
+  "parent_commit": "72a0356",
+  "protocol": "3 alternating pairs, CPU0, no other own builds/tests. Each non-LTO batch runs 20 unchanged all+debug builds; each default LTO batch runs 3 unchanged all builds. Parent and candidate use the same prepared artifacts within each mode. Every individual child duration and peak RSS is recorded. Batch RSS is the maximum of child peaks, not a sum. No algorithm source changes; executable hashes are compared directly.",
+  "runs": [
+    {
+      "mode": "non-lto",
+      "version": "parent",
+      "repeat": 1,
+      "command": [
+        "/usr/bin/make",
+        "-s",
+        "-j4",
+        "-f",
+        "/tmp/mus-j21-parent.mk",
+        "BUILD_DIR=build/review-j21-bench",
+        "CFR_BUILD_DIR=build/review-j21-bench",
+        "RELEASE_LTO_FLAGS=",
+        "RELEASE_LINK_FLAGS=",
+        "all",
+        "debug"
+      ],
+      "count": 20,
+      "wall_seconds": 6.103649876000418,
+      "peak_rss_kib": 17108,
+      "samples": [
+        {
+          "seconds": 0.4113937799993437,
+          "peak_rss_kib": 16924
+        },
+        {
+          "seconds": 0.4198394359991653,
+          "peak_rss_kib": 17012
+        },
+        {
+          "seconds": 0.31135104299755767,
+          "peak_rss_kib": 17028
+        },
+        {
+          "seconds": 0.29177148199960357,
+          "peak_rss_kib": 16844
+        },
+        {
+          "seconds": 0.28682373400079086,
+          "peak_rss_kib": 17008
+        },
+        {
+          "seconds": 0.30503478000173345,
+          "peak_rss_kib": 16908
+        },
+        {
+          "seconds": 0.29728636099753203,
+          "peak_rss_kib": 16940
+        },
+        {
+          "seconds": 0.2874633130049915,
+          "peak_rss_kib": 16944
+        },
+        {
+          "seconds": 0.29078467799990904,
+          "peak_rss_kib": 16916
+        },
+        {
+          "seconds": 0.28974243799893884,
+          "peak_rss_kib": 16992
+        },
+        {
+          "seconds": 0.28805927900248207,
+          "peak_rss_kib": 17048
+        },
+        {
+          "seconds": 0.28982132700184593,
+          "peak_rss_kib": 16952
+        },
+        {
+          "seconds": 0.29132284399383934,
+          "peak_rss_kib": 16952
+        },
+        {
+          "seconds": 0.28671780400327407,
+          "peak_rss_kib": 17104
+        },
+        {
+          "seconds": 0.2902834710039315,
+          "peak_rss_kib": 16960
+        },
+        {
+          "seconds": 0.29773960699822055,
+          "peak_rss_kib": 17108
+        },
+        {
+          "seconds": 0.2971019519973197,
+          "peak_rss_kib": 16976
+        },
+        {
+          "seconds": 0.28833313599898247,
+          "peak_rss_kib": 16992
+        },
+        {
+          "seconds": 0.29117166899959557,
+          "peak_rss_kib": 17020
+        },
+        {
+          "seconds": 0.29160774200136075,
+          "peak_rss_kib": 16904
+        }
+      ],
+      "binary_hashes": {
+        "build/review-j21-bench/release/mus-match-eval": "ecd01965a2a5ac606e29a3758c3878f8f003c9e8e2a6e05c9cb2ca9a52eaf06f",
+        "build/review-j21-bench/release/mus-solver": "2b2ec82fffe42347359f2c71719dec8bd1e01479512697c66f5ef205c0f9b899",
+        "build/review-j21-bench/release/mus-bot": "46bee865954b7dcef040c2935a1974bf095296709e1704230e336d2d081fe138",
+        "build/review-j21-bench/debug/mus_solver_tests": "95e34ffd6be576f6e47d024fd3632f0da5972dce6befd1d499f4734fd9296230",
+        "build/review-j21-bench/debug/mus-bot": "da2b5fb0bb1a4cae9c3c3f01bc56fc01a992a8cb3d8a6fce8fb26d7f06665a89",
+        "build/review-j21-bench/debug/mus-solver": "dd7c595b95192d0a8b5e0b1a1567cdd899a719f296c72a758053e4baf5882d2c",
+        "build/review-j21-bench/debug/mus_adapter_tests": "283ab9d0a7bf6294b35524cd618af9e712b584c2bfd81e852df88ab38fb85126",
+        "build/review-j21-bench/debug/mus_adapter_configuration_tests": "7007e20b65be27db31d5bf49f61e7f5fcc329d39dd2d283ece6d07ca4390b824",
+        "build/review-j21-bench/debug/mus_hotpaths_tests": "b3ebdf6ecc20002b80c5f043d4682bdf83179c23af1b583c76fbaf052b8004a8",
+        "build/review-j21-bench/debug/mus_ordago_public_tests": "6920d710898f71ae2ee3035165a732b3cb9c6cb751bb74bfdcd2a6dd6455feca",
+        "build/review-j21-bench/debug/mus-match-eval": "c4e52cc347c852a817279d11120ef76746d96d7f61d37c2133dd69015d19c5c8",
+        "build/review-j21-bench/debug/mus_match_tests": "d69c3ba164a1526807d452b60d67bf42b9be500c2b8c1b572fa389dcc25e288b"
+      }
+    },
+    {
+      "mode": "non-lto",
+      "version": "candidate",
+      "repeat": 1,
+      "command": [
+        "/usr/bin/make",
+        "-s",
+        "-j4",
+        "-f",
+        "Makefile",
+        "BUILD_DIR=build/review-j21-bench",
+        "CFR_BUILD_DIR=build/review-j21-bench",
+        "RELEASE_LTO_FLAGS=",
+        "RELEASE_LINK_FLAGS=",
+        "all",
+        "debug"
+      ],
+      "count": 20,
+      "wall_seconds": 1.0083913510025013,
+      "peak_rss_kib": 6940,
+      "samples": [
+        {
+          "seconds": 0.05009634500311222,
+          "peak_rss_kib": 6844
+        },
+        {
+          "seconds": 0.05000048399961088,
+          "peak_rss_kib": 6800
+        },
+        {
+          "seconds": 0.049922876998607535,
+          "peak_rss_kib": 6856
+        },
+        {
+          "seconds": 0.04892630399990594,
+          "peak_rss_kib": 6820
+        },
+        {
+          "seconds": 0.04901441099354997,
+          "peak_rss_kib": 6940
+        },
+        {
+          "seconds": 0.049182958995515946,
+          "peak_rss_kib": 6812
+        },
+        {
+          "seconds": 0.048747287000878714,
+          "peak_rss_kib": 6836
+        },
+        {
+          "seconds": 0.04952905300160637,
+          "peak_rss_kib": 6856
+        },
+        {
+          "seconds": 0.05218967000109842,
+          "peak_rss_kib": 6808
+        },
+        {
+          "seconds": 0.0611404000010225,
+          "peak_rss_kib": 6800
+        },
+        {
+          "seconds": 0.049298036996333394,
+          "peak_rss_kib": 6840
+        },
+        {
+          "seconds": 0.05083413900138112,
+          "peak_rss_kib": 6844
+        },
+        {
+          "seconds": 0.05076804399868706,
+          "peak_rss_kib": 6812
+        },
+        {
+          "seconds": 0.049085505001130514,
+          "peak_rss_kib": 6784
+        },
+        {
+          "seconds": 0.050096615006623324,
+          "peak_rss_kib": 6772
+        },
+        {
+          "seconds": 0.05074593199969968,
+          "peak_rss_kib": 6796
+        },
+        {
+          "seconds": 0.05099637500097742,
+          "peak_rss_kib": 6780
+        },
+        {
+          "seconds": 0.04875382899626857,
+          "peak_rss_kib": 6824
+        },
+        {
+          "seconds": 0.04931879600189859,
+          "peak_rss_kib": 6908
+        },
+        {
+          "seconds": 0.049744289004593156,
+          "peak_rss_kib": 6800
+        }
+      ],
+      "binary_hashes": {
+        "build/review-j21-bench/release/mus-match-eval": "ecd01965a2a5ac606e29a3758c3878f8f003c9e8e2a6e05c9cb2ca9a52eaf06f",
+        "build/review-j21-bench/release/mus-solver": "2b2ec82fffe42347359f2c71719dec8bd1e01479512697c66f5ef205c0f9b899",
+        "build/review-j21-bench/release/mus-bot": "46bee865954b7dcef040c2935a1974bf095296709e1704230e336d2d081fe138",
+        "build/review-j21-bench/debug/mus_solver_tests": "95e34ffd6be576f6e47d024fd3632f0da5972dce6befd1d499f4734fd9296230",
+        "build/review-j21-bench/debug/mus-bot": "da2b5fb0bb1a4cae9c3c3f01bc56fc01a992a8cb3d8a6fce8fb26d7f06665a89",
+        "build/review-j21-bench/debug/mus-solver": "dd7c595b95192d0a8b5e0b1a1567cdd899a719f296c72a758053e4baf5882d2c",
+        "build/review-j21-bench/debug/mus_adapter_tests": "283ab9d0a7bf6294b35524cd618af9e712b584c2bfd81e852df88ab38fb85126",
+        "build/review-j21-bench/debug/mus_adapter_configuration_tests": "7007e20b65be27db31d5bf49f61e7f5fcc329d39dd2d283ece6d07ca4390b824",
+        "build/review-j21-bench/debug/mus_hotpaths_tests": "b3ebdf6ecc20002b80c5f043d4682bdf83179c23af1b583c76fbaf052b8004a8",
+        "build/review-j21-bench/debug/mus_ordago_public_tests": "6920d710898f71ae2ee3035165a732b3cb9c6cb751bb74bfdcd2a6dd6455feca",
+        "build/review-j21-bench/debug/mus-match-eval": "c4e52cc347c852a817279d11120ef76746d96d7f61d37c2133dd69015d19c5c8",
+        "build/review-j21-bench/debug/mus_match_tests": "d69c3ba164a1526807d452b60d67bf42b9be500c2b8c1b572fa389dcc25e288b"
+      }
+    },
+    {
+      "mode": "non-lto",
+      "version": "candidate",
+      "repeat": 2,
+      "command": [
+        "/usr/bin/make",
+        "-s",
+        "-j4",
+        "-f",
+        "Makefile",
+        "BUILD_DIR=build/review-j21-bench",
+        "CFR_BUILD_DIR=build/review-j21-bench",
+        "RELEASE_LTO_FLAGS=",
+        "RELEASE_LINK_FLAGS=",
+        "all",
+        "debug"
+      ],
+      "count": 20,
+      "wall_seconds": 0.9952276929907384,
+      "peak_rss_kib": 6900,
+      "samples": [
+        {
+          "seconds": 0.049941732999286614,
+          "peak_rss_kib": 6808
+        },
+        {
+          "seconds": 0.050002686999505386,
+          "peak_rss_kib": 6844
+        },
+        {
+          "seconds": 0.05047780599852558,
+          "peak_rss_kib": 6808
+        },
+        {
+          "seconds": 0.049010063004971016,
+          "peak_rss_kib": 6812
+        },
+        {
+          "seconds": 0.04960678999486845,
+          "peak_rss_kib": 6860
+        },
+        {
+          "seconds": 0.04926398299721768,
+          "peak_rss_kib": 6800
+        },
+        {
+          "seconds": 0.04934548700111918,
+          "peak_rss_kib": 6836
+        },
+        {
+          "seconds": 0.04882541400002083,
+          "peak_rss_kib": 6808
+        },
+        {
+          "seconds": 0.049331690002873074,
+          "peak_rss_kib": 6888
+        },
+        {
+          "seconds": 0.04980863099626731,
+          "peak_rss_kib": 6808
+        },
+        {
+          "seconds": 0.050570680999953765,
+          "peak_rss_kib": 6844
+        },
+        {
+          "seconds": 0.05141764099971624,
+          "peak_rss_kib": 6796
+        },
+        {
+          "seconds": 0.049649300002784,
+          "peak_rss_kib": 6900
+        },
+        {
+          "seconds": 0.04974398000194924,
+          "peak_rss_kib": 6744
+        },
+        {
+          "seconds": 0.0501552459973027,
+          "peak_rss_kib": 6820
+        },
+        {
+          "seconds": 0.05088917299872264,
+          "peak_rss_kib": 6836
+        },
+        {
+          "seconds": 0.05000129499967443,
+          "peak_rss_kib": 6824
+        },
+        {
+          "seconds": 0.04894082200189587,
+          "peak_rss_kib": 6840
+        },
+        {
+          "seconds": 0.049388186998839956,
+          "peak_rss_kib": 6792
+        },
+        {
+          "seconds": 0.048857083995244466,
+          "peak_rss_kib": 6780
+        }
+      ],
+      "binary_hashes": {
+        "build/review-j21-bench/release/mus-match-eval": "ecd01965a2a5ac606e29a3758c3878f8f003c9e8e2a6e05c9cb2ca9a52eaf06f",
+        "build/review-j21-bench/release/mus-solver": "2b2ec82fffe42347359f2c71719dec8bd1e01479512697c66f5ef205c0f9b899",
+        "build/review-j21-bench/release/mus-bot": "46bee865954b7dcef040c2935a1974bf095296709e1704230e336d2d081fe138",
+        "build/review-j21-bench/debug/mus_solver_tests": "95e34ffd6be576f6e47d024fd3632f0da5972dce6befd1d499f4734fd9296230",
+        "build/review-j21-bench/debug/mus-bot": "da2b5fb0bb1a4cae9c3c3f01bc56fc01a992a8cb3d8a6fce8fb26d7f06665a89",
+        "build/review-j21-bench/debug/mus-solver": "dd7c595b95192d0a8b5e0b1a1567cdd899a719f296c72a758053e4baf5882d2c",
+        "build/review-j21-bench/debug/mus_adapter_tests": "283ab9d0a7bf6294b35524cd618af9e712b584c2bfd81e852df88ab38fb85126",
+        "build/review-j21-bench/debug/mus_adapter_configuration_tests": "7007e20b65be27db31d5bf49f61e7f5fcc329d39dd2d283ece6d07ca4390b824",
+        "build/review-j21-bench/debug/mus_hotpaths_tests": "b3ebdf6ecc20002b80c5f043d4682bdf83179c23af1b583c76fbaf052b8004a8",
+        "build/review-j21-bench/debug/mus_ordago_public_tests": "6920d710898f71ae2ee3035165a732b3cb9c6cb751bb74bfdcd2a6dd6455feca",
+        "build/review-j21-bench/debug/mus-match-eval": "c4e52cc347c852a817279d11120ef76746d96d7f61d37c2133dd69015d19c5c8",
+        "build/review-j21-bench/debug/mus_match_tests": "d69c3ba164a1526807d452b60d67bf42b9be500c2b8c1b572fa389dcc25e288b"
+      }
+    },
+    {
+      "mode": "non-lto",
+      "version": "parent",
+      "repeat": 2,
+      "command": [
+        "/usr/bin/make",
+        "-s",
+        "-j4",
+        "-f",
+        "/tmp/mus-j21-parent.mk",
+        "BUILD_DIR=build/review-j21-bench",
+        "CFR_BUILD_DIR=build/review-j21-bench",
+        "RELEASE_LTO_FLAGS=",
+        "RELEASE_LINK_FLAGS=",
+        "all",
+        "debug"
+      ],
+      "count": 20,
+      "wall_seconds": 5.86455907200434,
+      "peak_rss_kib": 17088,
+      "samples": [
+        {
+          "seconds": 0.28725237299659057,
+          "peak_rss_kib": 16880
+        },
+        {
+          "seconds": 0.2867105699988315,
+          "peak_rss_kib": 16952
+        },
+        {
+          "seconds": 0.28767081400292227,
+          "peak_rss_kib": 17024
+        },
+        {
+          "seconds": 0.2872300110029755,
+          "peak_rss_kib": 16924
+        },
+        {
+          "seconds": 0.2889654199971119,
+          "peak_rss_kib": 16888
+        },
+        {
+          "seconds": 0.2926413449968095,
+          "peak_rss_kib": 17088
+        },
+        {
+          "seconds": 0.28886773499834817,
+          "peak_rss_kib": 17020
+        },
+        {
+          "seconds": 0.2893633409985341,
+          "peak_rss_kib": 17004
+        },
+        {
+          "seconds": 0.292311911995057,
+          "peak_rss_kib": 16988
+        },
+        {
+          "seconds": 0.2902380439991248,
+          "peak_rss_kib": 16936
+        },
+        {
+          "seconds": 0.2882565700056148,
+          "peak_rss_kib": 16892
+        },
+        {
+          "seconds": 0.2901725699994131,
+          "peak_rss_kib": 16996
+        },
+        {
+          "seconds": 0.2933101579983486,
+          "peak_rss_kib": 17048
+        },
+        {
+          "seconds": 0.2886700709932484,
+          "peak_rss_kib": 16960
+        },
+        {
+          "seconds": 0.28866112400282873,
+          "peak_rss_kib": 16932
+        },
+        {
+          "seconds": 0.31668536900542676,
+          "peak_rss_kib": 16876
+        },
+        {
+          "seconds": 0.32040735200280324,
+          "peak_rss_kib": 17012
+        },
+        {
+          "seconds": 0.3046069910051301,
+          "peak_rss_kib": 16956
+        },
+        {
+          "seconds": 0.29378457400162006,
+          "peak_rss_kib": 16996
+        },
+        {
+          "seconds": 0.2887527280036011,
+          "peak_rss_kib": 16932
+        }
+      ],
+      "binary_hashes": {
+        "build/review-j21-bench/release/mus-match-eval": "ecd01965a2a5ac606e29a3758c3878f8f003c9e8e2a6e05c9cb2ca9a52eaf06f",
+        "build/review-j21-bench/release/mus-solver": "2b2ec82fffe42347359f2c71719dec8bd1e01479512697c66f5ef205c0f9b899",
+        "build/review-j21-bench/release/mus-bot": "46bee865954b7dcef040c2935a1974bf095296709e1704230e336d2d081fe138",
+        "build/review-j21-bench/debug/mus_solver_tests": "95e34ffd6be576f6e47d024fd3632f0da5972dce6befd1d499f4734fd9296230",
+        "build/review-j21-bench/debug/mus-bot": "da2b5fb0bb1a4cae9c3c3f01bc56fc01a992a8cb3d8a6fce8fb26d7f06665a89",
+        "build/review-j21-bench/debug/mus-solver": "dd7c595b95192d0a8b5e0b1a1567cdd899a719f296c72a758053e4baf5882d2c",
+        "build/review-j21-bench/debug/mus_adapter_tests": "283ab9d0a7bf6294b35524cd618af9e712b584c2bfd81e852df88ab38fb85126",
+        "build/review-j21-bench/debug/mus_adapter_configuration_tests": "7007e20b65be27db31d5bf49f61e7f5fcc329d39dd2d283ece6d07ca4390b824",
+        "build/review-j21-bench/debug/mus_hotpaths_tests": "b3ebdf6ecc20002b80c5f043d4682bdf83179c23af1b583c76fbaf052b8004a8",
+        "build/review-j21-bench/debug/mus_ordago_public_tests": "6920d710898f71ae2ee3035165a732b3cb9c6cb751bb74bfdcd2a6dd6455feca",
+        "build/review-j21-bench/debug/mus-match-eval": "c4e52cc347c852a817279d11120ef76746d96d7f61d37c2133dd69015d19c5c8",
+        "build/review-j21-bench/debug/mus_match_tests": "d69c3ba164a1526807d452b60d67bf42b9be500c2b8c1b572fa389dcc25e288b"
+      }
+    },
+    {
+      "mode": "non-lto",
+      "version": "parent",
+      "repeat": 3,
+      "command": [
+        "/usr/bin/make",
+        "-s",
+        "-j4",
+        "-f",
+        "/tmp/mus-j21-parent.mk",
+        "BUILD_DIR=build/review-j21-bench",
+        "CFR_BUILD_DIR=build/review-j21-bench",
+        "RELEASE_LTO_FLAGS=",
+        "RELEASE_LINK_FLAGS=",
+        "all",
+        "debug"
+      ],
+      "count": 20,
+      "wall_seconds": 5.9687011019923375,
+      "peak_rss_kib": 17048,
+      "samples": [
+        {
+          "seconds": 0.2933171409968054,
+          "peak_rss_kib": 17044
+        },
+        {
+          "seconds": 0.3006548740013386,
+          "peak_rss_kib": 16960
+        },
+        {
+          "seconds": 0.2922509269992588,
+          "peak_rss_kib": 16956
+        },
+        {
+          "seconds": 0.3001899850059999,
+          "peak_rss_kib": 16952
+        },
+        {
+          "seconds": 0.3391128799994476,
+          "peak_rss_kib": 16992
+        },
+        {
+          "seconds": 0.3082622160000028,
+          "peak_rss_kib": 16964
+        },
+        {
+          "seconds": 0.29744096099602757,
+          "peak_rss_kib": 16904
+        },
+        {
+          "seconds": 0.3109824950006441,
+          "peak_rss_kib": 17004
+        },
+        {
+          "seconds": 0.29060584800026845,
+          "peak_rss_kib": 16968
+        },
+        {
+          "seconds": 0.29689959900133545,
+          "peak_rss_kib": 16868
+        },
+        {
+          "seconds": 0.2952446919953218,
+          "peak_rss_kib": 17048
+        },
+        {
+          "seconds": 0.31021547600539634,
+          "peak_rss_kib": 16964
+        },
+        {
+          "seconds": 0.2973029599961592,
+          "peak_rss_kib": 17000
+        },
+        {
+          "seconds": 0.28753155999584123,
+          "peak_rss_kib": 16852
+        },
+        {
+          "seconds": 0.2890811580000445,
+          "peak_rss_kib": 16984
+        },
+        {
+          "seconds": 0.29401010899891844,
+          "peak_rss_kib": 16980
+        },
+        {
+          "seconds": 0.2875536720021046,
+          "peak_rss_kib": 17008
+        },
+        {
+          "seconds": 0.2929688520016498,
+          "peak_rss_kib": 17012
+        },
+        {
+          "seconds": 0.2957615089981118,
+          "peak_rss_kib": 16868
+        },
+        {
+          "seconds": 0.28931418799766107,
+          "peak_rss_kib": 16992
+        }
+      ],
+      "binary_hashes": {
+        "build/review-j21-bench/release/mus-match-eval": "ecd01965a2a5ac606e29a3758c3878f8f003c9e8e2a6e05c9cb2ca9a52eaf06f",
+        "build/review-j21-bench/release/mus-solver": "2b2ec82fffe42347359f2c71719dec8bd1e01479512697c66f5ef205c0f9b899",
+        "build/review-j21-bench/release/mus-bot": "46bee865954b7dcef040c2935a1974bf095296709e1704230e336d2d081fe138",
+        "build/review-j21-bench/debug/mus_solver_tests": "95e34ffd6be576f6e47d024fd3632f0da5972dce6befd1d499f4734fd9296230",
+        "build/review-j21-bench/debug/mus-bot": "da2b5fb0bb1a4cae9c3c3f01bc56fc01a992a8cb3d8a6fce8fb26d7f06665a89",
+        "build/review-j21-bench/debug/mus-solver": "dd7c595b95192d0a8b5e0b1a1567cdd899a719f296c72a758053e4baf5882d2c",
+        "build/review-j21-bench/debug/mus_adapter_tests": "283ab9d0a7bf6294b35524cd618af9e712b584c2bfd81e852df88ab38fb85126",
+        "build/review-j21-bench/debug/mus_adapter_configuration_tests": "7007e20b65be27db31d5bf49f61e7f5fcc329d39dd2d283ece6d07ca4390b824",
+        "build/review-j21-bench/debug/mus_hotpaths_tests": "b3ebdf6ecc20002b80c5f043d4682bdf83179c23af1b583c76fbaf052b8004a8",
+        "build/review-j21-bench/debug/mus_ordago_public_tests": "6920d710898f71ae2ee3035165a732b3cb9c6cb751bb74bfdcd2a6dd6455feca",
+        "build/review-j21-bench/debug/mus-match-eval": "c4e52cc347c852a817279d11120ef76746d96d7f61d37c2133dd69015d19c5c8",
+        "build/review-j21-bench/debug/mus_match_tests": "d69c3ba164a1526807d452b60d67bf42b9be500c2b8c1b572fa389dcc25e288b"
+      }
+    },
+    {
+      "mode": "non-lto",
+      "version": "candidate",
+      "repeat": 3,
+      "command": [
+        "/usr/bin/make",
+        "-s",
+        "-j4",
+        "-f",
+        "Makefile",
+        "BUILD_DIR=build/review-j21-bench",
+        "CFR_BUILD_DIR=build/review-j21-bench",
+        "RELEASE_LTO_FLAGS=",
+        "RELEASE_LINK_FLAGS=",
+        "all",
+        "debug"
+      ],
+      "count": 20,
+      "wall_seconds": 1.0110520309899584,
+      "peak_rss_kib": 6964,
+      "samples": [
+        {
+          "seconds": 0.049929909997445066,
+          "peak_rss_kib": 6812
+        },
+        {
+          "seconds": 0.04930442799377488,
+          "peak_rss_kib": 6788
+        },
+        {
+          "seconds": 0.05246030999842333,
+          "peak_rss_kib": 6840
+        },
+        {
+          "seconds": 0.05477243899804307,
+          "peak_rss_kib": 6840
+        },
+        {
+          "seconds": 0.052578473994799424,
+          "peak_rss_kib": 6808
+        },
+        {
+          "seconds": 0.05176705100166146,
+          "peak_rss_kib": 6964
+        },
+        {
+          "seconds": 0.05039943700103322,
+          "peak_rss_kib": 6796
+        },
+        {
+          "seconds": 0.050258350995136425,
+          "peak_rss_kib": 6872
+        },
+        {
+          "seconds": 0.051204538001911715,
+          "peak_rss_kib": 6808
+        },
+        {
+          "seconds": 0.05076351499883458,
+          "peak_rss_kib": 6796
+        },
+        {
+          "seconds": 0.04979813100362662,
+          "peak_rss_kib": 6800
+        },
+        {
+          "seconds": 0.04919373899610946,
+          "peak_rss_kib": 6808
+        },
+        {
+          "seconds": 0.0496192830032669,
+          "peak_rss_kib": 6900
+        },
+        {
+          "seconds": 0.050423833999957424,
+          "peak_rss_kib": 6788
+        },
+        {
+          "seconds": 0.049446987999544945,
+          "peak_rss_kib": 6780
+        },
+        {
+          "seconds": 0.04936465300124837,
+          "peak_rss_kib": 6896
+        },
+        {
+          "seconds": 0.04988714000501204,
+          "peak_rss_kib": 6964
+        },
+        {
+          "seconds": 0.04939653299516067,
+          "peak_rss_kib": 6840
+        },
+        {
+          "seconds": 0.05089711700566113,
+          "peak_rss_kib": 6808
+        },
+        {
+          "seconds": 0.04958615999930771,
+          "peak_rss_kib": 6752
+        }
+      ],
+      "binary_hashes": {
+        "build/review-j21-bench/release/mus-match-eval": "ecd01965a2a5ac606e29a3758c3878f8f003c9e8e2a6e05c9cb2ca9a52eaf06f",
+        "build/review-j21-bench/release/mus-solver": "2b2ec82fffe42347359f2c71719dec8bd1e01479512697c66f5ef205c0f9b899",
+        "build/review-j21-bench/release/mus-bot": "46bee865954b7dcef040c2935a1974bf095296709e1704230e336d2d081fe138",
+        "build/review-j21-bench/debug/mus_solver_tests": "95e34ffd6be576f6e47d024fd3632f0da5972dce6befd1d499f4734fd9296230",
+        "build/review-j21-bench/debug/mus-bot": "da2b5fb0bb1a4cae9c3c3f01bc56fc01a992a8cb3d8a6fce8fb26d7f06665a89",
+        "build/review-j21-bench/debug/mus-solver": "dd7c595b95192d0a8b5e0b1a1567cdd899a719f296c72a758053e4baf5882d2c",
+        "build/review-j21-bench/debug/mus_adapter_tests": "283ab9d0a7bf6294b35524cd618af9e712b584c2bfd81e852df88ab38fb85126",
+        "build/review-j21-bench/debug/mus_adapter_configuration_tests": "7007e20b65be27db31d5bf49f61e7f5fcc329d39dd2d283ece6d07ca4390b824",
+        "build/review-j21-bench/debug/mus_hotpaths_tests": "b3ebdf6ecc20002b80c5f043d4682bdf83179c23af1b583c76fbaf052b8004a8",
+        "build/review-j21-bench/debug/mus_ordago_public_tests": "6920d710898f71ae2ee3035165a732b3cb9c6cb751bb74bfdcd2a6dd6455feca",
+        "build/review-j21-bench/debug/mus-match-eval": "c4e52cc347c852a817279d11120ef76746d96d7f61d37c2133dd69015d19c5c8",
+        "build/review-j21-bench/debug/mus_match_tests": "d69c3ba164a1526807d452b60d67bf42b9be500c2b8c1b572fa389dcc25e288b"
+      }
+    },
+    {
+      "mode": "lto",
+      "version": "parent",
+      "repeat": 1,
+      "command": [
+        "/usr/bin/make",
+        "-s",
+        "-j4",
+        "-f",
+        "/tmp/mus-j21-parent.mk",
+        "BUILD_DIR=build/review-j21-bench-lto",
+        "CFR_BUILD_DIR=build/review-j21-bench-lto",
+        "all"
+      ],
+      "count": 3,
+      "wall_seconds": 20.130416113999672,
+      "peak_rss_kib": 107400,
+      "samples": [
+        {
+          "seconds": 6.841863036999712,
+          "peak_rss_kib": 107108
+        },
+        {
+          "seconds": 6.681098376997397,
+          "peak_rss_kib": 107400
+        },
+        {
+          "seconds": 6.607454700002563,
+          "peak_rss_kib": 107352
+        }
+      ],
+      "binary_hashes": {
+        "build/review-j21-bench-lto/release/mus-bot": "a9f850c265e19dd4d1529f43678cf9b2ce618a0be76763a81122f4ac5a1e887b",
+        "build/review-j21-bench-lto/release/mus-solver": "7dc411ca1bb825ac2a408f0bf1ad8a003a4be648a53c4bfd41c6f159e9ab604f",
+        "build/review-j21-bench-lto/release/mus-match-eval": "828daed50cdc059bbacd281e225ae345c866f6dd3083e791b57d59e6c01be0fa"
+      }
+    },
+    {
+      "mode": "lto",
+      "version": "candidate",
+      "repeat": 1,
+      "command": [
+        "/usr/bin/make",
+        "-s",
+        "-j4",
+        "-f",
+        "Makefile",
+        "BUILD_DIR=build/review-j21-bench-lto",
+        "CFR_BUILD_DIR=build/review-j21-bench-lto",
+        "all"
+      ],
+      "count": 3,
+      "wall_seconds": 0.09211655100807548,
+      "peak_rss_kib": 7052,
+      "samples": [
+        {
+          "seconds": 0.03099441600352293,
+          "peak_rss_kib": 7052
+        },
+        {
+          "seconds": 0.030224330999772064,
+          "peak_rss_kib": 6924
+        },
+        {
+          "seconds": 0.030897804004780483,
+          "peak_rss_kib": 6928
+        }
+      ],
+      "binary_hashes": {
+        "build/review-j21-bench-lto/release/mus-bot": "a9f850c265e19dd4d1529f43678cf9b2ce618a0be76763a81122f4ac5a1e887b",
+        "build/review-j21-bench-lto/release/mus-solver": "7dc411ca1bb825ac2a408f0bf1ad8a003a4be648a53c4bfd41c6f159e9ab604f",
+        "build/review-j21-bench-lto/release/mus-match-eval": "828daed50cdc059bbacd281e225ae345c866f6dd3083e791b57d59e6c01be0fa"
+      }
+    },
+    {
+      "mode": "lto",
+      "version": "candidate",
+      "repeat": 2,
+      "command": [
+        "/usr/bin/make",
+        "-s",
+        "-j4",
+        "-f",
+        "Makefile",
+        "BUILD_DIR=build/review-j21-bench-lto",
+        "CFR_BUILD_DIR=build/review-j21-bench-lto",
+        "all"
+      ],
+      "count": 3,
+      "wall_seconds": 0.09121860499726608,
+      "peak_rss_kib": 6940,
+      "samples": [
+        {
+          "seconds": 0.03057905099558411,
+          "peak_rss_kib": 6940
+        },
+        {
+          "seconds": 0.030591745999117848,
+          "peak_rss_kib": 6928
+        },
+        {
+          "seconds": 0.030047808002564125,
+          "peak_rss_kib": 6904
+        }
+      ],
+      "binary_hashes": {
+        "build/review-j21-bench-lto/release/mus-bot": "a9f850c265e19dd4d1529f43678cf9b2ce618a0be76763a81122f4ac5a1e887b",
+        "build/review-j21-bench-lto/release/mus-solver": "7dc411ca1bb825ac2a408f0bf1ad8a003a4be648a53c4bfd41c6f159e9ab604f",
+        "build/review-j21-bench-lto/release/mus-match-eval": "828daed50cdc059bbacd281e225ae345c866f6dd3083e791b57d59e6c01be0fa"
+      }
+    },
+    {
+      "mode": "lto",
+      "version": "parent",
+      "repeat": 2,
+      "command": [
+        "/usr/bin/make",
+        "-s",
+        "-j4",
+        "-f",
+        "/tmp/mus-j21-parent.mk",
+        "BUILD_DIR=build/review-j21-bench-lto",
+        "CFR_BUILD_DIR=build/review-j21-bench-lto",
+        "all"
+      ],
+      "count": 3,
+      "wall_seconds": 20.01218624300236,
+      "peak_rss_kib": 107160,
+      "samples": [
+        {
+          "seconds": 6.6730575949986815,
+          "peak_rss_kib": 107044
+        },
+        {
+          "seconds": 6.670222525004647,
+          "peak_rss_kib": 106932
+        },
+        {
+          "seconds": 6.668906122999033,
+          "peak_rss_kib": 107160
+        }
+      ],
+      "binary_hashes": {
+        "build/review-j21-bench-lto/release/mus-bot": "a9f850c265e19dd4d1529f43678cf9b2ce618a0be76763a81122f4ac5a1e887b",
+        "build/review-j21-bench-lto/release/mus-solver": "7dc411ca1bb825ac2a408f0bf1ad8a003a4be648a53c4bfd41c6f159e9ab604f",
+        "build/review-j21-bench-lto/release/mus-match-eval": "828daed50cdc059bbacd281e225ae345c866f6dd3083e791b57d59e6c01be0fa"
+      }
+    },
+    {
+      "mode": "lto",
+      "version": "parent",
+      "repeat": 3,
+      "command": [
+        "/usr/bin/make",
+        "-s",
+        "-j4",
+        "-f",
+        "/tmp/mus-j21-parent.mk",
+        "BUILD_DIR=build/review-j21-bench-lto",
+        "CFR_BUILD_DIR=build/review-j21-bench-lto",
+        "all"
+      ],
+      "count": 3,
+      "wall_seconds": 19.97881465699902,
+      "peak_rss_kib": 107396,
+      "samples": [
+        {
+          "seconds": 6.643978284002515,
+          "peak_rss_kib": 107264
+        },
+        {
+          "seconds": 6.631672481998976,
+          "peak_rss_kib": 107396
+        },
+        {
+          "seconds": 6.70316389099753,
+          "peak_rss_kib": 107216
+        }
+      ],
+      "binary_hashes": {
+        "build/review-j21-bench-lto/release/mus-bot": "a9f850c265e19dd4d1529f43678cf9b2ce618a0be76763a81122f4ac5a1e887b",
+        "build/review-j21-bench-lto/release/mus-solver": "7dc411ca1bb825ac2a408f0bf1ad8a003a4be648a53c4bfd41c6f159e9ab604f",
+        "build/review-j21-bench-lto/release/mus-match-eval": "828daed50cdc059bbacd281e225ae345c866f6dd3083e791b57d59e6c01be0fa"
+      }
+    },
+    {
+      "mode": "lto",
+      "version": "candidate",
+      "repeat": 3,
+      "command": [
+        "/usr/bin/make",
+        "-s",
+        "-j4",
+        "-f",
+        "Makefile",
+        "BUILD_DIR=build/review-j21-bench-lto",
+        "CFR_BUILD_DIR=build/review-j21-bench-lto",
+        "all"
+      ],
+      "count": 3,
+      "wall_seconds": 0.09246856599202147,
+      "peak_rss_kib": 6940,
+      "samples": [
+        {
+          "seconds": 0.031054990999109577,
+          "peak_rss_kib": 6940
+        },
+        {
+          "seconds": 0.03078204499615822,
+          "peak_rss_kib": 6928
+        },
+        {
+          "seconds": 0.03063152999675367,
+          "peak_rss_kib": 6908
+        }
+      ],
+      "binary_hashes": {
+        "build/review-j21-bench-lto/release/mus-bot": "a9f850c265e19dd4d1529f43678cf9b2ce618a0be76763a81122f4ac5a1e887b",
+        "build/review-j21-bench-lto/release/mus-solver": "7dc411ca1bb825ac2a408f0bf1ad8a003a4be648a53c4bfd41c6f159e9ab604f",
+        "build/review-j21-bench-lto/release/mus-match-eval": "828daed50cdc059bbacd281e225ae345c866f6dd3083e791b57d59e6c01be0fa"
+      }
+    }
+  ],
+  "summary": [
+    {
+      "mode": "non-lto",
+      "confirmation": false,
+      "batch_count": 20,
+      "wall_seconds": {
+        "parent": 5.9687011019923375,
+        "candidate": 1.0083913510025013,
+        "change_percent": -83.10534681212462
+      },
+      "peak_rss_kib": {
+        "parent": 17088,
+        "candidate": 6940,
+        "change_percent": -59.38670411985019
+      },
+      "trigger": false
+    },
+    {
+      "mode": "lto",
+      "confirmation": false,
+      "batch_count": 3,
+      "wall_seconds": {
+        "parent": 20.01218624300236,
+        "candidate": 0.09211655100807548,
+        "change_percent": -99.53969771273597
+      },
+      "peak_rss_kib": {
+        "parent": 107396,
+        "candidate": 6940,
+        "change_percent": -93.5379343737197
+      },
+      "trigger": false
+    }
+  ],
+  "blocked": null,
+  "setup_note": "Initial launcher invocation used make without an absolute path. posix_spawn (not posix_spawnp) returned before launching any build; no performance sample was collected. Use shutil.which to resolve the executable.",
+  "binary_hashes": {
+    "build/review-j20/release/mus-solver": "2b2ec82fffe42347359f2c71719dec8bd1e01479512697c66f5ef205c0f9b899",
+    "build/review-j20/release/mus-bot": "46bee865954b7dcef040c2935a1974bf095296709e1704230e336d2d081fe138",
+    "build/review-j20/release/mus-match-eval": "ecd01965a2a5ac606e29a3758c3878f8f003c9e8e2a6e05c9cb2ca9a52eaf06f",
+    "build/review-j21/release/mus-solver": "2b2ec82fffe42347359f2c71719dec8bd1e01479512697c66f5ef205c0f9b899",
+    "build/review-j21/release/mus-bot": "46bee865954b7dcef040c2935a1974bf095296709e1704230e336d2d081fe138",
+    "build/review-j21/release/mus-match-eval": "ecd01965a2a5ac606e29a3758c3878f8f003c9e8e2a6e05c9cb2ca9a52eaf06f"
+  },
+  "script": "import hashlib,json,os,statistics,subprocess,time,shutil\nfrom pathlib import Path\nos.sched_setaffinity(0,{0})\ntarget=Path('docs/review-performance/J21.json')\nwork=Path('build/review-j21-performance');work.mkdir(exist_ok=True)\ndef digest(path):\n with open(path,'rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()\ndata={'parent_commit':'72a0356','protocol':'3 alternating pairs, CPU0, no other own builds/tests. Each non-LTO batch runs 20 unchanged all+debug builds; each default LTO batch runs 3 unchanged all builds. Parent and candidate use the same prepared artifacts within each mode. Every individual child duration and peak RSS is recorded. Batch RSS is the maximum of child peaks, not a sum. No algorithm source changes; executable hashes are compared directly.', 'runs':[], 'summary':[], 'blocked':None, 'setup_note':'Initial launcher invocation used make without an absolute path. posix_spawn (not posix_spawnp) returned before launching any build; no performance sample was collected. Use shutil.which to resolve the executable.'}\ndata['binary_hashes']={str(p):digest(p) for directory in ('review-j20','review-j21') for name in ('mus-solver','mus-bot','mus-match-eval') for p in [Path('build')/directory/'release'/name]}\ndef save():\n data['script']=Path(__file__).read_text();data['parent_makefile']=Path('/tmp/mus-j21-parent.mk').read_text();data['launcher_source']=Path('/tmp/mus-review-j12-measure.c').read_text();target.write_text(json.dumps(data,indent=2)+'\\n')\nfor mode,n in [('non-lto',20),('lto',3)]:\n directory='build/review-j21-bench'+('-lto' if mode=='lto' else '')\n args=[f'BUILD_DIR={directory}',f'CFR_BUILD_DIR={directory}']\n args += ['all'] if mode=='lto' else ['RELEASE_LTO_FLAGS=','RELEASE_LINK_FLAGS=','all','debug']\n binaries=[p for p in Path(directory).rglob('*') if p.is_file() and os.access(p,os.X_OK)]\n reference={str(p):digest(p) for p in binaries}\n def pair(repeat):\n  for version in (('parent','candidate') if repeat%2 else ('candidate','parent')):\n   command=[shutil.which('make'),'-s','-j4','-f','/tmp/mus-j21-parent.mk' if version=='parent' else 'Makefile',*args]\n   samples=[]\n   for i in range(n):\n    rss=work/'rss.txt';start=time.perf_counter();p=subprocess.run(['/tmp/mus-review-j12-measure',str(rss),*command],capture_output=True,text=True);wall=time.perf_counter()-start\n    assert p.returncode==0,(command,p.stdout,p.stderr)\n    samples.append({'seconds':wall,'peak_rss_kib':int(rss.read_text())})\n   hashes={str(p):digest(p) for p in binaries};assert hashes==reference\n   row={'mode':mode,'version':version,'repeat':repeat,'command':command,'count':n,'wall_seconds':sum(r['seconds'] for r in samples),'peak_rss_kib':max(r['peak_rss_kib'] for r in samples),'samples':samples,'binary_hashes':hashes}\n   data['runs'].append(row);save();print(mode,version,repeat,row['wall_seconds'],row['peak_rss_kib'],flush=True)\n def summary(confirm=False):\n  rows=[r for r in data['runs'] if r['mode']==mode and (r['repeat']>3)==confirm];s={'mode':mode,'confirmation':confirm,'batch_count':n}\n  for field in ('wall_seconds','peak_rss_kib'):\n   a=statistics.median(r[field] for r in rows if r['version']=='parent');b=statistics.median(r[field] for r in rows if r['version']=='candidate');s[field]={'parent':a,'candidate':b,'change_percent':100*(b/a-1)}\n  s['trigger']=s['wall_seconds']['change_percent']>=20 or s['peak_rss_kib']['change_percent']>=25\n  data['summary'].append(s);save();print(s,flush=True);return s['trigger']\n for repeat in range(1,4):pair(repeat)\n if summary():\n  for repeat in range(4,9):pair(repeat)\n  if summary(True):data['blocked']=mode;save();raise SystemExit(2)\nsave()\n",
+  "parent_makefile": "CC ?= cc\nAR ?= ar\n\nLDLIBS += -lzstd -lm\nJSON_C_FLAGS := $(shell pkg-config --cflags json-c)\nJSON_C_LIBS := $(shell pkg-config --libs json-c)\n\nCPPFLAGS += -Iinclude -IC-CFR/include -ISimulador-Mus/include\nifneq ($(origin MUS_MAX_MUSES), undefined)\nCPPFLAGS += -DMUS_GAME_MAX_MUSES=$(MUS_MAX_MUSES)\nendif\nC_STANDARD := -std=c17\nWARNINGS := -Wall -Wextra -Wpedantic -Wshadow -Wconversion -Werror\nRELEASE_LTO_FLAGS := -flto\nRELEASE_FLAGS := -O3 $(RELEASE_LTO_FLAGS)\nRELEASE_LINK_FLAGS := $(RELEASE_LTO_FLAGS)\nDEBUG_FLAGS := -O0 -g3\nDEPENDENCY_FLAGS := -MMD -MP\nTHREAD_FLAGS ?= -pthread\n\nBUILD_DIR := build\nCFR_BUILD_DIR ?= build\nLTO_BUILD_DIR ?= build/lto\nRELEASE_DIR := $(BUILD_DIR)/release\nDEBUG_DIR := $(BUILD_DIR)/debug\n\nMUS_SOURCES := src/mus_game.c src/mus_evaluation.c src/mus_strategy.c src/mus_score.c \\\n\tsrc/mus_preload.c src/mus_adapter.c src/mus_text_strategy.c src/mus_training.c\nSIMULATOR_SOURCES := Simulador-Mus/src/cartas.c \\\n\tSimulador-Mus/src/baraja_espanola.c Simulador-Mus/src/mus.c\nLIB_SOURCES := $(MUS_SOURCES) $(SIMULATOR_SOURCES)\nAPP_SOURCE := app/mus_solver_cli.c app/score_recovery.c\nTEST_SOURCE := tests/test_mus_solver.c\n\nRELEASE_OBJECTS := $(patsubst %.c,$(RELEASE_DIR)/%.o,$(LIB_SOURCES))\nDEBUG_OBJECTS := $(patsubst %.c,$(DEBUG_DIR)/%.o,$(LIB_SOURCES))\nRELEASE_APP_OBJECT := $(patsubst %.c,$(RELEASE_DIR)/%.o,$(APP_SOURCE))\nDEBUG_APP_OBJECT := $(patsubst %.c,$(DEBUG_DIR)/%.o,$(APP_SOURCE))\nDEBUG_TEST_OBJECT := $(patsubst %.c,$(DEBUG_DIR)/%.o,$(TEST_SOURCE))\n\nRELEASE_CFR_LIBRARY := C-CFR/$(CFR_BUILD_DIR)/release/libcfr.a\nDEBUG_CFR_LIBRARY := C-CFR/$(CFR_BUILD_DIR)/debug/libcfr.a\nRELEASE_LIBRARY := $(RELEASE_DIR)/libmus_solver.a\nDEBUG_LIBRARY := $(DEBUG_DIR)/libmus_solver.a\nRELEASE_BINARY := $(RELEASE_DIR)/mus-solver\nDEBUG_BINARY := $(DEBUG_DIR)/mus-solver\nTEST_BINARY := $(DEBUG_DIR)/mus_solver_tests\n\nDEPENDENCY_FILES := $(RELEASE_OBJECTS:.o=.d) $(DEBUG_OBJECTS:.o=.d) \\\n\t$(RELEASE_APP_OBJECT:.o=.d) $(DEBUG_APP_OBJECT:.o=.d) \\\n\t$(DEBUG_TEST_OBJECT:.o=.d)\n\n.PHONY: all lto debug test test-tsan test-sanitize dependencies cfr-release \\\n\tcfr-debug clean benchmark-score benchmark-score-threads benchmark-evaluation\n\nall: $(RELEASE_BINARY) $(RELEASE_DIR)/mus-bot $(RELEASE_DIR)/mus-match-eval\n\nMATCH_SOURCES := app/mus_match_eval_cli.c app/match_evaluation.c \\\n\tSimulador-Mus/src/mus_sim.c Simulador-Mus/src/mus_log.c\nRELEASE_MATCH_OBJECTS := $(patsubst %.c,$(RELEASE_DIR)/%.o,$(MATCH_SOURCES))\nDEBUG_MATCH_OBJECTS := $(patsubst %.c,$(DEBUG_DIR)/%.o,$(MATCH_SOURCES))\n\n$(RELEASE_DIR)/mus-match-eval: $(RELEASE_MATCH_OBJECTS) $(RELEASE_LIBRARY) cfr-release\n\t$(CC) $(LDFLAGS) $(RELEASE_LINK_FLAGS) $(THREAD_FLAGS) $(RELEASE_MATCH_OBJECTS) \\\n\t\t$(RELEASE_LIBRARY) $(RELEASE_CFR_LIBRARY) $(LDLIBS) -o $@\n\n$(DEBUG_DIR)/mus-match-eval: $(DEBUG_MATCH_OBJECTS) $(DEBUG_LIBRARY) cfr-debug\n\t$(CC) $(LDFLAGS) $(THREAD_FLAGS) $(DEBUG_MATCH_OBJECTS) \\\n\t\t$(DEBUG_LIBRARY) $(DEBUG_CFR_LIBRARY) $(LDLIBS) -o $@\n\n-include $(RELEASE_MATCH_OBJECTS:.o=.d) $(DEBUG_MATCH_OBJECTS:.o=.d)\n\n$(DEBUG_DIR)/mus_match_tests: $(DEBUG_DIR)/tests/test_match_evaluation.o \\\n\t\t$(filter-out $(DEBUG_DIR)/app/mus_match_eval_cli.o,$(DEBUG_MATCH_OBJECTS)) \\\n\t\t$(DEBUG_LIBRARY) cfr-debug\n\t$(CC) $(LDFLAGS) $(THREAD_FLAGS) $(DEBUG_DIR)/tests/test_match_evaluation.o \\\n\t\t$(filter-out $(DEBUG_DIR)/app/mus_match_eval_cli.o,$(DEBUG_MATCH_OBJECTS)) \\\n\t\t$(DEBUG_LIBRARY) $(DEBUG_CFR_LIBRARY) $(LDLIBS) -o $@\n\n-include $(DEBUG_DIR)/tests/test_match_evaluation.d\n\nbenchmark-score: $(RELEASE_DIR)/benchmark-score\n\nbenchmark-evaluation: $(RELEASE_DIR)/benchmark-evaluation\n\nbenchmark-score-threads: $(RELEASE_DIR)/benchmark-score-threads\n\n$(RELEASE_DIR)/benchmark-score-threads: $(RELEASE_DIR)/tests/benchmark_score_threads.o \\\n\t\t$(RELEASE_LIBRARY) cfr-release\n\t$(CC) $(LDFLAGS) $(RELEASE_LINK_FLAGS) $(THREAD_FLAGS) $< \\\n\t\t$(RELEASE_LIBRARY) $(RELEASE_CFR_LIBRARY) $(LDLIBS) -o $@\n\n-include $(RELEASE_DIR)/tests/benchmark_score_threads.d\n\n$(RELEASE_DIR)/benchmark-score: $(RELEASE_DIR)/tests/benchmark_score.o \\\n\t\t$(RELEASE_LIBRARY) cfr-release\n\t$(CC) $(LDFLAGS) $(RELEASE_LINK_FLAGS) $(THREAD_FLAGS) $< \\\n\t\t$(RELEASE_LIBRARY) $(RELEASE_CFR_LIBRARY) $(LDLIBS) -o $@\n\n-include $(RELEASE_DIR)/tests/benchmark_score.d\n\nlto:\n\t$(MAKE) BUILD_DIR=$(LTO_BUILD_DIR) CFR_BUILD_DIR=$(LTO_BUILD_DIR) \\\n\t\tall\n\ndebug: $(DEBUG_BINARY) $(TEST_BINARY) $(DEBUG_DIR)/mus-bot $(DEBUG_DIR)/mus_adapter_tests \\\n\t$(DEBUG_DIR)/mus_hotpaths_tests $(DEBUG_DIR)/mus_adapter_configuration_tests \\\n\t$(DEBUG_DIR)/mus_ordago_public_tests $(DEBUG_DIR)/mus-match-eval $(DEBUG_DIR)/mus_match_tests\n\ntest: $(TEST_BINARY) $(DEBUG_BINARY) $(DEBUG_DIR)/mus-bot $(DEBUG_DIR)/mus_adapter_tests \\\n\t$(DEBUG_DIR)/mus_hotpaths_tests $(DEBUG_DIR)/mus_adapter_configuration_tests \\\n\t$(DEBUG_DIR)/mus_ordago_public_tests $(DEBUG_DIR)/mus-match-eval $(DEBUG_DIR)/mus_match_tests \\\n\t$(DEBUG_DIR)/mus_adapter_candidates_tests\n\t./$(TEST_BINARY)\n\t./$(DEBUG_DIR)/mus_hotpaths_tests\n\t./$(DEBUG_DIR)/mus_ordago_public_tests\n\t./tests/test_cli.sh ./$(DEBUG_BINARY)\n\tpython3 tests/test_score_locks.py ./$(DEBUG_BINARY)\n\tpython3 tests/test_score_recovery.py ./$(DEBUG_BINARY)\n\tpython3 tests/test_score_regions.py ./$(DEBUG_BINARY) ./$(DEBUG_DIR)/mus-bot\n\tpython3 tests/test_score_statistics.py ./$(DEBUG_BINARY)\n\t./$(DEBUG_DIR)/mus_match_tests\n\tpython3 tests/test_match_evaluation.py ./$(DEBUG_BINARY) ./$(DEBUG_DIR)/mus-match-eval\n\t./$(DEBUG_DIR)/mus_adapter_tests\n\t./$(DEBUG_DIR)/mus_adapter_candidates_tests\n\t./$(DEBUG_DIR)/mus_adapter_configuration_tests\n\tpython3 tests/test_adapter_cli.py ./$(DEBUG_DIR)/mus-bot ./$(DEBUG_DIR)/mus_adapter_tests\n\tpython3 tests/test_hybrid_adapter_cli.py ./$(DEBUG_DIR)/mus-bot ./$(DEBUG_DIR)/mus_adapter_tests\n\tpython3 tests/test_public_adapter_cli.py ./$(DEBUG_DIR)/mus-bot ./$(DEBUG_DIR)/mus_adapter_tests\n\ntest-tsan:\n\t$(MAKE) BUILD_DIR=$(BUILD_DIR)/test-tsan \\\n\t\tCFR_BUILD_DIR=$(CFR_BUILD_DIR)/test-tsan \\\n\t\tCFLAGS='$(CFLAGS) -fsanitize=thread -fno-omit-frame-pointer' \\\n\t\tLDFLAGS='$(LDFLAGS) -fsanitize=thread' test\n\ntest-sanitize:\n\t$(MAKE) BUILD_DIR=$(BUILD_DIR)/sanitize \\\n\t\tCFR_BUILD_DIR=$(CFR_BUILD_DIR)/sanitize \\\n\t\tCFLAGS='$(CFLAGS) -fsanitize=address,undefined -fno-sanitize-recover=all' \\\n\t\tLDFLAGS='$(LDFLAGS) -fsanitize=address,undefined' test\n\ndependencies:\n\t$(MAKE) -C C-CFR test\n\t$(MAKE) -C Simulador-Mus test-release\n\ncfr-release:\n\t$(MAKE) -C C-CFR -f Makefile -f $(abspath make/cfr-config.mk) BUILD_DIR=$(CFR_BUILD_DIR) \\\n\t\tCFLAGS='$(CFLAGS) $(RELEASE_LTO_FLAGS)' \\\n\t\tRELEASE_FLAGS='$(RELEASE_FLAGS) -DNDEBUG' \\\n\t\tLDFLAGS='$(LDFLAGS) $(RELEASE_LINK_FLAGS)' \\\n\t\t$(CFR_BUILD_DIR)/release/libcfr.a\n\ncfr-debug:\n\t$(MAKE) -C C-CFR -f Makefile -f $(abspath make/cfr-config.mk) BUILD_DIR=$(CFR_BUILD_DIR) CFLAGS='$(CFLAGS)' \\\n\t\tLDFLAGS='$(LDFLAGS)' $(CFR_BUILD_DIR)/debug/libcfr.a\n\n$(RELEASE_LIBRARY): $(RELEASE_OBJECTS) $(RELEASE_DIR)/.mus-archive-config\n\t@mkdir -p $(dir $@)\n\t$(AR) rcs $@ $(RELEASE_OBJECTS)\n\n$(DEBUG_LIBRARY): $(DEBUG_OBJECTS) $(DEBUG_DIR)/.mus-archive-config\n\t@mkdir -p $(dir $@)\n\t$(AR) rcs $@ $(DEBUG_OBJECTS)\n\n$(RELEASE_BINARY): $(RELEASE_APP_OBJECT) $(RELEASE_LIBRARY) \\\n\t\tcfr-release\n\t$(CC) $(LDFLAGS) $(RELEASE_LINK_FLAGS) $(THREAD_FLAGS) \\\n\t\t$(RELEASE_APP_OBJECT) $(RELEASE_LIBRARY) $(RELEASE_CFR_LIBRARY) \\\n\t\t$(LDLIBS) -o $@\n\n$(DEBUG_BINARY): $(DEBUG_APP_OBJECT) $(DEBUG_LIBRARY) cfr-debug\n\t$(CC) $(LDFLAGS) $(THREAD_FLAGS) $(DEBUG_APP_OBJECT) $(DEBUG_LIBRARY) \\\n\t\t$(DEBUG_CFR_LIBRARY) $(LDLIBS) -o $@\n\n$(TEST_BINARY): $(DEBUG_TEST_OBJECT) $(DEBUG_LIBRARY) cfr-debug\n\t$(CC) $(LDFLAGS) $(THREAD_FLAGS) $(DEBUG_TEST_OBJECT) $(DEBUG_LIBRARY) \\\n\t\t$(DEBUG_CFR_LIBRARY) $(LDLIBS) -o $@\n\n$(DEBUG_DIR)/mus_hotpaths_tests: $(DEBUG_DIR)/tests/test_mus_hotpaths.o \\\n\t\t$(DEBUG_LIBRARY) cfr-debug\n\t$(CC) $(LDFLAGS) $(THREAD_FLAGS) $< $(DEBUG_LIBRARY) \\\n\t\t$(DEBUG_CFR_LIBRARY) $(LDLIBS) -o $@\n\n-include $(DEBUG_DIR)/tests/test_mus_hotpaths.d\n\n$(RELEASE_DIR)/%.o: %.c $(RELEASE_DIR)/.mus-compile-config\n\t@mkdir -p $(dir $@)\n\t$(CC) $(CPPFLAGS) $(CFLAGS) $(THREAD_FLAGS) $(C_STANDARD) $(WARNINGS) \\\n\t\t$(RELEASE_FLAGS) $(DEPENDENCY_FLAGS) -c $< -o $@\n\n$(DEBUG_DIR)/%.o: %.c $(DEBUG_DIR)/.mus-compile-config\n\t@mkdir -p $(dir $@)\n\t$(CC) $(CPPFLAGS) $(CFLAGS) $(THREAD_FLAGS) $(C_STANDARD) $(WARNINGS) \\\n\t\t$(DEBUG_FLAGS) $(DEPENDENCY_FLAGS) -c $< -o $@\n\nclean:\n\t$(RM) -r -- $(BUILD_DIR)\n\n-include $(DEPENDENCY_FILES)\n\n$(RELEASE_DIR)/app/mus_bot_cli.o $(DEBUG_DIR)/app/mus_bot_cli.o: CPPFLAGS += $(JSON_C_FLAGS)\n\n$(RELEASE_DIR)/mus-bot: $(RELEASE_DIR)/app/mus_bot_cli.o $(RELEASE_LIBRARY) cfr-release\n\t$(CC) $(LDFLAGS) $(RELEASE_LINK_FLAGS) $(THREAD_FLAGS) $< $(RELEASE_LIBRARY) $(RELEASE_CFR_LIBRARY) $(LDLIBS) $(JSON_C_LIBS) -o $@\n\n$(DEBUG_DIR)/mus-bot: $(DEBUG_DIR)/app/mus_bot_cli.o $(DEBUG_LIBRARY) cfr-debug\n\t$(CC) $(LDFLAGS) $(THREAD_FLAGS) $< $(DEBUG_LIBRARY) $(DEBUG_CFR_LIBRARY) $(LDLIBS) $(JSON_C_LIBS) -o $@\n\n-include $(RELEASE_DIR)/app/mus_bot_cli.d $(DEBUG_DIR)/app/mus_bot_cli.d\n\n$(DEBUG_DIR)/mus_adapter_tests: $(DEBUG_DIR)/tests/test_mus_adapter.o $(DEBUG_LIBRARY) cfr-debug\n\t$(CC) $(LDFLAGS) $(THREAD_FLAGS) $< $(DEBUG_LIBRARY) $(DEBUG_CFR_LIBRARY) $(LDLIBS) -lm -o $@\n\n-include $(DEBUG_DIR)/tests/test_mus_adapter.d\n\n$(DEBUG_DIR)/mus_adapter_candidates_tests: $(DEBUG_DIR)/tests/test_adapter_candidates.o $(DEBUG_LIBRARY) cfr-debug\n\t$(CC) $(LDFLAGS) $(THREAD_FLAGS) $< $(DEBUG_LIBRARY) $(DEBUG_CFR_LIBRARY) $(LDLIBS) -o $@\n\n-include $(DEBUG_DIR)/tests/test_adapter_candidates.d\n\n$(DEBUG_DIR)/mus_adapter_configuration_tests: $(DEBUG_DIR)/tests/test_adapter_configuration.o \\\n\t\t$(DEBUG_LIBRARY) cfr-debug\n\t$(CC) $(LDFLAGS) $(THREAD_FLAGS) $< $(DEBUG_LIBRARY) \\\n\t\t$(DEBUG_CFR_LIBRARY) $(LDLIBS) -lm -o $@\n\n-include $(DEBUG_DIR)/tests/test_adapter_configuration.d\n\n$(RELEASE_DIR)/benchmark-evaluation: $(RELEASE_DIR)/tests/benchmark_evaluation.o \\\n        $(RELEASE_LIBRARY) cfr-release\n\t$(CC) $(LDFLAGS) $(RELEASE_LINK_FLAGS) $(THREAD_FLAGS) $< \\\n\t\t$(RELEASE_LIBRARY) $(RELEASE_CFR_LIBRARY) $(LDLIBS) -lm -o $@\n\n-include $(RELEASE_DIR)/tests/benchmark_evaluation.d\n\n$(DEBUG_DIR)/mus_ordago_public_tests: $(DEBUG_DIR)/tests/test_ordago_public.o \\\n        $(DEBUG_LIBRARY) cfr-debug\n\t$(CC) $(LDFLAGS) $(THREAD_FLAGS) $< $(DEBUG_LIBRARY) \\\n\t\t$(DEBUG_CFR_LIBRARY) $(LDLIBS) -lm -o $@\n\n-include $(DEBUG_DIR)/tests/test_ordago_public.d\n\ninclude make/build-config.mk\n\n# json-c options apply only to the bot. Keep them out of shared object receipts.\n$(RELEASE_DIR)/.mus-json-config $(DEBUG_DIR)/.mus-json-config: private export MUS_BUILD_CONFIG := $(JSON_C_FLAGS)\n$(RELEASE_DIR)/.mus-json-config $(DEBUG_DIR)/.mus-json-config: private export MUS_MODE_CONFIG := $(JSON_C_LIBS)\n$(RELEASE_DIR)/.mus-json-config $(DEBUG_DIR)/.mus-json-config: mus-config-force\n\t+@mkdir -p $(dir $@)\n\t+@printf '%s\\n%s\\n' \"$$MUS_BUILD_CONFIG\" \"$$MUS_MODE_CONFIG\" > $@.tmp\n\t+@if cmp -s $@.tmp $@; then rm -f $@.tmp; else mv -f $@.tmp $@; fi\n\n$(RELEASE_DIR)/app/mus_bot_cli.o: $(RELEASE_DIR)/.mus-json-config\n$(DEBUG_DIR)/app/mus_bot_cli.o: $(DEBUG_DIR)/.mus-json-config\n\n$(RELEASE_BINARY) $(RELEASE_DIR)/mus-bot $(RELEASE_DIR)/mus-match-eval \\\n\t$(RELEASE_DIR)/benchmark-score $(RELEASE_DIR)/benchmark-score-threads \\\n\t$(RELEASE_DIR)/benchmark-evaluation: $(RELEASE_DIR)/.mus-link-config\n$(DEBUG_BINARY) $(TEST_BINARY) $(DEBUG_DIR)/mus-bot $(DEBUG_DIR)/mus-match-eval \\\n\t$(DEBUG_DIR)/mus_match_tests $(DEBUG_DIR)/mus_hotpaths_tests \\\n\t$(DEBUG_DIR)/mus_adapter_tests $(DEBUG_DIR)/mus_adapter_candidates_tests \\\n\t$(DEBUG_DIR)/mus_adapter_configuration_tests $(DEBUG_DIR)/mus_ordago_public_tests: \\\n\t$(DEBUG_DIR)/.mus-link-config\n",
+  "launcher_source": "#define _GNU_SOURCE\n#include <spawn.h>\n#include <stdio.h>\n#include <sys/wait.h>\n#include <sys/resource.h>\n#include <errno.h>\nextern char **environ;\nint main(int argc, char **argv) {\n    if (argc < 3) return 2;\n    pid_t pid;\n    if (posix_spawn(&pid, argv[2], NULL, NULL, argv + 2, environ) != 0) return 3;\n    int status; struct rusage usage;\n    while (wait4(pid, &status, 0, &usage) < 0) if (errno != EINTR) return 4;\n    FILE *output = fopen(argv[1], \"w\");\n    if (!output) return 5;\n    if (fprintf(output, \"%ld\\n\", usage.ru_maxrss) < 0 || fclose(output)) return 6;\n    return WIFEXITED(status) ? WEXITSTATUS(status) : 128 + WTERMSIG(status);\n}\n",
+  "validation": {
+    "full_test": "make -j4 BUILD_DIR=build/review-j21 CFR_BUILD_DIR=build/review-j21 test passed",
+    "incremental_test": "tests/test_build_incremental.py passed: fresh/stable dry runs, stable query, unchanged real builds, LDFLAGS-only changes, copied C-CFR source change across all 16 consumers, steady build afterwards, core and adapter guard execution. Final rerun passed with the additional changed-source dry-run assertion: planned C-CFR compilation is printed and no artifacts change.",
+    "generated_code": "All three release executables equal J20 byte for byte. All 12 non-LTO benchmark executables and all three LTO benchmark executables preserve hashes across every measured build."
+  },
+  "postprocessing": "Added validation after sampling. Original samples and measurement script retained."
+}

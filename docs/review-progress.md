@@ -56,7 +56,7 @@ rendimiento del bot desplegado son métricas diferentes.
 | J18 | Reducir el coste de codificación y generación de candidatos | Completado |
 | J19 | Distribución y memoria de trabajadores por diagonal | Candidato retirado: límite de RSS confirmado; a la espera del usuario |
 | J20 | Invalidar objetos al cambiar la configuración | Completado |
-| J21 | Evitar enlaces sin cambios conservando dependencias reales | Pendiente |
+| J21 | Evitar enlaces sin cambios conservando dependencias reales | Completado |
 | J22 | Dependencias, portabilidad y separación del simulador | Pendiente |
 | J23 | Matriz de pruebas, observabilidad y contratos menores | Pendiente |
 
@@ -1182,3 +1182,51 @@ Revisión final: **APPROVE**, tarea `task_84989db627c5`, dispatch
 `ctx_9d590849f2e7`, mensaje `msg_094625db13fa`. Los dos ajustes documentales
 pedidos se incorporaron tras pasar la prueba ampliada. Las recetas llevan `+`
 para comprobar metadatos también durante las simulaciones.
+
+## J21: enlaces condicionados al archivo real
+
+Los dieciséis ejecutables dependen ahora del archivo `libcfr.a` de su modo. La
+comprobación recursiva de C-CFR sigue ejecutándose, pero el objetivo que
+representa el archivo vuelve a consultar su fecha real. Si las dependencias no
+cambian, se conservan tanto objetos como ejecutables. Una receta vacía marcada
+con `+` permite la misma comprobación durante simulaciones y consultas, incluso
+cuando todavía no existe el archivo en un build nuevo.
+
+La prueba de integración compila todos los consumidores en una copia temporal
+de las fuentes y registra cada llamada al compilador/enlazador. Comprueba un
+build sin cambios, simulaciones con/sin artefactos y una consulta `-q` al día.
+Cambiar solo flags de enlace conserva los objetos. Añadir una función de prueba
+a `C-CFR/src/info_store.c` **de la copia** reconstruye los dos objetos de ese
+archivo y sus bibliotecas, vuelve a enlazar los dieciséis consumidores y no
+recompila otros objetos. El siguiente build vuelve a quedar estable. Las fuentes
+del submódulo original permanecen intactas.
+
+Pasaron la prueba de integración y la batería completa `make test`. Los tres
+ejecutables release sin LTO coinciden byte por byte con J20. Este cambio no
+modifica el algoritmo ni su código generado; se mide el coste del build.
+
+[Rendimiento J21](review-performance/J21.json), tres pares alternados en CPU 0,
+sin otras compilaciones o pruebas propias simultáneas:
+
+| Build repetido sin cambios | Lote | J20 | J21 | Variación |
+|---|---:|---:|---:|---:|
+| all + debug, sin LTO | 20 invocaciones | 5.96870 s | 1.00839 s | -83.11 % |
+| all, LTO predeterminado | 3 invocaciones | 20.01219 s | 0.09212 s | -99.54 % |
+
+Cada lote conserva los tiempos y RSS de todos sus procesos. El RSS del lote es
+el máximo individual, no una suma de builds simultáneos. Ningún límite se activa.
+Los hashes de los doce ejecutables del lote sin LTO y los tres con LTO coinciden
+en cada ejecución. El ahorro es de construcción, no de entrenamiento ni de
+fuerza de juego.
+
+Claude: **APPROVE**, tarea `task_95eb6a39d836`, dispatch `ctx_d051577337e4`,
+mensaje `msg_fa672829479d`. Se documenta el límite de las simulaciones recursivas:
+si solo cambia C-CFR, `-n` puede omitir enlaces posteriores al no actualizar el
+archivo; `-q` transmite el estado pendiente como error de la llamada recursiva.
+El build real sí reconstruye y enlaza, como comprueba la prueba de integración.
+
+Revisión final: **APPROVE**, tarea `task_4d6531987f25`, dispatch
+`ctx_9b8264a49050`, mensaje `msg_916592c8e64f`. Se corrigió el recuento del lote
+sin LTO a doce ejecutables; la prueba de integración sí cubre los dieciséis
+consumidores. Pasó también su última ampliación para simular un cambio de
+fuente en C-CFR antes del build real.

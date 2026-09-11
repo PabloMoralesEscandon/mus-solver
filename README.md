@@ -183,10 +183,18 @@ distintas simultáneamente sobre un mismo `BUILD_DIR` o `CFR_BUILD_DIR`.
 directorios temporales.
 `make -n` y `make -q` también comprueban y, si hace falta, actualizan estos
 registros; no compilan objetos. Así, la simulación refleja las dependencias
-reales y deja pendiente la compilación cuando cambia la configuración.
+de los objetos y deja pendiente su compilación cuando cambia la configuración.
 Tras sustituir un compilador conservando su nombre, o cambiar variables externas
 como `CPATH`, use directorios nuevos o una limpieza completa: los registros
 comparan los comandos y flags de Make, no el contenido de las herramientas.
+Los builds sin cambios comprueban C-CFR y conservan las fechas de sus archivos:
+no vuelven a compilar ni enlazar. `python3 tests/test_build_incremental.py`
+comprueba ese comportamiento y los cambios de dependencias en una copia temporal
+de las fuentes.
+Si solo cambia C-CFR, `make -n` muestra su recompilación, pero puede omitir los
+enlaces posteriores porque la simulación conserva la fecha de `libcfr.a`.
+En ese caso `make -q` devuelve un error desde la llamada recursiva. El build
+real sí reconstruye la biblioteca y enlaza los consumidores.
 
 Los artefactos principales son:
 

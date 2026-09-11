@@ -60,11 +60,11 @@ MATCH_SOURCES := app/mus_match_eval_cli.c app/match_evaluation.c \
 RELEASE_MATCH_OBJECTS := $(patsubst %.c,$(RELEASE_DIR)/%.o,$(MATCH_SOURCES))
 DEBUG_MATCH_OBJECTS := $(patsubst %.c,$(DEBUG_DIR)/%.o,$(MATCH_SOURCES))
 
-$(RELEASE_DIR)/mus-match-eval: $(RELEASE_MATCH_OBJECTS) $(RELEASE_LIBRARY) cfr-release
+$(RELEASE_DIR)/mus-match-eval: $(RELEASE_MATCH_OBJECTS) $(RELEASE_LIBRARY) $(RELEASE_CFR_LIBRARY)
 	$(CC) $(LDFLAGS) $(RELEASE_LINK_FLAGS) $(THREAD_FLAGS) $(RELEASE_MATCH_OBJECTS) \
 		$(RELEASE_LIBRARY) $(RELEASE_CFR_LIBRARY) $(LDLIBS) -o $@
 
-$(DEBUG_DIR)/mus-match-eval: $(DEBUG_MATCH_OBJECTS) $(DEBUG_LIBRARY) cfr-debug
+$(DEBUG_DIR)/mus-match-eval: $(DEBUG_MATCH_OBJECTS) $(DEBUG_LIBRARY) $(DEBUG_CFR_LIBRARY)
 	$(CC) $(LDFLAGS) $(THREAD_FLAGS) $(DEBUG_MATCH_OBJECTS) \
 		$(DEBUG_LIBRARY) $(DEBUG_CFR_LIBRARY) $(LDLIBS) -o $@
 
@@ -72,7 +72,7 @@ $(DEBUG_DIR)/mus-match-eval: $(DEBUG_MATCH_OBJECTS) $(DEBUG_LIBRARY) cfr-debug
 
 $(DEBUG_DIR)/mus_match_tests: $(DEBUG_DIR)/tests/test_match_evaluation.o \
 		$(filter-out $(DEBUG_DIR)/app/mus_match_eval_cli.o,$(DEBUG_MATCH_OBJECTS)) \
-		$(DEBUG_LIBRARY) cfr-debug
+		$(DEBUG_LIBRARY) $(DEBUG_CFR_LIBRARY)
 	$(CC) $(LDFLAGS) $(THREAD_FLAGS) $(DEBUG_DIR)/tests/test_match_evaluation.o \
 		$(filter-out $(DEBUG_DIR)/app/mus_match_eval_cli.o,$(DEBUG_MATCH_OBJECTS)) \
 		$(DEBUG_LIBRARY) $(DEBUG_CFR_LIBRARY) $(LDLIBS) -o $@
@@ -86,14 +86,14 @@ benchmark-evaluation: $(RELEASE_DIR)/benchmark-evaluation
 benchmark-score-threads: $(RELEASE_DIR)/benchmark-score-threads
 
 $(RELEASE_DIR)/benchmark-score-threads: $(RELEASE_DIR)/tests/benchmark_score_threads.o \
-		$(RELEASE_LIBRARY) cfr-release
+		$(RELEASE_LIBRARY) $(RELEASE_CFR_LIBRARY)
 	$(CC) $(LDFLAGS) $(RELEASE_LINK_FLAGS) $(THREAD_FLAGS) $< \
 		$(RELEASE_LIBRARY) $(RELEASE_CFR_LIBRARY) $(LDLIBS) -o $@
 
 -include $(RELEASE_DIR)/tests/benchmark_score_threads.d
 
 $(RELEASE_DIR)/benchmark-score: $(RELEASE_DIR)/tests/benchmark_score.o \
-		$(RELEASE_LIBRARY) cfr-release
+		$(RELEASE_LIBRARY) $(RELEASE_CFR_LIBRARY)
 	$(CC) $(LDFLAGS) $(RELEASE_LINK_FLAGS) $(THREAD_FLAGS) $< \
 		$(RELEASE_LIBRARY) $(RELEASE_CFR_LIBRARY) $(LDLIBS) -o $@
 
@@ -144,6 +144,14 @@ dependencies:
 	$(MAKE) -C C-CFR test
 	$(MAKE) -C Simulador-Mus test-release
 
+# Always inspect submodule dependencies, then compare the real archive date.
+# The check also runs during dry runs so make does not assume a new archive.
+$(RELEASE_CFR_LIBRARY): cfr-release
+	+@:
+
+$(DEBUG_CFR_LIBRARY): cfr-debug
+	+@:
+
 cfr-release:
 	$(MAKE) -C C-CFR -f Makefile -f $(abspath make/cfr-config.mk) BUILD_DIR=$(CFR_BUILD_DIR) \
 		CFLAGS='$(CFLAGS) $(RELEASE_LTO_FLAGS)' \
@@ -164,21 +172,21 @@ $(DEBUG_LIBRARY): $(DEBUG_OBJECTS) $(DEBUG_DIR)/.mus-archive-config
 	$(AR) rcs $@ $(DEBUG_OBJECTS)
 
 $(RELEASE_BINARY): $(RELEASE_APP_OBJECT) $(RELEASE_LIBRARY) \
-		cfr-release
+		$(RELEASE_CFR_LIBRARY)
 	$(CC) $(LDFLAGS) $(RELEASE_LINK_FLAGS) $(THREAD_FLAGS) \
 		$(RELEASE_APP_OBJECT) $(RELEASE_LIBRARY) $(RELEASE_CFR_LIBRARY) \
 		$(LDLIBS) -o $@
 
-$(DEBUG_BINARY): $(DEBUG_APP_OBJECT) $(DEBUG_LIBRARY) cfr-debug
+$(DEBUG_BINARY): $(DEBUG_APP_OBJECT) $(DEBUG_LIBRARY) $(DEBUG_CFR_LIBRARY)
 	$(CC) $(LDFLAGS) $(THREAD_FLAGS) $(DEBUG_APP_OBJECT) $(DEBUG_LIBRARY) \
 		$(DEBUG_CFR_LIBRARY) $(LDLIBS) -o $@
 
-$(TEST_BINARY): $(DEBUG_TEST_OBJECT) $(DEBUG_LIBRARY) cfr-debug
+$(TEST_BINARY): $(DEBUG_TEST_OBJECT) $(DEBUG_LIBRARY) $(DEBUG_CFR_LIBRARY)
 	$(CC) $(LDFLAGS) $(THREAD_FLAGS) $(DEBUG_TEST_OBJECT) $(DEBUG_LIBRARY) \
 		$(DEBUG_CFR_LIBRARY) $(LDLIBS) -o $@
 
 $(DEBUG_DIR)/mus_hotpaths_tests: $(DEBUG_DIR)/tests/test_mus_hotpaths.o \
-		$(DEBUG_LIBRARY) cfr-debug
+		$(DEBUG_LIBRARY) $(DEBUG_CFR_LIBRARY)
 	$(CC) $(LDFLAGS) $(THREAD_FLAGS) $< $(DEBUG_LIBRARY) \
 		$(DEBUG_CFR_LIBRARY) $(LDLIBS) -o $@
 
@@ -201,40 +209,40 @@ clean:
 
 $(RELEASE_DIR)/app/mus_bot_cli.o $(DEBUG_DIR)/app/mus_bot_cli.o: CPPFLAGS += $(JSON_C_FLAGS)
 
-$(RELEASE_DIR)/mus-bot: $(RELEASE_DIR)/app/mus_bot_cli.o $(RELEASE_LIBRARY) cfr-release
+$(RELEASE_DIR)/mus-bot: $(RELEASE_DIR)/app/mus_bot_cli.o $(RELEASE_LIBRARY) $(RELEASE_CFR_LIBRARY)
 	$(CC) $(LDFLAGS) $(RELEASE_LINK_FLAGS) $(THREAD_FLAGS) $< $(RELEASE_LIBRARY) $(RELEASE_CFR_LIBRARY) $(LDLIBS) $(JSON_C_LIBS) -o $@
 
-$(DEBUG_DIR)/mus-bot: $(DEBUG_DIR)/app/mus_bot_cli.o $(DEBUG_LIBRARY) cfr-debug
+$(DEBUG_DIR)/mus-bot: $(DEBUG_DIR)/app/mus_bot_cli.o $(DEBUG_LIBRARY) $(DEBUG_CFR_LIBRARY)
 	$(CC) $(LDFLAGS) $(THREAD_FLAGS) $< $(DEBUG_LIBRARY) $(DEBUG_CFR_LIBRARY) $(LDLIBS) $(JSON_C_LIBS) -o $@
 
 -include $(RELEASE_DIR)/app/mus_bot_cli.d $(DEBUG_DIR)/app/mus_bot_cli.d
 
-$(DEBUG_DIR)/mus_adapter_tests: $(DEBUG_DIR)/tests/test_mus_adapter.o $(DEBUG_LIBRARY) cfr-debug
+$(DEBUG_DIR)/mus_adapter_tests: $(DEBUG_DIR)/tests/test_mus_adapter.o $(DEBUG_LIBRARY) $(DEBUG_CFR_LIBRARY)
 	$(CC) $(LDFLAGS) $(THREAD_FLAGS) $< $(DEBUG_LIBRARY) $(DEBUG_CFR_LIBRARY) $(LDLIBS) -lm -o $@
 
 -include $(DEBUG_DIR)/tests/test_mus_adapter.d
 
-$(DEBUG_DIR)/mus_adapter_candidates_tests: $(DEBUG_DIR)/tests/test_adapter_candidates.o $(DEBUG_LIBRARY) cfr-debug
+$(DEBUG_DIR)/mus_adapter_candidates_tests: $(DEBUG_DIR)/tests/test_adapter_candidates.o $(DEBUG_LIBRARY) $(DEBUG_CFR_LIBRARY)
 	$(CC) $(LDFLAGS) $(THREAD_FLAGS) $< $(DEBUG_LIBRARY) $(DEBUG_CFR_LIBRARY) $(LDLIBS) -o $@
 
 -include $(DEBUG_DIR)/tests/test_adapter_candidates.d
 
 $(DEBUG_DIR)/mus_adapter_configuration_tests: $(DEBUG_DIR)/tests/test_adapter_configuration.o \
-		$(DEBUG_LIBRARY) cfr-debug
+		$(DEBUG_LIBRARY) $(DEBUG_CFR_LIBRARY)
 	$(CC) $(LDFLAGS) $(THREAD_FLAGS) $< $(DEBUG_LIBRARY) \
 		$(DEBUG_CFR_LIBRARY) $(LDLIBS) -lm -o $@
 
 -include $(DEBUG_DIR)/tests/test_adapter_configuration.d
 
 $(RELEASE_DIR)/benchmark-evaluation: $(RELEASE_DIR)/tests/benchmark_evaluation.o \
-        $(RELEASE_LIBRARY) cfr-release
+        $(RELEASE_LIBRARY) $(RELEASE_CFR_LIBRARY)
 	$(CC) $(LDFLAGS) $(RELEASE_LINK_FLAGS) $(THREAD_FLAGS) $< \
 		$(RELEASE_LIBRARY) $(RELEASE_CFR_LIBRARY) $(LDLIBS) -lm -o $@
 
 -include $(RELEASE_DIR)/tests/benchmark_evaluation.d
 
 $(DEBUG_DIR)/mus_ordago_public_tests: $(DEBUG_DIR)/tests/test_ordago_public.o \
-        $(DEBUG_LIBRARY) cfr-debug
+        $(DEBUG_LIBRARY) $(DEBUG_CFR_LIBRARY)
 	$(CC) $(LDFLAGS) $(THREAD_FLAGS) $< $(DEBUG_LIBRARY) \
 		$(DEBUG_CFR_LIBRARY) $(LDLIBS) -lm -o $@
 
