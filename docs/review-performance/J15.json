@@ -1,0 +1,501 @@
+{
+  "item": "J15",
+  "parent_commit": "4aac90200b48776101829d8134b08cddbf64ee39",
+  "score_command": "python3 tests/benchmark_score.py build/review-j15/release/benchmark-score --baseline build/review-j05/release/benchmark-score --repeats 3",
+  "scores": [
+    {
+      "score": "39:39",
+      "iterations": 100000,
+      "samples": 100000,
+      "seed": 7,
+      "repeats": 3,
+      "results_equal": true,
+      "checkpoint_hash": "08c07dd1bbb91582",
+      "value": 0.005320000000000121,
+      "information_sets": 11645,
+      "visited_nodes": 11194790,
+      "current": {
+        "training_seconds": 0.675451223,
+        "iterations_per_second": 148049.18,
+        "evaluation_seconds": 0.054752812
+      },
+      "baseline": {
+        "training_seconds": 0.675422456,
+        "iterations_per_second": 148055.486,
+        "evaluation_seconds": 0.06002904
+      },
+      "training_speedup": 0.9999574106922594,
+      "evaluation_speedup": 1.0963645118354834
+    },
+    {
+      "score": "35:18",
+      "iterations": 10000,
+      "samples": 100000,
+      "seed": 7,
+      "repeats": 3,
+      "results_equal": true,
+      "checkpoint_hash": "b5323e1abc5d53bc",
+      "value": 0.4583629999999978,
+      "information_sets": 1261575,
+      "visited_nodes": 23096665,
+      "current": {
+        "training_seconds": 3.076903635,
+        "iterations_per_second": 3250.021,
+        "evaluation_seconds": 0.134401084
+      },
+      "baseline": {
+        "training_seconds": 3.119672935,
+        "iterations_per_second": 3205.464,
+        "evaluation_seconds": 0.148862473
+      },
+      "training_speedup": 1.0139001103295846,
+      "evaluation_speedup": 1.1075987527005362
+    },
+    {
+      "score": "20:20",
+      "iterations": 1000,
+      "samples": 100000,
+      "seed": 7,
+      "repeats": 3,
+      "results_equal": true,
+      "checkpoint_hash": "a50432ad2d754da9",
+      "value": 0.054128499999999434,
+      "information_sets": 5401710,
+      "visited_nodes": 26789990,
+      "current": {
+        "training_seconds": 3.256929029,
+        "iterations_per_second": 307.038,
+        "evaluation_seconds": 0.169077539
+      },
+      "baseline": {
+        "training_seconds": 3.427866217,
+        "iterations_per_second": 291.727,
+        "evaluation_seconds": 0.176296904
+      },
+      "training_speedup": 1.0524841611462699,
+      "evaluation_speedup": 1.0426985455472002
+    },
+    {
+      "score": "0:0",
+      "iterations": 300,
+      "samples": 100000,
+      "seed": 7,
+      "repeats": 3,
+      "results_equal": true,
+      "checkpoint_hash": "c7cb2799387d00c1",
+      "value": 0.026513999999999906,
+      "information_sets": 7429880,
+      "visited_nodes": 26652909,
+      "current": {
+        "training_seconds": 3.685188735,
+        "iterations_per_second": 81.407,
+        "evaluation_seconds": 0.163896739
+      },
+      "baseline": {
+        "training_seconds": 3.828445566,
+        "iterations_per_second": 78.361,
+        "evaluation_seconds": 0.166483088
+      },
+      "training_speedup": 1.0388736754889705,
+      "evaluation_speedup": 1.0157803566793357
+    }
+  ],
+  "generic": {
+    "runs": [
+      {
+        "format": "single-bet",
+        "variant": "j05",
+        "repeat": 1,
+        "seconds": 0.9620276470004683,
+        "peak_rss_kib": 17724,
+        "command": [
+          "build/review-j05/release/mus-solver",
+          "--format",
+          "single-bet",
+          "--iterations",
+          "100000",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "stdout": "report iterations=100000 threads=1 information_sets=165694 traversals=200000 visited_nodes=11223357 seconds=0.960132\n"
+      },
+      {
+        "format": "single-bet",
+        "variant": "j15",
+        "repeat": 1,
+        "seconds": 0.9303494819996558,
+        "peak_rss_kib": 18000,
+        "command": [
+          "build/review-j15/release/mus-solver",
+          "--format",
+          "single-bet",
+          "--iterations",
+          "100000",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "stdout": "report iterations=100000 threads=1 information_sets=165694 traversals=200000 visited_nodes=11223357 seconds=0.928695\n"
+      },
+      {
+        "format": "single-bet",
+        "variant": "j15",
+        "repeat": 2,
+        "seconds": 1.0103975179999907,
+        "peak_rss_kib": 18248,
+        "command": [
+          "build/review-j15/release/mus-solver",
+          "--format",
+          "single-bet",
+          "--iterations",
+          "100000",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "stdout": "report iterations=100000 threads=1 information_sets=165694 traversals=200000 visited_nodes=11223357 seconds=1.008580\n"
+      },
+      {
+        "format": "single-bet",
+        "variant": "j05",
+        "repeat": 2,
+        "seconds": 0.9750769570000557,
+        "peak_rss_kib": 17664,
+        "command": [
+          "build/review-j05/release/mus-solver",
+          "--format",
+          "single-bet",
+          "--iterations",
+          "100000",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "stdout": "report iterations=100000 threads=1 information_sets=165694 traversals=200000 visited_nodes=11223357 seconds=0.972757\n"
+      },
+      {
+        "format": "single-bet",
+        "variant": "j05",
+        "repeat": 3,
+        "seconds": 1.0009357620001538,
+        "peak_rss_kib": 18164,
+        "command": [
+          "build/review-j05/release/mus-solver",
+          "--format",
+          "single-bet",
+          "--iterations",
+          "100000",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "stdout": "report iterations=100000 threads=1 information_sets=165694 traversals=200000 visited_nodes=11223357 seconds=0.998768\n"
+      },
+      {
+        "format": "single-bet",
+        "variant": "j15",
+        "repeat": 3,
+        "seconds": 0.9727269869999873,
+        "peak_rss_kib": 17724,
+        "command": [
+          "build/review-j15/release/mus-solver",
+          "--format",
+          "single-bet",
+          "--iterations",
+          "100000",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "stdout": "report iterations=100000 threads=1 information_sets=165694 traversals=200000 visited_nodes=11223357 seconds=0.971115\n"
+      },
+      {
+        "format": "raises-to-eight",
+        "variant": "j05",
+        "repeat": 1,
+        "seconds": 1.3806436860004396,
+        "peak_rss_kib": 137700,
+        "command": [
+          "build/review-j05/release/mus-solver",
+          "--format",
+          "raises-to-eight",
+          "--iterations",
+          "30000",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "stdout": "report iterations=30000 threads=1 information_sets=1313500 traversals=60000 visited_nodes=9494753 seconds=1.375208\n"
+      },
+      {
+        "format": "raises-to-eight",
+        "variant": "j15",
+        "repeat": 1,
+        "seconds": 1.403805379000005,
+        "peak_rss_kib": 137560,
+        "command": [
+          "build/review-j15/release/mus-solver",
+          "--format",
+          "raises-to-eight",
+          "--iterations",
+          "30000",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "stdout": "report iterations=30000 threads=1 information_sets=1313500 traversals=60000 visited_nodes=9494753 seconds=1.399510\n"
+      },
+      {
+        "format": "raises-to-eight",
+        "variant": "j15",
+        "repeat": 2,
+        "seconds": 1.332791893999456,
+        "peak_rss_kib": 138008,
+        "command": [
+          "build/review-j15/release/mus-solver",
+          "--format",
+          "raises-to-eight",
+          "--iterations",
+          "30000",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "stdout": "report iterations=30000 threads=1 information_sets=1313500 traversals=60000 visited_nodes=9494753 seconds=1.327855\n"
+      },
+      {
+        "format": "raises-to-eight",
+        "variant": "j05",
+        "repeat": 2,
+        "seconds": 1.369071375999738,
+        "peak_rss_kib": 138284,
+        "command": [
+          "build/review-j05/release/mus-solver",
+          "--format",
+          "raises-to-eight",
+          "--iterations",
+          "30000",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "stdout": "report iterations=30000 threads=1 information_sets=1313500 traversals=60000 visited_nodes=9494753 seconds=1.364627\n"
+      },
+      {
+        "format": "raises-to-eight",
+        "variant": "j05",
+        "repeat": 3,
+        "seconds": 1.4085177150000163,
+        "peak_rss_kib": 138380,
+        "command": [
+          "build/review-j05/release/mus-solver",
+          "--format",
+          "raises-to-eight",
+          "--iterations",
+          "30000",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "stdout": "report iterations=30000 threads=1 information_sets=1313500 traversals=60000 visited_nodes=9494753 seconds=1.403825\n"
+      },
+      {
+        "format": "raises-to-eight",
+        "variant": "j15",
+        "repeat": 3,
+        "seconds": 1.4641284130002532,
+        "peak_rss_kib": 137512,
+        "command": [
+          "build/review-j15/release/mus-solver",
+          "--format",
+          "raises-to-eight",
+          "--iterations",
+          "30000",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "stdout": "report iterations=30000 threads=1 information_sets=1313500 traversals=60000 visited_nodes=9494753 seconds=1.458520\n"
+      },
+      {
+        "format": "ordago",
+        "variant": "j05",
+        "repeat": 1,
+        "seconds": 1.8771837900003447,
+        "peak_rss_kib": 596016,
+        "command": [
+          "build/review-j05/release/mus-solver",
+          "--format",
+          "ordago",
+          "--iterations",
+          "500",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "stdout": "report iterations=500 threads=1 information_sets=3492885 traversals=1000 visited_nodes=20174542 seconds=1.848458\n"
+      },
+      {
+        "format": "ordago",
+        "variant": "j15",
+        "repeat": 1,
+        "seconds": 1.8669752669993613,
+        "peak_rss_kib": 596492,
+        "command": [
+          "build/review-j15/release/mus-solver",
+          "--format",
+          "ordago",
+          "--iterations",
+          "500",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "stdout": "report iterations=500 threads=1 information_sets=3492885 traversals=1000 visited_nodes=20174542 seconds=1.837597\n"
+      },
+      {
+        "format": "ordago",
+        "variant": "j15",
+        "repeat": 2,
+        "seconds": 1.8582191989999046,
+        "peak_rss_kib": 596548,
+        "command": [
+          "build/review-j15/release/mus-solver",
+          "--format",
+          "ordago",
+          "--iterations",
+          "500",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "stdout": "report iterations=500 threads=1 information_sets=3492885 traversals=1000 visited_nodes=20174542 seconds=1.825336\n"
+      },
+      {
+        "format": "ordago",
+        "variant": "j05",
+        "repeat": 2,
+        "seconds": 1.841171946999566,
+        "peak_rss_kib": 597884,
+        "command": [
+          "build/review-j05/release/mus-solver",
+          "--format",
+          "ordago",
+          "--iterations",
+          "500",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "stdout": "report iterations=500 threads=1 information_sets=3492885 traversals=1000 visited_nodes=20174542 seconds=1.813253\n"
+      },
+      {
+        "format": "ordago",
+        "variant": "j05",
+        "repeat": 3,
+        "seconds": 1.8584374050005863,
+        "peak_rss_kib": 597188,
+        "command": [
+          "build/review-j05/release/mus-solver",
+          "--format",
+          "ordago",
+          "--iterations",
+          "500",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "stdout": "report iterations=500 threads=1 information_sets=3492885 traversals=1000 visited_nodes=20174542 seconds=1.830662\n"
+      },
+      {
+        "format": "ordago",
+        "variant": "j15",
+        "repeat": 3,
+        "seconds": 1.8581750370003647,
+        "peak_rss_kib": 597924,
+        "command": [
+          "build/review-j15/release/mus-solver",
+          "--format",
+          "ordago",
+          "--iterations",
+          "500",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "stdout": "report iterations=500 threads=1 information_sets=3492885 traversals=1000 visited_nodes=20174542 seconds=1.828975\n"
+      }
+    ],
+    "median": {
+      "single-bet": {
+        "j05": {
+          "seconds": 0.9750769570000557,
+          "peak_rss_kib": 17724
+        },
+        "j15": {
+          "seconds": 0.9727269869999873,
+          "peak_rss_kib": 18000
+        },
+        "candidate_over_parent": {
+          "seconds": 0.9975899645836177,
+          "peak_rss_kib": 1.015572105619499
+        },
+        "same_counters": true
+      },
+      "raises-to-eight": {
+        "j05": {
+          "seconds": 1.3806436860004396,
+          "peak_rss_kib": 138284
+        },
+        "j15": {
+          "seconds": 1.403805379000005,
+          "peak_rss_kib": 137560
+        },
+        "candidate_over_parent": {
+          "seconds": 1.0167760105191672,
+          "peak_rss_kib": 0.9947643979057592
+        },
+        "same_counters": true
+      },
+      "ordago": {
+        "j05": {
+          "seconds": 1.8584374050005863,
+          "peak_rss_kib": 597188
+        },
+        "j15": {
+          "seconds": 1.8582191989999046,
+          "peak_rss_kib": 596548
+        },
+        "candidate_over_parent": {
+          "seconds": 0.9998825863060576,
+          "peak_rss_kib": 0.998928310682733
+        },
+        "same_counters": true
+      }
+    },
+    "runner_source": "import json, os, tempfile, time\nfrom pathlib import Path\nruns=[]\nfor game,iterations in [('single-bet',100000),('raises-to-eight',30000),('ordago',500)]:\n    for repeat in range(3):\n        for label in (['j05','j15'] if repeat%2==0 else ['j15','j05']):\n            command=[f'build/review-{label}/release/mus-solver','--format',game,'--iterations',str(iterations),'--seed','7','--threads','1']\n            with tempfile.TemporaryFile(mode='w+') as output:\n                start=time.perf_counter()\n                pid=os.posix_spawn(command[0],command,os.environ,file_actions=[(os.POSIX_SPAWN_DUP2,output.fileno(),1)])\n                _,status,usage=os.wait4(pid,0)\n                if status: raise RuntimeError(status)\n                elapsed=time.perf_counter()-start\n                output.seek(0)\n                row={'format':game,'variant':label,'repeat':repeat+1,'seconds':elapsed,'peak_rss_kib':usage.ru_maxrss,'command':command,'stdout':output.read()}\n            runs.append(row)\n            Path('/tmp/mus-review-j15-generic.json').write_text(json.dumps(runs,indent=2)+'\\n')\n            print(json.dumps(row),flush=True)\n"
+  },
+  "decision": "No severe regression. All score checkpoint hashes, values and counters are identical. Generic-format counters match across all runs.",
+  "limitations": [
+    "Small timing differences can reflect code layout, CPU load and cache state. This is not evidence that adding a phase check improves training speed."
+  ]
+}

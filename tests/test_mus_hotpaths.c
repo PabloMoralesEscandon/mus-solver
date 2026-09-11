@@ -19,6 +19,70 @@ static GameState *as_game(MusGameState *state) {
     return mus_game_state_as_game_state(state);
 }
 
+static void check_information_key_phase(const Game *game, MusGameState *state) {
+    bool terminal;
+    Actor actor = {0};
+    CHECK(cfr_game_is_terminal(game, as_game(state), &terminal) == CFR_STATUS_SUCCESS);
+    if (!terminal)
+        CHECK(cfr_game_current_actor(game, as_game(state), &actor) == CFR_STATUS_SUCCESS);
+    const Status expected = !terminal && actor.kind == CFR_ACTOR_PLAYER
+                                ? CFR_STATUS_SUCCESS : CFR_STATUS_INVALID_ARGUMENT;
+    InfoSetKey public_key = -123, trusted_key = -123;
+    CHECK(cfr_game_information_set_key(game, as_game(state), &public_key) == expected);
+    CHECK(game->trusted_operations->information_set_key(game->context, as_game(state),
+                                                       &trusted_key) == expected);
+    CHECK(public_key == trusted_key);
+    if (expected != CFR_STATUS_SUCCESS)
+        CHECK(public_key == -123 && trusted_key == -123);
+}
+
+static void test_information_key_phases(void) {
+    MusScoreTable table;
+    MusScoreGame score;
+    CHECK(mus_score_table_init(&table, 40) == CFR_STATUS_SUCCESS);
+    CHECK(mus_score_game_init(&score, &table, 0, 0) == CFR_STATUS_SUCCESS);
+    const Game *games[] = {mus_single_bet_game_descriptor(),
+        mus_raises_to_eight_game_descriptor(), mus_ordago_game_descriptor(), &score.game};
+    for (size_t format = 0; format < sizeof(games) / sizeof(games[0]); ++format) {
+        const Game *game = games[format];
+        bool seen[MUS_PHASE_REDRAW_PLAYER_1 + 1] = {false};
+        for (size_t sample = 0; sample < 2; ++sample) {
+            MusGameState state;
+            Status status;
+            if (format == 0) status = mus_single_bet_game_state_init(&state);
+            else if (format == 1) status = mus_raises_to_eight_game_state_init(&state);
+            else if (format == 2) status = mus_ordago_game_state_init(&state);
+            else status = mus_score_game_state_init(&state, &score);
+            CHECK(status == CFR_STATUS_SUCCESS);
+            size_t steps = 0;
+            for (;;) {
+                CHECK(steps++ < 100);
+                seen[state.model.phase] = true;
+                check_information_key_phase(game, &state);
+                if (state.model.phase == MUS_PHASE_TERMINAL)
+                    break;
+                Actor actor;
+                Action actions[MUS_GAME_MAX_LEGAL_ACTIONS];
+                size_t count;
+                CHECK(cfr_game_current_actor(game, as_game(&state), &actor) == CFR_STATUS_SUCCESS);
+                CHECK(cfr_game_legal_actions(game, as_game(&state), actions,
+                                             MUS_GAME_MAX_LEGAL_ACTIONS, &count) == CFR_STATUS_SUCCESS);
+                Action action = actions[sample != 0 && actor.kind == CFR_ACTOR_CHANCE ? count - 1 : 0];
+                if (state.model.phase == MUS_PHASE_MUS_PLAYER_0 ||
+                    state.model.phase == MUS_PHASE_MUS_PLAYER_1)
+                    action = state.model.mus_count == 0 ? MUS_ACTION_MUS : MUS_ACTION_NO_MUS;
+                CHECK(cfr_game_apply_action(game, as_game(&state), action) == CFR_STATUS_SUCCESS);
+            }
+        }
+        for (int phase = MUS_PHASE_DEAL_PLAYER_0; phase <= MUS_PHASE_TERMINAL; ++phase)
+            CHECK(seen[phase]);
+        if (format >= 2) {
+            for (int phase = MUS_PHASE_MUS_PLAYER_0; phase <= MUS_PHASE_REDRAW_PLAYER_1; ++phase)
+                CHECK(seen[phase]);
+        }
+    }
+}
+
 static void check_discard_hand(const uint8_t hand[MUS_GAME_CLASS_COUNT]) {
     const Game *game = mus_ordago_game_descriptor();
     MusGameState state;
@@ -139,6 +203,7 @@ static void test_score_accounting_paths(unsigned int target) {
 }
 
 int main(void) {
+    test_information_key_phases();
     test_all_discard_hands();
     test_score_accounting_paths(3);
     test_score_accounting_paths(5);

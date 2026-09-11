@@ -3468,7 +3468,10 @@ static Status mus_ordago_trusted_information_set_key(
     const MusGameState *mus = as_mus_const(state);
 
     (void)context;
-    if (mus == NULL || result == NULL)
+    if (mus == NULL || result == NULL ||
+        (!phase_is_betting(mus->model.phase) &&
+         !phase_is_mus_decision(mus->model.phase) &&
+         !phase_is_discard(mus->model.phase)))
         return CFR_STATUS_INVALID_ARGUMENT;
     *result = ordago_information_set_key(
         &mus->model, mus->hand_summaries, mus->ordago_hand_codes);

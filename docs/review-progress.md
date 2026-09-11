@@ -50,7 +50,7 @@ rendimiento del bot desplegado son métricas diferentes.
 | J12 | Evaluar partidas con la política desplegada del bot | Pendiente |
 | J13 | Conservar disponibilidad de política en TXT | Pendiente |
 | J14 | Rechazar explícitamente el adaptador incompatible con dos muses | Pendiente |
-| J15 | Rechazar fases de azar/terminal en la clave rápida | Pendiente |
+| J15 | Rechazar fases de azar/terminal en la clave rápida | Completado |
 | J16 | Gramática explícita para opciones enteras sin signo | Pendiente |
 | J17 | Bloqueo ligado al proceso y contrato de durabilidad | Pendiente |
 | J18 | Reducir el coste de codificación y generación de candidatos | Pendiente |
@@ -142,3 +142,27 @@ Claude: **APPROVE**, tarea `task_c253677971f6`, dispatch `ctx_e1ceb4a7d0e0`,
 mensaje `msg_c373e2326959`. Se añadió su caso opcional de pagos a ambos jugadores
 más un contrato de pares pendiente, que exige el intervalo completo 3..6.
 Las pruebas del núcleo se repitieron con uno y dos muses tras añadirlo.
+
+## J15: contrato de la clave rápida
+
+La especialización de `ordago`, también utilizada por `ordago-score`, exige una
+fase de decisión antes de calcular la clave. En reparto, reposición o terminal
+devuelve error y conserva la salida. Se mantienen las comprobaciones ligeras de
+fase; no se repite la validación completa del estado en cada consulta.
+
+La prueba recorre todos los tipos de fase de los cuatro formatos con estados
+producidos por acciones públicas legales. Compara estado de retorno y clave
+entre API pública y rápida, y verifica que los errores conservan la salida.
+Falló contra la implementación anterior. Se valida con uno y dos muses.
+Pasan `make -j4 test` y las pruebas de núcleo/rutas rápidas con dos muses.
+Revisión Orca: tarea `task_b1d65ad7be49`, dispatch `ctx_a82dff9f1f47`.
+Claude: **APPROVE**, mensaje `msg_d20705d3566d`. Se mantienen los clasificadores
+de fase compartidos; no se añade otro helper para una condición que en la ruta
+pública también depende del formato.
+
+[Rendimiento](review-performance/J15.json): medianas de tiempo genérico −0,24 %
+en single-bet, +1,68 % en raises-to-eight y −0,01 % en ordago; el mayor aumento
+de RSS es +1,56 %. En las cuatro cargas de score no aparece aumento de tiempo
+de entrenamiento; se conservan los checkpoints, valores y contadores.
+No se activa el límite de regresión. Estas diferencias pequeñas no prueban una
+aceleración causada por la comprobación añadida.
