@@ -1,0 +1,476 @@
+{
+  "parent_commit": "f74e81d",
+  "parent_code_commit": "f74e81d",
+  "protocol": "CPU0, seed7, 3 alternating pairs; 5 confirmation pairs if median time +20% or RSS +25%. No concurrent own builds/tests. Both builds are O3 without LTO in mus and C-CFR. Solver and bot executables match J21 byte for byte. The match evaluator links the same objects in a different order, so both TXT match workloads are measured. No algorithm source changed.",
+  "runs": [
+    {
+      "group": "legacy-txt",
+      "version": "parent",
+      "repeat": 1,
+      "command": [
+        "/home/pablome/orca/workspaces/mus-solver/mejoras/build/review-j21/release/mus-match-eval",
+        "--strategy-a",
+        "/home/pablome/orca/workspaces/mus-solver/mejoras/build/review-j12-performance-inputs/ordago.txt",
+        "--opponent",
+        "three",
+        "--score",
+        "0:0",
+        "--matches",
+        "1000",
+        "--seed",
+        "7"
+      ],
+      "wall_seconds": 0.9104634550021729,
+      "peak_rss_kib": 2804,
+      "game_seconds": 0.908722275,
+      "matches": 1000,
+      "wins": [
+        550,
+        450
+      ],
+      "hands": 1905,
+      "decisions": [
+        9325,
+        8397
+      ],
+      "checksum": 11300114627020436140,
+      "identical_results_sha256": "1705db640d70254300bb7bb64435af3efd319f37512d5ab9f7fd17df64ea149d"
+    },
+    {
+      "group": "legacy-txt",
+      "version": "candidate",
+      "repeat": 1,
+      "command": [
+        "/home/pablome/orca/workspaces/mus-solver/mejoras/build/review-j22/release/mus-match-eval",
+        "--strategy-a",
+        "/home/pablome/orca/workspaces/mus-solver/mejoras/build/review-j12-performance-inputs/ordago.txt",
+        "--opponent",
+        "three",
+        "--score",
+        "0:0",
+        "--matches",
+        "1000",
+        "--seed",
+        "7"
+      ],
+      "wall_seconds": 0.9135110019997228,
+      "peak_rss_kib": 2936,
+      "game_seconds": 0.911947137,
+      "matches": 1000,
+      "wins": [
+        550,
+        450
+      ],
+      "hands": 1905,
+      "decisions": [
+        9325,
+        8397
+      ],
+      "checksum": 11300114627020436140,
+      "identical_results_sha256": "1705db640d70254300bb7bb64435af3efd319f37512d5ab9f7fd17df64ea149d"
+    },
+    {
+      "group": "legacy-txt",
+      "version": "candidate",
+      "repeat": 2,
+      "command": [
+        "/home/pablome/orca/workspaces/mus-solver/mejoras/build/review-j22/release/mus-match-eval",
+        "--strategy-a",
+        "/home/pablome/orca/workspaces/mus-solver/mejoras/build/review-j12-performance-inputs/ordago.txt",
+        "--opponent",
+        "three",
+        "--score",
+        "0:0",
+        "--matches",
+        "1000",
+        "--seed",
+        "7"
+      ],
+      "wall_seconds": 0.9126766550034517,
+      "peak_rss_kib": 2880,
+      "game_seconds": 0.911089247,
+      "matches": 1000,
+      "wins": [
+        550,
+        450
+      ],
+      "hands": 1905,
+      "decisions": [
+        9325,
+        8397
+      ],
+      "checksum": 11300114627020436140,
+      "identical_results_sha256": "1705db640d70254300bb7bb64435af3efd319f37512d5ab9f7fd17df64ea149d"
+    },
+    {
+      "group": "legacy-txt",
+      "version": "parent",
+      "repeat": 2,
+      "command": [
+        "/home/pablome/orca/workspaces/mus-solver/mejoras/build/review-j21/release/mus-match-eval",
+        "--strategy-a",
+        "/home/pablome/orca/workspaces/mus-solver/mejoras/build/review-j12-performance-inputs/ordago.txt",
+        "--opponent",
+        "three",
+        "--score",
+        "0:0",
+        "--matches",
+        "1000",
+        "--seed",
+        "7"
+      ],
+      "wall_seconds": 0.9318584220018238,
+      "peak_rss_kib": 2856,
+      "game_seconds": 0.930355022,
+      "matches": 1000,
+      "wins": [
+        550,
+        450
+      ],
+      "hands": 1905,
+      "decisions": [
+        9325,
+        8397
+      ],
+      "checksum": 11300114627020436140,
+      "identical_results_sha256": "1705db640d70254300bb7bb64435af3efd319f37512d5ab9f7fd17df64ea149d"
+    },
+    {
+      "group": "legacy-txt",
+      "version": "parent",
+      "repeat": 3,
+      "command": [
+        "/home/pablome/orca/workspaces/mus-solver/mejoras/build/review-j21/release/mus-match-eval",
+        "--strategy-a",
+        "/home/pablome/orca/workspaces/mus-solver/mejoras/build/review-j12-performance-inputs/ordago.txt",
+        "--opponent",
+        "three",
+        "--score",
+        "0:0",
+        "--matches",
+        "1000",
+        "--seed",
+        "7"
+      ],
+      "wall_seconds": 0.9223037020055926,
+      "peak_rss_kib": 2868,
+      "game_seconds": 0.920727875,
+      "matches": 1000,
+      "wins": [
+        550,
+        450
+      ],
+      "hands": 1905,
+      "decisions": [
+        9325,
+        8397
+      ],
+      "checksum": 11300114627020436140,
+      "identical_results_sha256": "1705db640d70254300bb7bb64435af3efd319f37512d5ab9f7fd17df64ea149d"
+    },
+    {
+      "group": "legacy-txt",
+      "version": "candidate",
+      "repeat": 3,
+      "command": [
+        "/home/pablome/orca/workspaces/mus-solver/mejoras/build/review-j22/release/mus-match-eval",
+        "--strategy-a",
+        "/home/pablome/orca/workspaces/mus-solver/mejoras/build/review-j12-performance-inputs/ordago.txt",
+        "--opponent",
+        "three",
+        "--score",
+        "0:0",
+        "--matches",
+        "1000",
+        "--seed",
+        "7"
+      ],
+      "wall_seconds": 0.9137481889993069,
+      "peak_rss_kib": 2828,
+      "game_seconds": 0.912017119,
+      "matches": 1000,
+      "wins": [
+        550,
+        450
+      ],
+      "hands": 1905,
+      "decisions": [
+        9325,
+        8397
+      ],
+      "checksum": 11300114627020436140,
+      "identical_results_sha256": "1705db640d70254300bb7bb64435af3efd319f37512d5ab9f7fd17df64ea149d"
+    },
+    {
+      "group": "public-txt",
+      "version": "parent",
+      "repeat": 1,
+      "command": [
+        "/home/pablome/orca/workspaces/mus-solver/mejoras/build/review-j21/release/mus-match-eval",
+        "--strategy-a",
+        "/home/pablome/orca/workspaces/mus-solver/mejoras/build/review-j12-performance-inputs/ordago-public.txt",
+        "--opponent",
+        "three",
+        "--score",
+        "0:0",
+        "--matches",
+        "10000",
+        "--seed",
+        "7"
+      ],
+      "wall_seconds": 1.2462843639950734,
+      "peak_rss_kib": 2756,
+      "game_seconds": 1.24346029,
+      "matches": 10000,
+      "wins": [
+        5441,
+        4559
+      ],
+      "hands": 19094,
+      "decisions": [
+        94475,
+        85271
+      ],
+      "checksum": 2501141923662403274,
+      "identical_results_sha256": "62cf8c5f2be17067d915b2b2c33ec120634edcafda555c6671b37f8a54cfd788"
+    },
+    {
+      "group": "public-txt",
+      "version": "candidate",
+      "repeat": 1,
+      "command": [
+        "/home/pablome/orca/workspaces/mus-solver/mejoras/build/review-j22/release/mus-match-eval",
+        "--strategy-a",
+        "/home/pablome/orca/workspaces/mus-solver/mejoras/build/review-j12-performance-inputs/ordago-public.txt",
+        "--opponent",
+        "three",
+        "--score",
+        "0:0",
+        "--matches",
+        "10000",
+        "--seed",
+        "7"
+      ],
+      "wall_seconds": 1.2677396850049263,
+      "peak_rss_kib": 2884,
+      "game_seconds": 1.26509509,
+      "matches": 10000,
+      "wins": [
+        5441,
+        4559
+      ],
+      "hands": 19094,
+      "decisions": [
+        94475,
+        85271
+      ],
+      "checksum": 2501141923662403274,
+      "identical_results_sha256": "62cf8c5f2be17067d915b2b2c33ec120634edcafda555c6671b37f8a54cfd788"
+    },
+    {
+      "group": "public-txt",
+      "version": "candidate",
+      "repeat": 2,
+      "command": [
+        "/home/pablome/orca/workspaces/mus-solver/mejoras/build/review-j22/release/mus-match-eval",
+        "--strategy-a",
+        "/home/pablome/orca/workspaces/mus-solver/mejoras/build/review-j12-performance-inputs/ordago-public.txt",
+        "--opponent",
+        "three",
+        "--score",
+        "0:0",
+        "--matches",
+        "10000",
+        "--seed",
+        "7"
+      ],
+      "wall_seconds": 1.28390350099653,
+      "peak_rss_kib": 2816,
+      "game_seconds": 1.28125656,
+      "matches": 10000,
+      "wins": [
+        5441,
+        4559
+      ],
+      "hands": 19094,
+      "decisions": [
+        94475,
+        85271
+      ],
+      "checksum": 2501141923662403274,
+      "identical_results_sha256": "62cf8c5f2be17067d915b2b2c33ec120634edcafda555c6671b37f8a54cfd788"
+    },
+    {
+      "group": "public-txt",
+      "version": "parent",
+      "repeat": 2,
+      "command": [
+        "/home/pablome/orca/workspaces/mus-solver/mejoras/build/review-j21/release/mus-match-eval",
+        "--strategy-a",
+        "/home/pablome/orca/workspaces/mus-solver/mejoras/build/review-j12-performance-inputs/ordago-public.txt",
+        "--opponent",
+        "three",
+        "--score",
+        "0:0",
+        "--matches",
+        "10000",
+        "--seed",
+        "7"
+      ],
+      "wall_seconds": 1.2494578780024312,
+      "peak_rss_kib": 2880,
+      "game_seconds": 1.24679112,
+      "matches": 10000,
+      "wins": [
+        5441,
+        4559
+      ],
+      "hands": 19094,
+      "decisions": [
+        94475,
+        85271
+      ],
+      "checksum": 2501141923662403274,
+      "identical_results_sha256": "62cf8c5f2be17067d915b2b2c33ec120634edcafda555c6671b37f8a54cfd788"
+    },
+    {
+      "group": "public-txt",
+      "version": "parent",
+      "repeat": 3,
+      "command": [
+        "/home/pablome/orca/workspaces/mus-solver/mejoras/build/review-j21/release/mus-match-eval",
+        "--strategy-a",
+        "/home/pablome/orca/workspaces/mus-solver/mejoras/build/review-j12-performance-inputs/ordago-public.txt",
+        "--opponent",
+        "three",
+        "--score",
+        "0:0",
+        "--matches",
+        "10000",
+        "--seed",
+        "7"
+      ],
+      "wall_seconds": 1.2581597669995972,
+      "peak_rss_kib": 2832,
+      "game_seconds": 1.25556922,
+      "matches": 10000,
+      "wins": [
+        5441,
+        4559
+      ],
+      "hands": 19094,
+      "decisions": [
+        94475,
+        85271
+      ],
+      "checksum": 2501141923662403274,
+      "identical_results_sha256": "62cf8c5f2be17067d915b2b2c33ec120634edcafda555c6671b37f8a54cfd788"
+    },
+    {
+      "group": "public-txt",
+      "version": "candidate",
+      "repeat": 3,
+      "command": [
+        "/home/pablome/orca/workspaces/mus-solver/mejoras/build/review-j22/release/mus-match-eval",
+        "--strategy-a",
+        "/home/pablome/orca/workspaces/mus-solver/mejoras/build/review-j12-performance-inputs/ordago-public.txt",
+        "--opponent",
+        "three",
+        "--score",
+        "0:0",
+        "--matches",
+        "10000",
+        "--seed",
+        "7"
+      ],
+      "wall_seconds": 1.2786705049948068,
+      "peak_rss_kib": 2856,
+      "game_seconds": 1.27595341,
+      "matches": 10000,
+      "wins": [
+        5441,
+        4559
+      ],
+      "hands": 19094,
+      "decisions": [
+        94475,
+        85271
+      ],
+      "checksum": 2501141923662403274,
+      "identical_results_sha256": "62cf8c5f2be17067d915b2b2c33ec120634edcafda555c6671b37f8a54cfd788"
+    }
+  ],
+  "summary": [
+    {
+      "group": "legacy-txt",
+      "confirmation": false,
+      "wall_seconds": {
+        "parent": 0.9223037020055926,
+        "candidate": 0.9135110019997228,
+        "change_percent": -0.9533410726585756
+      },
+      "peak_rss_kib": {
+        "parent": 2856,
+        "candidate": 2880,
+        "change_percent": 0.8403361344537785
+      },
+      "game_seconds": {
+        "parent": 0.920727875,
+        "candidate": 0.911947137,
+        "change_percent": -0.9536735270451069
+      },
+      "trigger": false
+    },
+    {
+      "group": "public-txt",
+      "confirmation": false,
+      "wall_seconds": {
+        "parent": 1.2494578780024312,
+        "candidate": 1.2786705049948068,
+        "change_percent": 2.3380241548502045
+      },
+      "peak_rss_kib": {
+        "parent": 2832,
+        "candidate": 2856,
+        "change_percent": 0.8474576271186418
+      },
+      "game_seconds": {
+        "parent": 1.24679112,
+        "candidate": 1.27595341,
+        "change_percent": 2.338987624486788
+      },
+      "trigger": false
+    }
+  ],
+  "blocked": null,
+  "binary_hashes": {
+    "build/review-j21/release/mus-solver": "2b2ec82fffe42347359f2c71719dec8bd1e01479512697c66f5ef205c0f9b899",
+    "build/review-j21/release/mus-bot": "46bee865954b7dcef040c2935a1974bf095296709e1704230e336d2d081fe138",
+    "build/review-j21/release/mus-match-eval": "ecd01965a2a5ac606e29a3758c3878f8f003c9e8e2a6e05c9cb2ca9a52eaf06f",
+    "build/review-j22/release/mus-solver": "2b2ec82fffe42347359f2c71719dec8bd1e01479512697c66f5ef205c0f9b899",
+    "build/review-j22/release/mus-bot": "46bee865954b7dcef040c2935a1974bf095296709e1704230e336d2d081fe138",
+    "build/review-j22/release/mus-match-eval": "0b9141001ac871d3203356f57ad4a26ba19b25fa7513a33da9920deba3c34b58"
+  },
+  "inputs": {
+    "/home/pablome/orca/workspaces/mus-solver/mejoras/build/review-j12-performance-inputs/ordago.txt": {
+      "bytes": 1107213400,
+      "sha256": "f5a9cbce405698699e2d694a92ebb648b64d6d6b66470a4c356f19818b8f2987"
+    },
+    "/home/pablome/orca/workspaces/mus-solver/mejoras/build/review-j12-performance-inputs/ordago-public.txt": {
+      "bytes": 3789984673,
+      "sha256": "c97e636722de02a470db606ee92779ad91cd6fd10e7dd114443ca93b42db1160"
+    }
+  },
+  "script": "import hashlib,json,os,shutil,statistics,subprocess,time\nfrom pathlib import Path\nos.sched_setaffinity(0,{0})\nwork=Path('build/review-j22-performance').resolve();work.mkdir(exist_ok=True)\nfrozen=Path('build/review-j12-performance-inputs').resolve()\ntarget=Path('docs/review-performance/J22.json')\ndata={'parent_commit':'f74e81d','parent_code_commit':'f74e81d','protocol':'CPU0, seed7, 3 alternating pairs; 5 confirmation pairs if median time +20% or RSS +25%. No concurrent own builds/tests. Both builds are O3 without LTO in mus and C-CFR. Solver and bot executables match J21 byte for byte. The match evaluator links the same objects in a different order, so both TXT match workloads are measured. No algorithm source changed.', 'runs':[],'summary':[],'blocked':None}\ndef digest(path):\n with open(path,'rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()\ndef save():\n data['script']=Path(__file__).read_text();data['launcher_source']=Path('/tmp/mus-review-j12-measure.c').read_text()\n target.write_text(json.dumps(data,indent=2)+'\\n')\ndef execute(command):\n rss=work/'rss.txt';full=['/tmp/mus-review-j12-measure',str(rss),*map(str,command)]\n start=time.perf_counter();p=subprocess.run(full,capture_output=True,text=True);elapsed=time.perf_counter()-start\n assert p.returncode==0,(full,p.returncode,p.stderr)\n return p.stdout,elapsed,int(rss.read_text())\ndata['binary_hashes']={str(p):digest(p) for directory in ('review-j21','review-j22') for name in ('mus-solver','mus-bot','mus-match-eval') for p in [Path('build')/directory/'release'/name]}\nfor variant in ('ordago','ordago-public'):\n p=frozen/f'{variant}.txt';data.setdefault('inputs',{})[str(p)]={'bytes':p.stat().st_size,'sha256':digest(p)}\nfor group in ('legacy-txt','public-txt'):\n reference=None\n def pair(repeat):\n  global reference\n  for version in (('parent','candidate') if repeat%2 else ('candidate','parent')):\n   binary=Path('build/review-j21/release' if version=='parent' else 'build/review-j22/release').resolve()\n   if group=='train-public':\n    output=work/f'{version}-{repeat}.cfr';command=[binary/'mus-solver','--format','ordago-public','--iterations','500','--seed','7','--save',output]\n   elif group=='train-score':\n    output=work/f'table-{version}-{repeat}';command=[binary/'mus-solver','--format','ordago-score','--score','35:35','--iterations','1000','--evaluation-samples','10000','--seed','7','--continuation',output]\n   else:\n    variant='ordago' if group=='legacy-txt' else 'ordago-public';command=[binary/'mus-match-eval','--strategy-a',frozen/f'{variant}.txt','--opponent','three','--score','0:0','--matches','1000' if variant=='ordago' else '10000','--seed','7']\n   out,wall,rss=execute(command)\n   row={'group':group,'version':version,'repeat':repeat,'command':list(map(str,command)),'wall_seconds':wall,'peak_rss_kib':rss}\n   if group=='train-public':h=digest(output);output.unlink();row['stdout']=out\n   elif group=='train-score':\n    h={p.name:digest(p) for p in output.iterdir() if p.name=='values.txt' or p.name.endswith('.cfr.zst')};shutil.rmtree(output);row['stdout']=out\n   else:\n    result=json.loads(out);row['game_seconds']=result.pop('seconds');h=hashlib.sha256(json.dumps(result,sort_keys=True,separators=(',',':')).encode()).hexdigest()\n    row.update({k:result[k] for k in ('matches','wins','hands','decisions','checksum')})\n   if reference is None:reference=h\n   assert h==reference,(group,version)\n   row['identical_results_sha256']=h;data['runs'].append(row);save();print(group,version,repeat,round(wall,4),rss,flush=True)\n def summary(confirm=False):\n  rows=[r for r in data['runs'] if r['group']==group and (r['repeat']>3)==confirm];s={'group':group,'confirmation':confirm}\n  for field in ['wall_seconds','peak_rss_kib']+(['game_seconds'] if 'game_seconds' in rows[0] else []):\n   a=statistics.median(r[field] for r in rows if r['version']=='parent');b=statistics.median(r[field] for r in rows if r['version']=='candidate');s[field]={'parent':a,'candidate':b,'change_percent':100*(b/a-1)}\n  s['trigger']=s['wall_seconds']['change_percent']>=20 or s['peak_rss_kib']['change_percent']>=25\n  data['summary'].append(s);save();print(s,flush=True);return s['trigger']\n for repeat in range(1,4):pair(repeat)\n if summary():\n  for repeat in range(4,9):pair(repeat)\n  if summary(True):data['blocked']=group;save();raise SystemExit(2)\nsave()\n",
+  "launcher_source": "#define _GNU_SOURCE\n#include <spawn.h>\n#include <stdio.h>\n#include <sys/wait.h>\n#include <sys/resource.h>\n#include <errno.h>\nextern char **environ;\nint main(int argc, char **argv) {\n    if (argc < 3) return 2;\n    pid_t pid;\n    if (posix_spawn(&pid, argv[2], NULL, NULL, argv + 2, environ) != 0) return 3;\n    int status; struct rusage usage;\n    while (wait4(pid, &status, 0, &usage) < 0) if (errno != EINTR) return 4;\n    FILE *output = fopen(argv[1], \"w\");\n    if (!output) return 5;\n    if (fprintf(output, \"%ld\\n\", usage.ru_maxrss) < 0 || fclose(output)) return 6;\n    return WIFEXITED(status) ? WEXITSTATUS(status) : 128 + WTERMSIG(status);\n}\n",
+  "validation": {
+    "full_test": "make -j4 BUILD_DIR=build/review-j22 CFR_BUILD_DIR=build/review-j22 test passed",
+    "config_test": "tests/test_build_config.py passed on J22",
+    "incremental_test": "tests/test_build_incremental.py passed on J22",
+    "components_test": "Final version passed solver isolation, old archive migration, failed-AR preservation, math linking, default and custom cleanup, and exactly one flags query plus one libraries query on a stable bot build.",
+    "default_lto_build": "make -j4 BUILD_DIR=build/review-j22-lto CFR_BUILD_DIR=build/review-j22-lto all passed",
+    "final_receipt_refinement": "An added query-count test initially found 4 calls caused by mutually expanding recursive exports. The final JSON receipt uses one exported multiline value; the independent probe and full component test then found exactly 2 calls. Receipt content and all measured executable hashes remain unchanged."
+  },
+  "postprocessing": "Added validation after sampling; original runs and measurement script retained.",
+  "observation": "All three public candidate match runs are slower than all three parent runs. The +2.338% median wall change is consistent in these pairs, below the gate, and applies to the match evaluation executable; solver and bot are byte-identical."
+}

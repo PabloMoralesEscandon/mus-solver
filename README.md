@@ -159,8 +159,13 @@ make test-sanitize
 make dependencies
 ```
 
-La compilación release usa `-O3` y LTO y requiere la biblioteca de desarrollo de
-Zstandard. `make lto` genera la misma configuración optimizada en
+La compilación release usa `-O3` y LTO. El build predeterminado (`make` o
+`make all`) requiere las bibliotecas de desarrollo de Zstandard y json-c, además
+de `pkg-config`, porque incluye el bot. `make solver` construye solo el solver y
+su biblioteca, sin consultar json-c ni compilar el simulador. `make bot` y
+`make match-eval` permiten construir los otros ejecutables por separado; el
+evaluador de partidas necesita las fuentes del simulador.
+`make lto` genera la misma configuración optimizada en
 `build/lto/release` y `C-CFR/build/lto/release`, sin reemplazar los artefactos
 normales.
 `make test-tsan` comprueba con ThreadSanitizer tanto el acceso concurrente al
@@ -195,6 +200,20 @@ Si solo cambia C-CFR, `make -n` muestra su recompilación, pero puede omitir los
 enlaces posteriores porque la simulación conserva la fecha de `libcfr.a`.
 En ese caso `make -q` devuelve un error desde la llamada recursiva. El build
 real sí reconstruye la biblioteca y enlaza los consumidores.
+
+La biblioteca `libmus_solver.a` contiene únicamente el código de mus. Las pruebas
+que contrastan el simulador y el evaluador de partidas enlazan sus objetos de
+forma explícita. Al cambiar la lista de fuentes, se reconstruye el archivo
+estático completo para retirar los miembros antiguos.
+`make clean` elimina `BUILD_DIR` y conserva la caché de C-CFR.
+`make clean-all` elimina además `C-CFR/CFR_BUILD_DIR`; ambos directorios se pueden
+seleccionar como en un build normal. Los builds independientes del simulador se
+limpian con su propio Makefile.
+Después de actualizar C-CFR con cambios en su lista de fuentes, ejecute
+`make clean-all` antes de reconstruir: su Makefile propio actualiza `libcfr.a`
+en el sitio y puede conservar miembros retirados por esa actualización.
+`python3 tests/test_build_components.py` comprueba las dependencias del solver,
+la composición del archivo estático y la limpieza en una copia temporal.
 
 Los artefactos principales son:
 

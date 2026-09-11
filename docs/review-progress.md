@@ -57,7 +57,7 @@ rendimiento del bot desplegado son métricas diferentes.
 | J19 | Distribución y memoria de trabajadores por diagonal | Candidato retirado: límite de RSS confirmado; a la espera del usuario |
 | J20 | Invalidar objetos al cambiar la configuración | Completado |
 | J21 | Evitar enlaces sin cambios conservando dependencias reales | Completado |
-| J22 | Dependencias, portabilidad y separación del simulador | Pendiente |
+| J22 | Dependencias, portabilidad y separación del simulador | Completado |
 | J23 | Matriz de pruebas, observabilidad y contratos menores | Pendiente |
 
 ## J03: reintento de publicación
@@ -1230,3 +1230,61 @@ Revisión final: **APPROVE**, tarea `task_4d6531987f25`, dispatch
 sin LTO a doce ejecutables; la prueba de integración sí cubre los dieciséis
 consumidores. Pasó también su última ampliación para simular un cambio de
 fuente en C-CFR antes del build real.
+
+## J22: dependencias y composición de la biblioteca
+
+`solver`, `bot` y `match-eval` permiten construir cada ejecutable por separado.
+La detección de json-c y los valores de su registro se evalúan cuando se necesita
+el bot. Las operaciones de su registro comparten una sola receta de shell para
+no repetir esa evaluación al crear, comparar y publicar el registro.
+
+`libmus_solver.a` contiene las ocho fuentes de mus. Los tres objetos básicos del
+simulador se enlazan explícitamente en las pruebas del núcleo y, junto con el
+motor de partidas y su registro, en el evaluador de partidas. No se modifica el
+código de esos objetos. La lista de fuentes forma parte del registro del archivo:
+al cambiar, se crea una biblioteca temporal nueva y se publica solo si `ar`
+termina bien. Así se retiran miembros antiguos al actualizar un build existente
+y se conserva la biblioteca anterior si falla el archivador.
+
+`clean` conserva la caché de C-CFR. `clean-all` elimina el `BUILD_DIR` principal y
+`C-CFR/CFR_BUILD_DIR` seleccionados, dejando otras cachés independientes. La
+limpieza de builds propios del simulador sigue disponible en su Makefile.
+El enlace con `-lm` ya estaba incorporado por J10; se verifica aquí con
+`-fno-builtin`, sin presentarlo como un cambio nuevo.
+
+Validación: batería completa `make test`; tests de configuración e incremental;
+nueva prueba de componentes en copia temporal, que compila el solver en release
+y debug sin checkout del simulador ni llamadas a json-c, comprueba la migración
+del archivo, provoca un fallo de `ar`, verifica el enlace matemático y comprueba
+las dos limpiezas. También pasa el build completo con LTO predeterminado.
+
+Los ejecutables del solver y del bot coinciden byte por byte con J21. El
+rendimiento de entrenamiento conserva por ello el mismo código generado. El
+evaluador de partidas cambia por el orden de enlace, por lo que se miden sus
+partidas históricas y públicas con los mismos inputs y semillas.
+
+[Rendimiento J22](review-performance/J22.json): tres pares alternados en CPU 0.
+1.000 partidas históricas TXT: 0,922304 → 0,913511 s (−0,95 %), RSS +0,84 %.
+10.000 partidas públicas TXT: 1,249458 → 1,278671 s (+2,34 %), RSS +0,85 %.
+Los resultados, contadores y decisiones coinciden en todos los pares. No se
+activa ningún límite; se conserva también la pequeña variación desfavorable.
+
+Claude: **APPROVE**, tarea `task_c36e99d369d7`, dispatch `ctx_9d54fc8e173e`,
+mensaje `msg_2ec076dd77e7`. Se documenta la necesidad de limpiar tras una
+actualización de C-CFR que retire fuentes, ya que su receta de archivo propia
+sigue actualizando miembros en el sitio. El nuevo registro causa una sola
+recompilación de C-CFR al migrar desde los registros anteriores.
+
+La variación desfavorable del evaluador público es consistente en los tres
+pares: todos los tiempos candidatos superan a los del padre. El solver y el bot
+mantienen exactamente sus binarios. No se infiere una pérdida de fuerza de juego.
+
+La prueba final de componentes pasó también con directorios personalizados de
+limpieza. Detectó cuatro consultas a json-c por expansión mutua de dos variables
+exportadas: un único valor multilínea exportado reduce el caso estable a una
+consulta de flags y una de bibliotecas, conservando el contenido del registro y
+los hashes medidos. La prueba comprueba ese recuento.
+
+Revisión final: **APPROVE**, tarea `task_35b07274b3de`, dispatch
+`ctx_a6038bee5198`, mensaje `msg_20168e0f89f5`. Se actualizó el resultado final de
+la prueba de componentes y se incorporó la precisión de los tres pares públicos.

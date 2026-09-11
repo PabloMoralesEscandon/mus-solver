@@ -2,8 +2,9 @@ CC ?= cc
 AR ?= ar
 
 LDLIBS += -lzstd -lm
-JSON_C_FLAGS := $(shell pkg-config --cflags json-c)
-JSON_C_LIBS := $(shell pkg-config --libs json-c)
+PKG_CONFIG ?= pkg-config
+JSON_C_FLAGS = $(shell $(PKG_CONFIG) --cflags json-c)
+JSON_C_LIBS = $(shell $(PKG_CONFIG) --libs json-c)
 
 CPPFLAGS += -Iinclude -IC-CFR/include -ISimulador-Mus/include
 ifneq ($(origin MUS_MAX_MUSES), undefined)
@@ -28,7 +29,7 @@ MUS_SOURCES := src/mus_game.c src/mus_evaluation.c src/mus_strategy.c src/mus_sc
 	src/mus_preload.c src/mus_adapter.c src/mus_text_strategy.c src/mus_training.c
 SIMULATOR_SOURCES := Simulador-Mus/src/cartas.c \
 	Simulador-Mus/src/baraja_espanola.c Simulador-Mus/src/mus.c
-LIB_SOURCES := $(MUS_SOURCES) $(SIMULATOR_SOURCES)
+LIB_SOURCES := $(MUS_SOURCES)
 APP_SOURCE := app/mus_solver_cli.c app/score_recovery.c
 TEST_SOURCE := tests/test_mus_solver.c
 
@@ -37,6 +38,7 @@ DEBUG_OBJECTS := $(patsubst %.c,$(DEBUG_DIR)/%.o,$(LIB_SOURCES))
 RELEASE_APP_OBJECT := $(patsubst %.c,$(RELEASE_DIR)/%.o,$(APP_SOURCE))
 DEBUG_APP_OBJECT := $(patsubst %.c,$(DEBUG_DIR)/%.o,$(APP_SOURCE))
 DEBUG_TEST_OBJECT := $(patsubst %.c,$(DEBUG_DIR)/%.o,$(TEST_SOURCE))
+DEBUG_SIMULATOR_OBJECTS := $(patsubst %.c,$(DEBUG_DIR)/%.o,$(SIMULATOR_SOURCES))
 
 RELEASE_CFR_LIBRARY := C-CFR/$(CFR_BUILD_DIR)/release/libcfr.a
 DEBUG_CFR_LIBRARY := C-CFR/$(CFR_BUILD_DIR)/debug/libcfr.a
@@ -51,12 +53,17 @@ DEPENDENCY_FILES := $(RELEASE_OBJECTS:.o=.d) $(DEBUG_OBJECTS:.o=.d) \
 	$(DEBUG_TEST_OBJECT:.o=.d)
 
 .PHONY: all lto debug test test-tsan test-sanitize dependencies cfr-release \
-	cfr-debug clean benchmark-score benchmark-score-threads benchmark-evaluation
+	cfr-debug clean clean-all solver bot match-eval \
+	benchmark-score benchmark-score-threads benchmark-evaluation
 
 all: $(RELEASE_BINARY) $(RELEASE_DIR)/mus-bot $(RELEASE_DIR)/mus-match-eval
 
+solver: $(RELEASE_BINARY)
+bot: $(RELEASE_DIR)/mus-bot
+match-eval: $(RELEASE_DIR)/mus-match-eval
+
 MATCH_SOURCES := app/mus_match_eval_cli.c app/match_evaluation.c \
-	Simulador-Mus/src/mus_sim.c Simulador-Mus/src/mus_log.c
+	Simulador-Mus/src/mus_sim.c Simulador-Mus/src/mus_log.c $(SIMULATOR_SOURCES)
 RELEASE_MATCH_OBJECTS := $(patsubst %.c,$(RELEASE_DIR)/%.o,$(MATCH_SOURCES))
 DEBUG_MATCH_OBJECTS := $(patsubst %.c,$(DEBUG_DIR)/%.o,$(MATCH_SOURCES))
 
@@ -165,11 +172,15 @@ cfr-debug:
 
 $(RELEASE_LIBRARY): $(RELEASE_OBJECTS) $(RELEASE_DIR)/.mus-archive-config
 	@mkdir -p $(dir $@)
-	$(AR) rcs $@ $(RELEASE_OBJECTS)
+	$(RM) -- $@.tmp
+	$(AR) rcs $@.tmp $(RELEASE_OBJECTS)
+	mv -f -- $@.tmp $@
 
 $(DEBUG_LIBRARY): $(DEBUG_OBJECTS) $(DEBUG_DIR)/.mus-archive-config
 	@mkdir -p $(dir $@)
-	$(AR) rcs $@ $(DEBUG_OBJECTS)
+	$(RM) -- $@.tmp
+	$(AR) rcs $@.tmp $(DEBUG_OBJECTS)
+	mv -f -- $@.tmp $@
 
 $(RELEASE_BINARY): $(RELEASE_APP_OBJECT) $(RELEASE_LIBRARY) \
 		$(RELEASE_CFR_LIBRARY)
@@ -181,8 +192,8 @@ $(DEBUG_BINARY): $(DEBUG_APP_OBJECT) $(DEBUG_LIBRARY) $(DEBUG_CFR_LIBRARY)
 	$(CC) $(LDFLAGS) $(THREAD_FLAGS) $(DEBUG_APP_OBJECT) $(DEBUG_LIBRARY) \
 		$(DEBUG_CFR_LIBRARY) $(LDLIBS) -o $@
 
-$(TEST_BINARY): $(DEBUG_TEST_OBJECT) $(DEBUG_LIBRARY) $(DEBUG_CFR_LIBRARY)
-	$(CC) $(LDFLAGS) $(THREAD_FLAGS) $(DEBUG_TEST_OBJECT) $(DEBUG_LIBRARY) \
+$(TEST_BINARY): $(DEBUG_TEST_OBJECT) $(DEBUG_SIMULATOR_OBJECTS) $(DEBUG_LIBRARY) $(DEBUG_CFR_LIBRARY)
+	$(CC) $(LDFLAGS) $(THREAD_FLAGS) $(DEBUG_TEST_OBJECT) $(DEBUG_SIMULATOR_OBJECTS) $(DEBUG_LIBRARY) \
 		$(DEBUG_CFR_LIBRARY) $(LDLIBS) -o $@
 
 $(DEBUG_DIR)/mus_hotpaths_tests: $(DEBUG_DIR)/tests/test_mus_hotpaths.o \
@@ -204,6 +215,9 @@ $(DEBUG_DIR)/%.o: %.c $(DEBUG_DIR)/.mus-compile-config
 
 clean:
 	$(RM) -r -- $(BUILD_DIR)
+
+clean-all: clean
+	$(MAKE) -C C-CFR BUILD_DIR=$(CFR_BUILD_DIR) clean
 
 -include $(DEPENDENCY_FILES)
 
@@ -251,12 +265,19 @@ $(DEBUG_DIR)/mus_ordago_public_tests: $(DEBUG_DIR)/tests/test_ordago_public.o \
 include make/build-config.mk
 
 # json-c options apply only to the bot. Keep them out of shared object receipts.
-$(RELEASE_DIR)/.mus-json-config $(DEBUG_DIR)/.mus-json-config: private export MUS_BUILD_CONFIG := $(JSON_C_FLAGS)
-$(RELEASE_DIR)/.mus-json-config $(DEBUG_DIR)/.mus-json-config: private export MUS_MODE_CONFIG := $(JSON_C_LIBS)
+define MUS_JSON_CONFIG
+$(JSON_C_FLAGS)
+$(JSON_C_LIBS)
+endef
+
+# Use one recursive export: two exports that call $(shell) expand each other
+# while GNU make constructs the child environment and duplicate both queries.
+$(RELEASE_DIR)/.mus-json-config $(DEBUG_DIR)/.mus-json-config: private export MUS_BUILD_CONFIG = $(MUS_JSON_CONFIG)
+$(RELEASE_DIR)/.mus-json-config $(DEBUG_DIR)/.mus-json-config: private export MUS_MODE_CONFIG :=
 $(RELEASE_DIR)/.mus-json-config $(DEBUG_DIR)/.mus-json-config: mus-config-force
-	+@mkdir -p $(dir $@)
-	+@printf '%s\n%s\n' "$$MUS_BUILD_CONFIG" "$$MUS_MODE_CONFIG" > $@.tmp
-	+@if cmp -s $@.tmp $@; then rm -f $@.tmp; else mv -f $@.tmp $@; fi
+	+@mkdir -p $(dir $@) && \
+		printf '%s\n' "$$MUS_BUILD_CONFIG" > $@.tmp && \
+		if cmp -s $@.tmp $@; then rm -f $@.tmp; else mv -f $@.tmp $@; fi
 
 $(RELEASE_DIR)/app/mus_bot_cli.o: $(RELEASE_DIR)/.mus-json-config
 $(DEBUG_DIR)/app/mus_bot_cli.o: $(DEBUG_DIR)/.mus-json-config
