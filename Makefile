@@ -92,6 +92,7 @@ test: $(TEST_BINARY) $(DEBUG_BINARY) $(DEBUG_DIR)/mus-bot $(DEBUG_DIR)/mus_adapt
 	./tests/test_cli.sh ./$(DEBUG_BINARY)
 	python3 tests/test_score_locks.py ./$(DEBUG_BINARY)
 	python3 tests/test_score_recovery.py ./$(DEBUG_BINARY)
+	python3 tests/test_score_regions.py ./$(DEBUG_BINARY) ./$(DEBUG_DIR)/mus-bot
 	./$(DEBUG_DIR)/mus_adapter_tests
 	./$(DEBUG_DIR)/mus_adapter_configuration_tests
 	python3 tests/test_adapter_cli.py ./$(DEBUG_DIR)/mus-bot ./$(DEBUG_DIR)/mus_adapter_tests

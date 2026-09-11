@@ -16,6 +16,24 @@ Status mus_score_table_init(MusScoreTable *table, unsigned int target) {
     return CFR_STATUS_SUCCESS;
 }
 
+Status mus_score_table_init_region(MusScoreTable *table, unsigned int target,
+                                  unsigned int a, unsigned int b) {
+    if (table == NULL || target == 0 || target > MUS_ORDAGO_WAGER || a >= target || b >= target)
+        return CFR_STATUS_INVALID_ARGUMENT;
+    *table = (MusScoreTable){.target = (uint8_t)target, .region_enabled = true,
+        .region_scores = {(uint8_t)(a < b ? a : b), (uint8_t)(a < b ? b : a)}};
+    return CFR_STATUS_SUCCESS;
+}
+
+bool mus_score_table_contains(const MusScoreTable *table, unsigned int a, unsigned int b) {
+    if (table == NULL || table->target == 0 || table->target > MUS_ORDAGO_WAGER ||
+        a >= table->target || b >= table->target) return false;
+    if (!table->region_enabled) return true;
+    const unsigned int low = table->region_scores[0], high = table->region_scores[1];
+    if (low > high || high >= table->target) return false;
+    return (a >= low && b >= high) || (a >= high && b >= low);
+}
+
 static bool valid_cell(const MusScoreCell *cell) {
     return isfinite(cell->value) && cell->value >= -1 && cell->value <= 1 &&
            cell->iterations > 0 && cell->evaluation_samples > 0;
@@ -25,6 +43,8 @@ static bool valid_cell(const MusScoreCell *cell) {
 static bool valid_table(const MusScoreTable *table) {
     if (table == NULL || table->target == 0 || table->target > MUS_ORDAGO_WAGER)
         return false;
+    if (table->region_enabled && (table->region_scores[0] > table->region_scores[1] ||
+        table->region_scores[1] >= table->target)) return false;
     bool missing = false;
     for (int sum = 2 * (table->target - 1); sum >= 0; sum -= 1) {
         int ready = 0;
@@ -34,6 +54,10 @@ static bool valid_table(const MusScoreTable *table) {
             if (b < 0 || b >= table->target)
                 continue;
             const MusScoreCell *cell = &table->cells[a][b];
+            if (!mus_score_table_contains(table, (unsigned int)a, (unsigned int)b)) {
+                if (cell->ready) return false;
+                continue;
+            }
             count += 1;
             if (cell->ready) {
                 if (missing || !valid_cell(cell))
@@ -43,7 +67,7 @@ static bool valid_table(const MusScoreTable *table) {
         }
         if (ready != 0 && ready != count)
             return false;
-        if (ready == 0)
+        if (ready == 0 && count != 0)
             missing = true;
     }
     return true;
@@ -52,10 +76,14 @@ static bool valid_table(const MusScoreTable *table) {
 Status mus_score_table_write(FILE *stream, const MusScoreTable *table) {
     if (stream == NULL || !valid_table(table))
         return CFR_STATUS_INVALID_ARGUMENT;
-    if (fprintf(stream, "%s base=%s target=%u orientation=mano utility=signed-one\n",
-                MUS_SCORE_SCHEMA_ID, MUS_ORDAGO_STRATEGY_SCHEMA_ID,
+    if (fprintf(stream, "%s base=%s target=%u orientation=mano utility=signed-one",
+                table->region_enabled ? MUS_SCORE_REGION_SCHEMA_ID : MUS_SCORE_SCHEMA_ID,
+                MUS_ORDAGO_STRATEGY_SCHEMA_ID,
                 table->target) < 0)
         return CFR_STATUS_IO_ERROR;
+    if (table->region_enabled && fprintf(stream, " region=%u:%u",
+        table->region_scores[0], table->region_scores[1]) < 0) return CFR_STATUS_IO_ERROR;
+    if (fputc('\n', stream) == EOF) return CFR_STATUS_IO_ERROR;
     for (unsigned int a = 0; a < table->target; a += 1) {
         for (unsigned int b = 0; b < table->target; b += 1) {
             const MusScoreCell *cell = &table->cells[a][b];
@@ -85,19 +113,35 @@ Status mus_score_table_read(FILE *stream, MusScoreTable *table) {
     char header[512];
     char expected[512];
     unsigned int target;
-    int consumed = 0;
     MusScoreTable temporary;
     if (stream == NULL || table == NULL)
         return CFR_STATUS_INVALID_ARGUMENT;
-    if (fgets(header, sizeof(header), stream) == NULL ||
-        sscanf(header, MUS_SCORE_SCHEMA_ID " base=" MUS_ORDAGO_STRATEGY_SCHEMA_ID
-                       " target=%u orientation=mano utility=signed-one%n",
-               &target, &consumed) != 1 || consumed == 0 ||
-        mus_score_table_init(&temporary, target) != CFR_STATUS_SUCCESS)
+    if (fgets(header, sizeof(header), stream) == NULL)
         return CFR_STATUS_FORMAT_ERROR;
+    char schema[64], base[128], target_token[32], region_a[32], region_b[32];
+    uintmax_t parsed_target, a_bound = 0, b_bound = 0;
+    const int fields = sscanf(header, "%63s base=%127s target=%31s orientation=mano "
+        "utility=signed-one region=%31[^:]:%31s", schema, base, target_token, region_a, region_b);
+    if (fields < 3 || strcmp(base, MUS_ORDAGO_STRATEGY_SCHEMA_ID) != 0 ||
+        !parse_unsigned_token(target_token, MUS_ORDAGO_WAGER, &parsed_target) || parsed_target == 0)
+        return CFR_STATUS_FORMAT_ERROR;
+    target = (unsigned int)parsed_target;
+    const bool region = strcmp(schema, MUS_SCORE_REGION_SCHEMA_ID) == 0;
+    if (region) {
+        if (fields != 5 || !parse_unsigned_token(region_a, target - 1, &a_bound) ||
+            !parse_unsigned_token(region_b, target - 1, &b_bound) || a_bound > b_bound ||
+            mus_score_table_init_region(&temporary, target, (unsigned int)a_bound,
+                                        (unsigned int)b_bound) != CFR_STATUS_SUCCESS)
+            return CFR_STATUS_FORMAT_ERROR;
+    } else if (fields != 3 || strcmp(schema, MUS_SCORE_SCHEMA_ID) != 0 ||
+               mus_score_table_init(&temporary, target) != CFR_STATUS_SUCCESS)
+        return CFR_STATUS_FORMAT_ERROR;
+    char coverage[64] = "";
+    if (region) (void)snprintf(coverage, sizeof(coverage), " region=%u:%u",
+                               (unsigned int)a_bound, (unsigned int)b_bound);
     (void)snprintf(expected, sizeof(expected),
-                   "%s base=%s target=%u orientation=mano utility=signed-one\n",
-                   MUS_SCORE_SCHEMA_ID, MUS_ORDAGO_STRATEGY_SCHEMA_ID, target);
+                   "%s base=%s target=%u orientation=mano utility=signed-one%s\n",
+                   schema, MUS_ORDAGO_STRATEGY_SCHEMA_ID, target, coverage);
     if (strcmp(expected, header) != 0)
         return CFR_STATUS_FORMAT_ERROR;
     while (fgets(header, sizeof(header), stream) != NULL) {
@@ -121,7 +165,8 @@ Status mus_score_table_read(FILE *stream, MusScoreTable *table) {
             .ready = true, .value = value, .iterations = (size_t)iterations,
             .evaluation_samples = (size_t)samples, .training_seed = (uint64_t)seed,
         };
-        if (temporary.cells[a][b].ready || !valid_cell(&cell))
+        if (temporary.cells[a][b].ready || !valid_cell(&cell) ||
+            !mus_score_table_contains(&temporary, (unsigned int)a, (unsigned int)b))
             return CFR_STATUS_FORMAT_ERROR;
         temporary.cells[a][b] = cell;
     }
@@ -190,9 +235,14 @@ Status mus_score_game_set_schema(MusScoreGame *game) {
             }
         }
     }
+    char coverage[32] = "";
+    if (table->region_enabled)
+        (void)snprintf(coverage, sizeof(coverage), "/region-%u-%u",
+                       table->region_scores[0], table->region_scores[1]);
     const int length = snprintf(game->schema, sizeof(game->schema),
-                                "%s/base-%s/target-%u/score-%u-%u/mano/signed-one/V-%016" PRIx64,
-                                MUS_SCORE_SCHEMA_ID, MUS_ORDAGO_STRATEGY_SCHEMA_ID,
+                                "%s%s/base-%s/target-%u/score-%u-%u/mano/signed-one/V-%016" PRIx64,
+                                table->region_enabled ? MUS_SCORE_REGION_SCHEMA_ID : MUS_SCORE_SCHEMA_ID,
+                                coverage, MUS_ORDAGO_STRATEGY_SCHEMA_ID,
                                 table->target, game->initial_scores[0],
                                 game->initial_scores[1], hash);
     return length > 0 && (size_t)length < sizeof(game->schema)
@@ -422,7 +472,7 @@ Status mus_score_train(MusScoreTable *table, unsigned int minimum_sum,
             return CFR_STATUS_INVALID_ARGUMENT;
         for (unsigned int a = 0; a < table->target; ++a) {
             for (unsigned int b = 0; b < table->target; ++b) {
-                if (a + b < minimum_sum)
+                if (a + b < minimum_sum || !mus_score_table_contains(table, a, b))
                     continue;
                 const MusScoreCell *source = &extension->table->cells[a][b];
                 const MusScoreCell *destination = &table->cells[a][b];
@@ -451,7 +501,8 @@ Status mus_score_train(MusScoreTable *table, unsigned int minimum_sum,
         size_t count = 0;
         for (int a = 0; a < table->target; a += 1) {
             const int b = sum - a;
-            if (b < 0 || b >= table->target || table->cells[a][b].ready)
+            if (b < 0 || b >= table->target || table->cells[a][b].ready ||
+                !mus_score_table_contains(table, (unsigned int)a, (unsigned int)b))
                 continue;
             scores[count++] = (unsigned int)a;
         }

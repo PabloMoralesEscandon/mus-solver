@@ -279,6 +279,42 @@ de guardar cada estrategia. La tabla permanece inmutable durante el
 entrenamiento y la evaluación de cada diagonal, y sus valores se publican
 juntos al terminarla.
 
+Para limitar el entrenamiento a una región suficiente desde un marcador,
+añada `--score-region A:B` al crear la tabla:
+
+```sh
+build/release/mus-solver \
+    --format ordago-score --score-region 35:18 \
+    --iterations 1000 --evaluation-samples 10000 --seed 7 \
+    --continuation marcador-region-35-18
+```
+
+La región incluye `(x,y)` si `x >= A && y >= B` o `x >= B && y >= A`.
+Así conserva todas las continuaciones necesarias cuando suben los tantos y
+se intercambian mano y postre. Desde 35:18 contiene 195 celdas, frente a las
+351 de las diagonales completas; desde 35:35 contiene 25 frente a 45. Estos
+recuentos no equivalen a porcentajes de ahorro de tiempo. Con las mismas
+semillas y un hilo por celda, las políticas y valores de las celdas comunes
+coinciden con los de una tabla completa.
+
+Sin `--score`, la creación usa A:B como marcador solicitado. Los límites se
+guardan ordenados en `values.txt` antes de entrenar la primera celda. Al
+reanudar puede omitir `--score-region`; si también omite `--score`, se usa el
+marcador de los límites ordenados. Puede pedir un marcador superior dentro
+de la región para entrenar solo las diagonales necesarias hasta ese punto.
+Un marcador fuera de la región o unos límites explícitos distintos provocan
+un error. Para cambiar la cobertura, utilice otro directorio.
+
+Una ampliación con `--extend-continuation` puede partir de una tabla completa
+o restringida, siempre que el origen contenga todas las celdas solicitadas
+del destino. El origen conserva su bloqueo compartido durante la ejecución.
+El bot usa la política genérica para los marcadores iniciales excluidos;
+solo hay que exportar los TXT de las celdas publicadas.
+
+Sin esta opción se conservan las diagonales completas y el formato v4.
+Las tablas restringidas usan el esquema independiente descrito más abajo,
+incluso con `--score-region 0:0`, que incluye las 1.600 celdas.
+
 `--threads N` entrena hasta N celdas independientes de una misma diagonal en
 paralelo; el valor predeterminado es 1. Con `--threads-per-cell 1`, cada celda
 conserva su semilla, recorrido MCCFR y evaluación, por lo que cambiar solo
@@ -538,7 +574,12 @@ un esquema distinto del de `ordago`, que incluye objetivo, marcador y una
 huella de las continuaciones superiores. No se pueden intercambiar entre
 marcadores, objetivos, versiones de mus o tablas distintas.
 
-El esquema actual es `mus.ordago-score/v4`. **Las tablas y checkpoints de `v1`,
+El esquema predeterminado es `mus.ordago-score/v4`. Una tabla creada con
+`--score-region` usa una cabecera `mus.ordago-score-region/v1` con
+`region=A:B`; sus checkpoints y TXT incluyen `/region-A-B` en el esquema.
+Aunque las políticas coincidan, esos archivos no son intercambiables con los
+de v4: la cobertura y la huella de continuaciones forman parte de su identidad.
+**Las tablas y checkpoints de `v1`,
 `v2` y `v3` no son compatibles y requieren un entrenamiento nuevo en otro directorio.**
 `v3` usa otra abstracción de historial y otros menús; su incompatibilidad no
 implica un error de tanteo. En cambio, `v1` y `v2` adelantaban el cobro de lances

@@ -11,8 +11,14 @@ Se necesitan tres recursos de la misma configuración de un mus:
 
 1. La estrategia genérica `ordago-public/v1-muses-1` o la histórica
    `ordago/v9-muses-1`, exportada como TXT ordenado.
-2. La tabla `continuacion/values.txt` de `ordago-score/v4`.
+2. La tabla `continuacion/values.txt` de `ordago-score/v4` o
+   `mus.ordago-score-region/v1`.
 3. Los TXT `score-AA-BB.txt` de **todas las celdas publicadas** de esa tabla.
+
+Una tabla creada con `--score-region A:B` solo exige los TXT de su región.
+Los marcadores iniciales excluidos usan la política genérica. La tabla y cada
+TXT deben compartir cobertura y esquema; no mezcle exports de una tabla
+completa con los de una región.
 
 La genérica pública usa los mismos campos `hand_start_scores` y
 `pending_wager_total` para las manos cuyo marcador inicial no esté entrenado.

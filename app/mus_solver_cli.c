@@ -69,6 +69,9 @@ typedef struct {
     unsigned int score_a;
     unsigned int score_b;
     bool score_set;
+    bool score_region_set;
+    unsigned int region_a;
+    unsigned int region_b;
     bool target_set;
     bool evaluation_samples_set;
     const char *preload_ordago_path;
@@ -124,6 +127,8 @@ static bool print_usage(FILE *stream, const char *program) {
                "                          Recalcula continuaciones por diagonal y guarda\n"
                "                          en otro --continuation; conserva el origen.\n"
                "  --score A:B            Marcador inicial (0:0 por defecto).\n"
+               "  --score-region A:B     Limita la tabla a continuaciones de A:B y B:A.\n"
+               "                          Sin --score, empieza desde A:B.\n"
                "  --target N             Objetivo de ordago-score (40 por defecto).\n"
                "  --evaluation-samples N Manos para evaluar cada celda (10000).\n"
                "                          En ordago-score, --iterations se aplica\n"
@@ -177,6 +182,19 @@ static bool parse_seed(const char *text, uint64_t *value_out) {
     if (errno != 0 || end == text || *end != '\0' || value > UINT64_MAX)
         return false;
     *value_out = (uint64_t)value;
+    return true;
+}
+
+static bool parse_score_pair(const char *text, unsigned int *a, unsigned int *b) {
+    const char *separator = strchr(text, ':');
+    if (separator == NULL || separator == text || separator - text > 2) return false;
+    char first[3] = {0};
+    memcpy(first, text, (size_t)(separator - text));
+    uint64_t left, right;
+    if (!parse_seed(first, &left) || !parse_seed(separator + 1, &right) ||
+        left >= MUS_ORDAGO_WAGER || right >= MUS_ORDAGO_WAGER) return false;
+    *a = (unsigned int)left;
+    *b = (unsigned int)right;
     return true;
 }
 
@@ -307,20 +325,14 @@ static bool parse_options(int argc, char *argv[], CliOptions *options) {
                 options->extend_continuation_dir[0] == '\0')
                 return false;
         } else if (strcmp(argument, "--score") == 0) {
-            if (options->score_set || !option_value(argc, argv, &index, &value))
+            if (options->score_set || !option_value(argc, argv, &index, &value) ||
+                !parse_score_pair(value, &options->score_a, &options->score_b))
                 return false;
-            const char *separator = strchr(value, ':');
-            if (separator == NULL || separator == value || separator - value > 2)
-                return false;
-            char first[3] = {0};
-            memcpy(first, value, (size_t)(separator - value));
-            uint64_t a, b;
-            if (!parse_seed(first, &a) || !parse_seed(separator + 1, &b) ||
-                a >= MUS_ORDAGO_WAGER || b >= MUS_ORDAGO_WAGER)
-                return false;
-            options->score_a = (unsigned int)a;
-            options->score_b = (unsigned int)b;
             options->score_set = true;
+        } else if (strcmp(argument, "--score-region") == 0) {
+            if (options->score_region_set || !option_value(argc, argv, &index, &value) ||
+                !parse_score_pair(value, &options->region_a, &options->region_b)) return false;
+            options->score_region_set = true;
         } else if (strcmp(argument, "--target") == 0) {
             if (options->target_set || !option_value(argc, argv, &index, &value) ||
                 !parse_size(value, &options->score_target) ||
@@ -358,6 +370,14 @@ static bool parse_options(int argc, char *argv[], CliOptions *options) {
     if (options->help)
         return true;
     if (options->format == CLI_FORMAT_ORDAGO_SCORE) {
+        if (options->score_region_set) {
+            if (options->region_a >= options->score_target ||
+                options->region_b >= options->score_target) return false;
+            if (!options->score_set) {
+                options->score_a = options->region_a;
+                options->score_b = options->region_b;
+            }
+        }
         if (options->extend_continuation_dir != NULL &&
             (!options->iterations_set || options->load_path != NULL || options->seed_set))
             return false;
@@ -388,7 +408,7 @@ static bool parse_options(int argc, char *argv[], CliOptions *options) {
                (options->iterations_set || options->evaluate || options->export_path != NULL);
     }
     if (options->continuation_dir != NULL || options->extend_continuation_dir != NULL || options->score_set ||
-        options->target_set || options->evaluation_samples_set ||
+        options->target_set || options->score_region_set || options->evaluation_samples_set ||
         options->preload_ordago_path != NULL || options->preload_weight_set ||
         options->threads_per_cell_set)
         return false;
@@ -872,7 +892,46 @@ static Status load_score_prior_source(const CliOptions *options,
 
 /* Resume one checkpoint against an immutable snapshot of continuation values.
  * The selected cell need not be published. Only higher diagonals are required. */
+static Status resolve_score_region(CliOptions *options, const MusScoreTable *table) {
+    if (options->score_region_set) {
+        const unsigned int low = options->region_a < options->region_b
+                                     ? options->region_a : options->region_b;
+        const unsigned int high = options->region_a < options->region_b
+                                      ? options->region_b : options->region_a;
+        if (!table->region_enabled || table->region_scores[0] != low ||
+            table->region_scores[1] != high) {
+            fprintf(stderr, "error: la region solicitada no coincide con la tabla\n");
+            return CFR_STATUS_INCOMPATIBLE_GAME;
+        }
+    } else if (table->region_enabled && !options->score_set) {
+        options->score_a = table->region_scores[0];
+        options->score_b = table->region_scores[1];
+    }
+    if (!mus_score_table_contains(table, options->score_a, options->score_b)) {
+        fprintf(stderr, "error: el marcador queda fuera de la region de la tabla\n");
+        return CFR_STATUS_INCOMPATIBLE_GAME;
+    }
+    if (table->region_enabled) {
+        size_t requested = 0, ready = 0;
+        for (unsigned int a = 0; a < table->target; ++a) {
+            for (unsigned int b = 0; b < table->target; ++b) {
+                if (a + b >= options->score_a + options->score_b &&
+                    mus_score_table_contains(table, a, b)) {
+                    requested++;
+                    ready += table->cells[a][b].ready ? 1U : 0U;
+                }
+            }
+        }
+        if (printf("score-region bounds=%u:%u requested_cells=%zu ready_cells=%zu\n",
+                   table->region_scores[0], table->region_scores[1], requested, ready) < 0)
+            return CFR_STATUS_IO_ERROR;
+    }
+    return CFR_STATUS_SUCCESS;
+}
+
 static int run_score_checkpoint(const CliOptions *options) {
+    CliOptions resolved = *options;
+    options = &resolved;
     MusScoreTable table;
     MusScoreGame game;
     InfoStore store = {0};
@@ -913,10 +972,12 @@ static int run_score_checkpoint(const CliOptions *options) {
         status = CFR_STATUS_INCOMPATIBLE_GAME;
         goto done;
     }
+    status = resolve_score_region(&resolved, &table);
+    if (status != CFR_STATUS_SUCCESS) goto done;
     const unsigned int sum = options->score_a + options->score_b;
     for (unsigned int a = 0; a < table.target; a += 1) {
         for (unsigned int b = 0; b < table.target; b += 1) {
-            if (a + b > sum && !table.cells[a][b].ready) {
+            if (a + b > sum && mus_score_table_contains(&table, a, b) && !table.cells[a][b].ready) {
                 fprintf(stderr, "error: falta el valor de continuacion %u:%u\n", a, b);
                 status = CFR_STATUS_NOT_FOUND;
                 goto done;
@@ -1037,17 +1098,25 @@ static Status read_score_extension(const CliOptions *options, MusScoreTable *sou
         return status;
     if (source->target != options->score_target)
         return CFR_STATUS_INCOMPATIBLE_GAME;
+    return CFR_STATUS_SUCCESS;
+}
+
+/* Validate only the destination's requested cells, after loading its persisted
+ * coverage. A restricted source cannot satisfy a larger destination region. */
+static Status check_score_extension_coverage(const CliOptions *options,
+    const MusScoreTable *source, const MusScoreTable *destination) {
     for (unsigned int a = 0; a < source->target; ++a) {
         for (unsigned int b = 0; b < source->target; ++b) {
-            if (a + b < options->score_a + options->score_b)
+            if (a + b < options->score_a + options->score_b ||
+                !mus_score_table_contains(destination, a, b))
                 continue;
             const MusScoreCell *cell = &source->cells[a][b];
             if (!cell->ready)
                 return CFR_STATUS_NOT_FOUND;
             if (cell->iterations > SIZE_MAX - options->iterations)
                 return CFR_STATUS_INVALID_ARGUMENT;
-            path = score_cell_path(options->extend_continuation_dir, a, b);
-            stream = path == NULL ? NULL : fopen(path, "rb");
+            char *path = score_cell_path(options->extend_continuation_dir, a, b);
+            FILE *stream = path == NULL ? NULL : fopen(path, "rb");
             free(path);
             if (stream == NULL)
                 return CFR_STATUS_IO_ERROR;
@@ -1166,12 +1235,17 @@ static Status load_score_extension_cell(const MusScoreGame *game, MusGameState *
 static int run_score(const CliOptions *options) {
     if (options->load_path != NULL)
         return run_score_checkpoint(options);
+    CliOptions resolved = *options;
+    options = &resolved;
     MusScoreTable source_table;
     const MusScoreExtension extension = {
         .table = &source_table, .load_cell = load_score_extension_cell, .context = (void *)options,
     };
     MusScoreTable table;
-    Status status = mus_score_table_init(&table, (unsigned int)options->score_target);
+    Status status = options->score_region_set
+        ? mus_score_table_init_region(&table, (unsigned int)options->score_target,
+                                      options->region_a, options->region_b)
+        : mus_score_table_init(&table, (unsigned int)options->score_target);
     InfoStore store = {0};
     bool store_initialized = false;
     MusGameState state;
@@ -1193,6 +1267,7 @@ static int run_score(const CliOptions *options) {
     };
     char *path = score_path(options->continuation_dir, "values.txt");
     int lock = -1, source_lock = -1;
+    bool new_table = false;
     if (path == NULL) {
         status = CFR_STATUS_OUT_OF_MEMORY;
         goto done;
@@ -1247,8 +1322,16 @@ static int run_score(const CliOptions *options) {
     } else if (errno != ENOENT || !options->iterations_set) {
         status = CFR_STATUS_IO_ERROR;
         goto done;
+    } else {
+        new_table = true;
     }
+    status = resolve_score_region(&resolved, &table);
+    if (status != CFR_STATUS_SUCCESS) goto done;
     if (options->iterations_set) {
+        if (options->extend_continuation_dir != NULL) {
+            status = check_score_extension_coverage(options, &source_table, &table);
+            if (status != CFR_STATUS_SUCCESS) goto done;
+        }
         status = check_score_extension_manifest(options,
             options->extend_continuation_dir == NULL ? NULL : &source_table, &table);
         if (status != CFR_STATUS_SUCCESS)
@@ -1257,6 +1340,11 @@ static int run_score(const CliOptions *options) {
             status = load_score_prior_source(options, &preload_state, &preload_store, &preload_trainer);
             if (status != CFR_STATUS_SUCCESS)
                 goto done;
+        }
+        /* Preserve explicit coverage even if the first cell is interrupted. */
+        if (new_table && table.region_enabled) {
+            status = save_score_diagonal(&table, &persistence);
+            if (status != CFR_STATUS_SUCCESS) goto done;
         }
         if (!print_score_resume(&table, options,
                 options->extend_continuation_dir == NULL ? NULL : &source_table) || fflush(stdout) != 0) {

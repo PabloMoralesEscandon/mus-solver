@@ -44,7 +44,7 @@ rendimiento del bot desplegado son métricas diferentes.
 | J06 | Usar operaciones de confianza en la evaluación exacta local | Completado |
 | J07 | Mezclar bits en la tabla de mejor respuesta | Completado |
 | J08 | Reutilizar celdas terminadas de una diagonal interrumpida | Completado |
-| J09 | Región opcional de continuaciones cerrada por incrementos y giro | Pendiente |
+| J09 | Región opcional de continuaciones cerrada por incrementos y giro | Completado |
 | J10 | Incertidumbre y presupuesto de evaluación | Pendiente |
 | J11 | Precisar el alcance del diagnóstico de repartos fijos | Pendiente |
 | J12 | Evaluar partidas con la política desplegada del bot | Pendiente |
@@ -695,3 +695,56 @@ configuración, la prueba de interrupción usa 100 iteraciones por celda en luga
 de 500: con 500, la reanudación agotaba el plazo de 30 s de la prueba. Se
 mantienen SIGKILL, recuperación efectiva e igualdad de contenido y fecha.
 Las condiciones de validación de las revisiones quedan satisfechas.
+
+
+## J09: regiones de marcadores opcionales
+
+`--score-region A:B` limita la cobertura a `(x >= A && y >= B)` o
+`(x >= B && y >= A)`. La unión conserva las continuaciones cuando aumentan
+los tantos y cambia la mano. La selección de diagonales, validación,
+ampliación, recuperación y bot respetan esa cobertura. Los límites ordenados
+se guardan antes de entrenar la primera celda y se infieren al reanudar.
+Unos límites explícitos distintos o un marcador excluido producen un error.
+
+El formato restringido `mus.ordago-score-region/v1` tiene identidad propia
+para tabla, checkpoints y TXT. La ruta sin la opción mantiene v4 y sus
+archivos exactos. Una ampliación exige solo las celdas solicitadas del destino,
+con el origen inmutable y bloqueado para lectura durante toda la operación.
+El bot usa la política genérica para marcadores iniciales excluidos.
+
+Las pruebas comprueban cierre, orientación, recuentos, valores y contenido
+CFR idéntico salvo esquema y su checksum; cubren regiones simétricas y
+asimétricas, uno/dos trabajadores, lectura estricta, continuación individual,
+ampliaciones completas/restringidas, recuperación y pérdida de la primera
+celda. El bot real selecciona tablas de 25 celdas y vuelve a la genérica fuera
+de cobertura. Pasan el núcleo, CLI y ASan/UBSan; el núcleo y CLI pasan también
+con dos muses. Los logs finales están en `/tmp/mus-review-j09-final-*.log`.
+La batería completa `make -j4 test` pasa en la revisión final, después de las
+mediciones; se cumple la última condición de verificación de Claude.
+
+Claude aprobó el código inicialmente y pidió documentación: tarea
+`task_2454d21e60a5`, dispatch `ctx_2b9cba16b8fd`, mensaje `msg_2d47aa4037a5`.
+Se documentaron los contratos y se añadió la publicación inicial de la
+cabecera vacía que sugirió. Revisión final **APPROVE**: tarea
+`task_e128e3a9ddc0`, dispatch `ctx_f48fdfc7aaea`, mensaje `msg_f8206f066685`.
+Los informes completos se conservan junto a las mediciones.
+
+[Rendimiento](review-performance/J09.json), tres pares alternados en CPU0,
+Btrfs, 1.000 iteraciones y 10.000 muestras por celda:
+
+| Carga desde 35:35 | Padre | Candidato | Cambio de tiempo |
+|---|---:|---:|---:|
+| Tabla habitual, 45 celdas | 3,7847 s | 3,9206 s | +3,59 % |
+| Ampliación habitual, 45 celdas | 4,0748 s | 3,9984 s | −1,87 % |
+| Región opcional, 45 → 25 celdas | 3,8098 s | 2,2086 s | −42,03 % |
+| Ampliación con región, 45 → 25 celdas | 4,1210 s | 2,3134 s | −43,86 % |
+
+Los cambios de RSS quedan entre −0,14 % y +0,21 %. En la ruta habitual todos
+los checkpoints y valores son idénticos. Con región coinciden los valores y
+metadatos de las 25 celdas comunes; sus esquemas son distintos deliberadamente.
+Todos los archivos de los orígenes se conservan.
+La [carga mínima](review-performance/J09-small.json), 100 tablas de 45 celdas
+con una iteración y una muestra, pasa de 0,7717 a 0,7820 s (+1,33 %), sin
+cambio de RSS ni diferencias en las políticas guardadas. No se activa ningún
+límite de regresión. Las medidas son de estas cargas; la reducción de celdas
+no garantiza el mismo ahorro en otros marcadores.

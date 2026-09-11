@@ -4262,8 +4262,7 @@ bool mus_score_game_matches(const Game *game) {
 
 Status mus_score_game_init(MusScoreGame *score_game, const MusScoreTable *table,
                            unsigned int a, unsigned int b) {
-    if (score_game == NULL || table == NULL || table->target == 0 ||
-        table->target > MUS_ORDAGO_WAGER || a >= table->target || b >= table->target)
+    if (score_game == NULL || !mus_score_table_contains(table, a, b))
         return CFR_STATUS_INVALID_ARGUMENT;
     score_game->continuation = table;
     score_game->initial_scores[0] = (uint8_t)a;

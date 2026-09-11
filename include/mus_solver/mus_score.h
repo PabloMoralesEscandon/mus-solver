@@ -6,6 +6,7 @@
 #include "mus_solver/mus_game.h"
 
 #define MUS_SCORE_SCHEMA_ID "mus.ordago-score/v4"
+#define MUS_SCORE_REGION_SCHEMA_ID "mus.ordago-score-region/v1"
 
 typedef struct {
     bool ready;
@@ -20,6 +21,10 @@ typedef struct {
  * The table must remain unchanged while its game trains or evaluates. */
 struct MusScoreTable {
     uint8_t target;
+    bool region_enabled;
+    /* Canonical ascending bounds. Required cells satisfy either orientation
+     * of (a >= region_scores[0], b >= region_scores[1]). */
+    uint8_t region_scores[MUS_GAME_PLAYER_COUNT];
     MusScoreCell cells[MUS_ORDAGO_WAGER][MUS_ORDAGO_WAGER];
 };
 
@@ -130,6 +135,11 @@ typedef Status (*MusScoreSaveCell)(const MusScoreGame *game,
 typedef Status (*MusScoreSaveDiagonal)(const MusScoreTable *table, void *context);
 
 Status mus_score_table_init(MusScoreTable *table, unsigned int target);
+Status mus_score_table_init_region(MusScoreTable *table, unsigned int target,
+                                  unsigned int a, unsigned int b);
+/* Includes only nonterminal scores. The region is closed under score increases
+ * and the player swap between hands. An ordinary table includes every cell. */
+bool mus_score_table_contains(const MusScoreTable *table, unsigned int a, unsigned int b);
 Status mus_score_table_read(FILE *stream, MusScoreTable *table);
 Status mus_score_table_write(FILE *stream, const MusScoreTable *table);
 Status mus_score_game_init(MusScoreGame *game, const MusScoreTable *table,
