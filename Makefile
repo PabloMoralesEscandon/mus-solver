@@ -145,23 +145,23 @@ dependencies:
 	$(MAKE) -C Simulador-Mus test-release
 
 cfr-release:
-	$(MAKE) -C C-CFR BUILD_DIR=$(CFR_BUILD_DIR) \
+	$(MAKE) -C C-CFR -f Makefile -f $(abspath make/cfr-config.mk) BUILD_DIR=$(CFR_BUILD_DIR) \
 		CFLAGS='$(CFLAGS) $(RELEASE_LTO_FLAGS)' \
 		RELEASE_FLAGS='$(RELEASE_FLAGS) -DNDEBUG' \
 		LDFLAGS='$(LDFLAGS) $(RELEASE_LINK_FLAGS)' \
 		$(CFR_BUILD_DIR)/release/libcfr.a
 
 cfr-debug:
-	$(MAKE) -C C-CFR BUILD_DIR=$(CFR_BUILD_DIR) CFLAGS='$(CFLAGS)' \
+	$(MAKE) -C C-CFR -f Makefile -f $(abspath make/cfr-config.mk) BUILD_DIR=$(CFR_BUILD_DIR) CFLAGS='$(CFLAGS)' \
 		LDFLAGS='$(LDFLAGS)' $(CFR_BUILD_DIR)/debug/libcfr.a
 
-$(RELEASE_LIBRARY): $(RELEASE_OBJECTS)
+$(RELEASE_LIBRARY): $(RELEASE_OBJECTS) $(RELEASE_DIR)/.mus-archive-config
 	@mkdir -p $(dir $@)
-	$(AR) rcs $@ $^
+	$(AR) rcs $@ $(RELEASE_OBJECTS)
 
-$(DEBUG_LIBRARY): $(DEBUG_OBJECTS)
+$(DEBUG_LIBRARY): $(DEBUG_OBJECTS) $(DEBUG_DIR)/.mus-archive-config
 	@mkdir -p $(dir $@)
-	$(AR) rcs $@ $^
+	$(AR) rcs $@ $(DEBUG_OBJECTS)
 
 $(RELEASE_BINARY): $(RELEASE_APP_OBJECT) $(RELEASE_LIBRARY) \
 		cfr-release
@@ -184,12 +184,12 @@ $(DEBUG_DIR)/mus_hotpaths_tests: $(DEBUG_DIR)/tests/test_mus_hotpaths.o \
 
 -include $(DEBUG_DIR)/tests/test_mus_hotpaths.d
 
-$(RELEASE_DIR)/%.o: %.c
+$(RELEASE_DIR)/%.o: %.c $(RELEASE_DIR)/.mus-compile-config
 	@mkdir -p $(dir $@)
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(THREAD_FLAGS) $(C_STANDARD) $(WARNINGS) \
 		$(RELEASE_FLAGS) $(DEPENDENCY_FLAGS) -c $< -o $@
 
-$(DEBUG_DIR)/%.o: %.c
+$(DEBUG_DIR)/%.o: %.c $(DEBUG_DIR)/.mus-compile-config
 	@mkdir -p $(dir $@)
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(THREAD_FLAGS) $(C_STANDARD) $(WARNINGS) \
 		$(DEBUG_FLAGS) $(DEPENDENCY_FLAGS) -c $< -o $@
@@ -239,3 +239,25 @@ $(DEBUG_DIR)/mus_ordago_public_tests: $(DEBUG_DIR)/tests/test_ordago_public.o \
 		$(DEBUG_CFR_LIBRARY) $(LDLIBS) -lm -o $@
 
 -include $(DEBUG_DIR)/tests/test_ordago_public.d
+
+include make/build-config.mk
+
+# json-c options apply only to the bot. Keep them out of shared object receipts.
+$(RELEASE_DIR)/.mus-json-config $(DEBUG_DIR)/.mus-json-config: private export MUS_BUILD_CONFIG := $(JSON_C_FLAGS)
+$(RELEASE_DIR)/.mus-json-config $(DEBUG_DIR)/.mus-json-config: private export MUS_MODE_CONFIG := $(JSON_C_LIBS)
+$(RELEASE_DIR)/.mus-json-config $(DEBUG_DIR)/.mus-json-config: mus-config-force
+	+@mkdir -p $(dir $@)
+	+@printf '%s\n%s\n' "$$MUS_BUILD_CONFIG" "$$MUS_MODE_CONFIG" > $@.tmp
+	+@if cmp -s $@.tmp $@; then rm -f $@.tmp; else mv -f $@.tmp $@; fi
+
+$(RELEASE_DIR)/app/mus_bot_cli.o: $(RELEASE_DIR)/.mus-json-config
+$(DEBUG_DIR)/app/mus_bot_cli.o: $(DEBUG_DIR)/.mus-json-config
+
+$(RELEASE_BINARY) $(RELEASE_DIR)/mus-bot $(RELEASE_DIR)/mus-match-eval \
+	$(RELEASE_DIR)/benchmark-score $(RELEASE_DIR)/benchmark-score-threads \
+	$(RELEASE_DIR)/benchmark-evaluation: $(RELEASE_DIR)/.mus-link-config
+$(DEBUG_BINARY) $(TEST_BINARY) $(DEBUG_DIR)/mus-bot $(DEBUG_DIR)/mus-match-eval \
+	$(DEBUG_DIR)/mus_match_tests $(DEBUG_DIR)/mus_hotpaths_tests \
+	$(DEBUG_DIR)/mus_adapter_tests $(DEBUG_DIR)/mus_adapter_candidates_tests \
+	$(DEBUG_DIR)/mus_adapter_configuration_tests $(DEBUG_DIR)/mus_ordago_public_tests: \
+	$(DEBUG_DIR)/.mus-link-config

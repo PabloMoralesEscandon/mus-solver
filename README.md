@@ -172,6 +172,22 @@ Para volver a permitir dos muses en una compilación independiente:
 make BUILD_DIR=build/two-muses MUS_MAX_MUSES=2
 ```
 
+El build registra las opciones efectivas por modo (`release`/`debug`). Cambiar
+`MUS_MAX_MUSES`, compilador o flags invalida los objetos afectados, también al
+volver a una configuración anterior. Se pueden usar directorios distintos para
+conservar varias configuraciones a la vez. Los registros de C-CFR se comprueban
+desde el Makefile principal, sin modificar el submódulo; una invocación directa
+de su Makefile no usa esta comprobación. No ejecute dos builds con configuraciones
+distintas simultáneamente sobre un mismo `BUILD_DIR` o `CFR_BUILD_DIR`.
+`python3 tests/test_build_config.py` comprueba los cambios de configuración en
+directorios temporales.
+`make -n` y `make -q` también comprueban y, si hace falta, actualizan estos
+registros; no compilan objetos. Así, la simulación refleja las dependencias
+reales y deja pendiente la compilación cuando cambia la configuración.
+Tras sustituir un compilador conservando su nombre, o cambiar variables externas
+como `CPATH`, use directorios nuevos o una limpieza completa: los registros
+comparan los comandos y flags de Make, no el contenido de las herramientas.
+
 Los artefactos principales son:
 
 - `build/release/mus-solver`

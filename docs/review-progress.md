@@ -55,7 +55,7 @@ rendimiento del bot desplegado son métricas diferentes.
 | J17 | Bloqueo ligado al proceso y contrato de durabilidad | Bloqueo completado; sincronización retirada por rendimiento, a la espera del usuario |
 | J18 | Reducir el coste de codificación y generación de candidatos | Completado |
 | J19 | Distribución y memoria de trabajadores por diagonal | Candidato retirado: límite de RSS confirmado; a la espera del usuario |
-| J20 | Invalidar objetos al cambiar la configuración | Pendiente |
+| J20 | Invalidar objetos al cambiar la configuración | Completado |
 | J21 | Evitar enlaces sin cambios conservando dependencias reales | Pendiente |
 | J22 | Dependencias, portabilidad y separación del simulador | Pendiente |
 | J23 | Matriz de pruebas, observabilidad y contratos menores | Pendiente |
@@ -1118,3 +1118,67 @@ dispatch `ctx_9e48de53ea50`, mensaje `msg_98714cae4f5a`;
 [revisión final](review-performance/J19-claude-gate.md). Aprobó la retirada.
 El informe muestra también la dispersión de memoria en la carga normal:
 una ejecución del candidato alcanzó 353,7 MiB, aunque su mediana fue 322,52 MiB.
+
+## J20: invalidación por configuración
+
+Los objetos dependen de un registro con el compilador y las opciones efectivas.
+El registro se compara en cada invocación y conserva su fecha cuando no cambia.
+Hay registros independientes para compilación, archivo estático y enlace, por
+modo; las opciones JSON del bot tienen su propio registro. Cambiar uno/dos muses
+invalida los objetos incluso al volver a un valor anterior.
+
+Un segundo Makefile, propiedad de este repositorio, añade los registros a los
+objetos de C-CFR durante la llamada recursiva. No se modifica ninguna fuente ni
+regla del submódulo. Por el uso de `$^` en su regla original de archivo, cambiar
+el archivador recompila sus objetos para provocar la reconstrucción del archivo.
+Las invocaciones directas del Makefile de C-CFR no cargan estos registros. Se
+requieren directorios separados para builds simultáneos de configuraciones
+incompatibles. J21 aborda por separado los enlaces innecesarios.
+
+**Precisión sobre las referencias anteriores:** el archivo conservado en
+`C-CFR/build/review-baseline/release/libcfr.a` contiene objetos LTO. Las secciones
+`.gnu.lto_*` y `.gnu.lto_.opts` del objeto `mccfr.o` muestran `-O3 -flto`.
+Las órdenes posteriores con `RELEASE_LTO_FLAGS=` reutilizaron ese archivo por
+este mismo defecto. Por tanto, las referencias descritas como «sin LTO» que
+usan dicho archivo tienen objetos de mus sin LTO y C-CFR con LTO. Los pares
+anteriores compartían esa misma biblioteca: esta precisión no cambia sus
+mediciones relativas, pero sí corrige la descripción de sus opciones efectivas.
+
+Una compilación limpia con el Makefile padre (`923d6e9`) y una compilación J20,
+ambas `-O3` sin LTO en los dos proyectos, producen los tres ejecutables
+`mus-solver`, `mus-bot` y `mus-match-eval` idénticos byte por byte. La medición J20
+compara además con los ejecutables conservados de J18 para registrar el efecto
+del paso desde aquella configuración mixta. No se atribuye ese efecto a un
+cambio del algoritmo.
+
+Validación: batería completa `make test`; prueba de integración con cambios
+1→2→1 muses, flags, compilador, archivador, separación de modos, opciones del bot
+y LTO activado/desactivado. La repetición sin cambios conserva objetos y
+registros. La guarda del adaptador se comprueba en ambas configuraciones.
+
+[Rendimiento J20](review-performance/J20.json), tres pares alternados, CPU 0:
+
+| Carga | Referencia J18 | J20 | Tiempo | RSS |
+|---|---:|---:|---:|---:|
+| Público, 500 iteraciones y guardado | 10,6847 s | 10,5310 s | −1,44 % | +0,006 % |
+| Marcador, 45 celdas, 1.000 iteraciones/10.000 muestras | 4,2575 s | 4,1004 s | −3,69 % | 0,00 % |
+| Histórico TXT, 1.000 partidas | 0,93885 s | 0,93336 s | −0,58 % | −1,15 % |
+| Público TXT, 10.000 partidas | 1,33251 s | 1,33189 s | −0,05 % | −0,29 % |
+
+Todos los checkpoints, valores y resultados de partidas coinciden. Ninguna
+carga activa el límite. Estas variaciones pequeñas no demuestran aceleración.
+
+También pasó el build `all` con LTO predeterminado en directorios nuevos.
+
+Claude aprobó la primera revisión (`task_c949dbfa2003`, `ctx_9193122f493f`,
+`msg_c6823b9ba5e2`) y recomendó corregir la simulación de Make. Las recetas de
+registros se ejecutan también con `-n`/`-q`: solo actualizan metadatos, permiten
+comparar las fechas reales y dejan la compilación pendiente. La prueba adicional
+comprueba que una simulación sin cambios no anuncia compilaciones y que una
+simulación de dos muses no toca objetos, seguida del build real correcto. Los
+tres ejecutables finales conservan los hashes medidos.
+
+Revisión final: **APPROVE**, tarea `task_84989db627c5`, dispatch
+`ctx_9d590849f2e7`, mensaje `msg_094625db13fa`. Los dos ajustes documentales
+pedidos se incorporaron tras pasar la prueba ampliada. Las recetas llevan `+`
+para comprobar metadatos también durante las simulaciones.
