@@ -1,3 +1,4 @@
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -318,9 +319,165 @@ static void test_paths_and_validation(void) {
     CHECK(mus_ordago_public_game_information_set_encode(&info, &encoded) == CFR_STATUS_INVALID_ARGUMENT);
     CHECK(encoded == -123);
 }
+static void test_score_translation(void) {
+    const unsigned int cells[][3] = {{40,0,0}, {40,10,23}, {40,38,35}, {5,3,2}};
+    uint32_t random = 7;
+    bool phases[MUS_PHASE_REDRAW_PLAYER_1 + 1] = {false};
+    bool paid[2] = {false}, pending = false;
+    for (size_t cell = 0; cell < sizeof(cells) / sizeof(*cells); ++cell) {
+        MusScoreTable table; MusScoreGame game;
+        OK(mus_score_table_init(&table, cells[cell][0]));
+        OK(mus_score_game_init(&game, &table, cells[cell][1], cells[cell][2]));
+        for (int sample = 0; sample < 200; ++sample) {
+            MusGameState s, generic;
+            OK(mus_score_game_state_init(&s, &game));
+            OK(mus_ordago_public_game_state_init(&generic));
+            if (sample % 4 == 0) {
+                const uint8_t game0[8] = {1,0,0,0,0,0,0,3};
+                const uint8_t game1[8] = {1,0,0,0,0,3,0,0};
+                deal(&game.game, &s, game0, game1);
+                deal(public_game(), &generic, game0, game1);
+            }
+            while (s.model.phase != MUS_PHASE_TERMINAL) {
+                Action actions[MUS_GAME_MAX_LEGAL_ACTIONS];
+                size_t n = menu(&game.game, &s, actions);
+                Actor actor;
+                OK(cfr_game_current_actor(&game.game, gs(&s), &actor));
+                if (actor.kind == CFR_ACTOR_PLAYER) {
+                    InfoSetKey forward = -1, reverse = -1;
+                    const InfoSetKey score_key = key(&game.game, &s);
+                    const InfoSetKey public_key = key(public_game(), &generic);
+                    OK(mus_score_information_set_from_ordago_public(&game, public_key, &forward));
+                    OK(mus_score_information_set_to_ordago_public(&game, score_key, &reverse));
+                    CHECK(forward == score_key && reverse == public_key);
+                    phases[s.model.phase] = true;
+                    paid[0] |= generic.model.paid_scores[0] != 0;
+                    paid[1] |= generic.model.paid_scores[1] != 0;
+                    pending |= generic.model.prior_wager_total != 0;
+                }
+                random = random * UINT32_C(1664525) + UINT32_C(1013904223);
+                if ((sample & 1) && n > 1 && actions[n - 1] == MUS_ACTION_ORDAGO) --n;
+                Action action = actions[(random >> 16) % n];
+                if (sample == 0)
+                    action = s.model.phase == MUS_PHASE_MUS_PLAYER_0 ? MUS_ACTION_NO_MUS : MUS_ACTION_PASS;
+                apply(&game.game, &s, action);
+                apply(public_game(), &generic, action);
+            }
+        }
+    }
+    CHECK(phases[MUS_PHASE_MUS_PLAYER_0] && phases[MUS_PHASE_MUS_PLAYER_1]);
+    CHECK(phases[MUS_PHASE_DISCARD_PLAYER_0] && phases[MUS_PHASE_DISCARD_PLAYER_1]);
+    CHECK(phases[MUS_PHASE_GRANDE] && phases[MUS_PHASE_CHICA] && phases[MUS_PHASE_PARES]);
+    CHECK(phases[MUS_PHASE_JUEGO]); CHECK(phases[MUS_PHASE_PUNTO]);
+    CHECK(paid[0]); CHECK(paid[1]); CHECK(pending);
+
+    MusScoreTable table; MusScoreGame game; MusGameState s;
+    OK(mus_score_table_init(&table, 40)); OK(mus_score_game_init(&game, &table, 38, 35));
+    OK(mus_ordago_public_game_state_init(&s)); deal(public_game(), &s, own, rivals[0]);
+    apply(public_game(), &s, MUS_ACTION_NO_MUS);
+    apply(public_game(), &s, MUS_ACTION_BET_TWO);
+    InfoSetKey result = -123;
+    CHECK(mus_score_information_set_from_ordago_public(&game, key(public_game(), &s), &result)
+          == CFR_STATUS_NOT_FOUND); /* 38 + 2 cannot be offered in the score cell. */
+    CHECK(result == -123);
+    apply(public_game(), &s, MUS_ACTION_REJECT);
+    MusOrdagoInformationSet info;
+    OK(mus_ordago_public_game_information_set_decode(key(public_game(), &s), &info));
+    info.scores[0] = info.max_settled_score = 40;
+    InfoSetKey public_key;
+    OK(mus_ordago_public_game_information_set_encode(&info, &public_key));
+    CHECK(mus_score_information_set_from_ordago_public(&game, public_key, &result) == CFR_STATUS_NOT_FOUND);
+    CHECK(result == -123);
+    info.score_enabled = true; info.scores[0] = info.max_settled_score = 37;
+    info.scores[1] = 35;
+    InfoSetKey score_key;
+    OK(mus_score_game_information_set_encode(&info, 40, &score_key));
+    CHECK(mus_score_information_set_to_ordago_public(&game, score_key, &result) == CFR_STATUS_INVALID_ARGUMENT);
+    CHECK(result == -123);
+    CHECK(mus_score_information_set_from_ordago_public(NULL, public_key, &result) == CFR_STATUS_INVALID_ARGUMENT);
+    CHECK(mus_score_information_set_from_ordago_public(&game, -1, &result) == CFR_STATUS_INVALID_ARGUMENT);
+    CHECK(mus_score_information_set_to_ordago_public(&game, -1, &result) == CFR_STATUS_INVALID_ARGUMENT);
+    CHECK(result == -123);
+    game.initial_scores[0] = 40;
+    CHECK(mus_score_information_set_to_ordago_public(&game, score_key, &result) == CFR_STATUS_INVALID_ARGUMENT);
+    CHECK(result == -123);
+}
+
+static void test_public_preload(void) {
+    MusScoreTable table; MusScoreGame game; MusGameState s;
+    OK(mus_score_table_init(&table, 40)); OK(mus_score_game_init(&game, &table, 35, 32));
+    OK(mus_ordago_public_game_state_init(&s)); deal(public_game(), &s, own, rivals[0]);
+    InfoSetKey source_keys[8], score_keys[8]; size_t total = 0;
+    source_keys[total++] = key(public_game(), &s);
+    apply(public_game(), &s, MUS_ACTION_NO_MUS);
+    source_keys[total++] = key(public_game(), &s);
+    apply(public_game(), &s, MUS_ACTION_BET_TWO); apply(public_game(), &s, MUS_ACTION_REJECT);
+    source_keys[total++] = key(public_game(), &s);
+    apply(public_game(), &s, MUS_ACTION_BET_TWO); apply(public_game(), &s, MUS_ACTION_ACCEPT);
+    source_keys[total++] = key(public_game(), &s);
+    close_pass(public_game(), &s);
+    source_keys[total++] = key(public_game(), &s);
+    CHECK(s.model.phase == MUS_PHASE_PUNTO);
+    InfoStore source = {0}, eager = {0}, lazy = {0};
+    OK(cfr_info_store_init(&source)); OK(cfr_info_store_init(&eager)); OK(cfr_info_store_init(&lazy));
+    Trainer trainer = {.game = public_game(), .store = &source};
+    MusScorePreloadOptions options = {.source = &trainer, .weight = 2, .uniform_mix = 0.05};
+    for (size_t k = 0; k < total; ++k) {
+        MusOrdagoInformationSet info; Action actions[MUS_GAME_MAX_LEGAL_ACTIONS]; size_t n;
+        OK(mus_ordago_public_game_information_set_decode(source_keys[k], &info));
+        OK(mus_ordago_game_information_set_legal_actions(&info, actions, MUS_GAME_MAX_LEGAL_ACTIONS, &n));
+        InfoNode *node; Utility mass[MUS_GAME_MAX_LEGAL_ACTIONS];
+        OK(cfr_info_store_get_or_create(&source, source_keys[k], n, &node));
+        for (size_t a = 0; a < n; ++a) mass[a] = (double)(1 + actions[a]);
+        OK(cfr_info_node_apply_deltas(node, mass, mass, n));
+        OK(mus_score_information_set_from_ordago_public(&game, source_keys[k], &score_keys[k]));
+    }
+    MusScorePreloadStats eager_stats, lazy_stats; MusScorePrior binding;
+    OK(mus_score_preload_ordago(&game, &options, &eager, &eager_stats));
+    CHECK(eager_stats.source_nodes == total && eager_stats.imported_nodes == total);
+    CHECK(eager_stats.imported_later_nodes == 3 && eager_stats.skipped_history_nodes == 0);
+    OK(mus_score_prior_attach(&binding, &game, &options, &lazy, &lazy_stats));
+    for (size_t k = 0; k < total; ++k) {
+        MusOrdagoInformationSet info; Action actions[MUS_GAME_MAX_LEGAL_ACTIONS]; size_t n;
+        OK(mus_score_game_information_set_decode(score_keys[k], 40, &info));
+        OK(mus_ordago_game_information_set_legal_actions(&info, actions, MUS_GAME_MAX_LEGAL_ACTIONS, &n));
+        InfoNode *a, *b;
+        OK(cfr_info_store_find(&eager, score_keys[k], &a));
+        OK(cfr_info_store_get_or_create(&lazy, score_keys[k], n, &b));
+        double sum = 0;
+        for (size_t i = 0; i < n; ++i) sum += (double)(1 + actions[i]);
+        for (size_t i = 0; i < n; ++i) {
+            const double expected = 2 * (0.95 * (1 + actions[i]) / sum + 0.05 / (double)n);
+            CHECK(fabs(a->strategy_sums[i] - expected) < 1e-12);
+            CHECK(fabs(b->strategy_sums[i] - expected) < 1e-12);
+            CHECK(fabs(b->regret_sums[i] - expected) < 1e-12);
+        }
+    }
+    CHECK(lazy_stats.imported_nodes == total && lazy_stats.imported_later_nodes == 3);
+    CHECK(lazy_stats.missing_source_nodes == 0);
+    OK(mus_score_preload_ordago(&game, &options, &eager, &eager_stats));
+    CHECK(eager_stats.existing_nodes == total && eager_stats.imported_nodes == 0);
+    /* A response missing from the source keeps zero learning arrays. */
+    apply(public_game(), &s, MUS_ACTION_ORDAGO);
+    InfoSetKey missing; OK(mus_score_information_set_from_ordago_public(&game, key(public_game(), &s), &missing));
+    InfoNode *node; OK(cfr_info_store_get_or_create(&lazy, missing, 2, &node));
+    CHECK(lazy_stats.missing_source_nodes == 1);
+    CHECK(node->strategy_sums[0] == 0 && node->strategy_sums[1] == 0);
+    /* Reject descriptors with a public schema but the wrong operations. */
+    Game fake = *public_game(); fake.operations = mus_game_descriptor()->operations;
+    fake.trusted_operations = NULL; trainer.game = &fake;
+    CHECK(mus_score_prior_attach(&binding, &game, &options, &lazy, NULL) == CFR_STATUS_INCOMPATIBLE_GAME);
+    fake = *public_game(); fake.strategy_schema_id = MUS_ORDAGO_STRATEGY_SCHEMA_ID;
+    CHECK(mus_score_preload_ordago(&game, &options, &eager, NULL) == CFR_STATUS_INCOMPATIBLE_GAME);
+    trainer.game = NULL;
+    CHECK(mus_score_preload_ordago(&game, &options, &eager, NULL) == CFR_STATUS_INCOMPATIBLE_GAME);
+    cfr_info_store_destroy(&lazy); cfr_info_store_destroy(&eager); cfr_info_store_destroy(&source);
+}
+
 int main(void) {
     test_report_regressions(); test_count_and_ordago(); test_hidden_hands(); test_budget_after_uncovered_ordago();
     test_paid_forty_before_final_lance(); test_accepted_ordago_validation(); test_paths_and_validation();
+    test_score_translation(); test_public_preload();
     printf("Public ordago tests passed (%zu hidden-hand comparisons).\n", comparisons);
     return EXIT_SUCCESS;
 }

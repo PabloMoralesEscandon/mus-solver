@@ -36,7 +36,7 @@ rendimiento del bot desplegado son métricas diferentes.
 
 | Bloque | Trabajo | Estado |
 |---|---|---|
-| J01 | Modelo genérico sin información oculta y compatibilidad histórica | Núcleo/CLI completado con coste aceptado; adaptador/precarga pendientes |
+| J01 | Modelo genérico sin información oculta y compatibilidad histórica | Núcleo/CLI y precarga completados; coste del modelo aceptado; adaptador pendiente |
 | J02 | Recuento diferido en el simulador de dos/cuatro jugadores | Completado |
 | J03 | Reintento tras fallo al guardar una diagonal | Completado |
 | J04 | Rechazar TXT truncado a su cabecera | Completado |
@@ -386,3 +386,52 @@ No se atribuye esa variación pequeña a la guarda de validación, que no se eje
 en cada nodo de entrenamiento. Se conserva la limitación entre tandas descrita
 en J07. Las cifras finales y los comandos que generaron las referencias de los
 resúmenes están en `reintegration` del JSON de J01.
+
+## J01: precarga de la política pública
+
+La precarga identifica los esquemas genéricos histórico y público. Con el
+público traduce todos los lances mediante los cobros por jugador: suma el
+marcador inicial para importar a la celda y lo resta para consultar la genérica.
+No enumera posibles resultados ocultos. Descarta respuestas incompatibles con
+el presupuesto de la celda y conserva la masa por identidad de acción. Las
+rutas históricas mantienen sus reglas anteriores. Se admite origen binario
+normal o Zstandard, incluida la reanudación de checkpoints con marcador.
+
+Validación: comparación de las claves del modelo de mano aislada con las de
+partidas reales en 800 recorridos, cuatro combinaciones de objetivo y marcador,
+ambos jugadores, mus, descartes y todos los lances. Se comprueban pagos a ambos
+jugadores, envites pendientes, respuestas fuera del presupuesto, cobros hasta
+40, resultados conservados ante errores, masa transferida, nodos existentes y
+orígenes ausentes o incompatibles. Las pruebas del modelo pasan con uno y dos
+muses y con ASan/UBSan. Se corrigió un error de tamaño en el registro de fases
+de la prueba nueva antes de finalizar la validación.
+
+La batería completa `make -j4 test` pasa. El CLI también pasa con dos muses.
+Las pruebas de CLI comparan los nueve
+checkpoints de una tabla de objetivo 3 precargada desde los dos tipos de archivo,
+con distintos números de trabajadores, y su reanudación; conservan el origen.
+
+[Rendimiento y script reproducible](review-performance/J01-preload.json): tres
+pares alternados, CPU0, semilla 7, sin otras pruebas ni compilaciones propias.
+El padre es `eb6bd55`. Entrenamiento público de 500 iteraciones: 5,7932 → 5,4969 s
+(−5,11 %), RSS −0,12 %, mismos contadores. Tabla de 45 celdas, 1.000 iteraciones y
+10.000 muestras por celda: 3,7056 → 3,6293 s sin prior (−2,06 %), y
+5,0457 → 4,9461 s con prior histórico (−1,97 %); RSS sin cambios. Los 46 archivos
+coinciden byte a byte entre versiones en cada carga. Estas variaciones pequeñas
+no demuestran una aceleración atribuible al cambio.
+
+La ruta nueva con prior público no tenía implementación anterior. Su medida
+absoluta con un origen de 20 iteraciones es 4,9314 s y 109.444 KiB de RSS.
+Los orígenes históricos y públicos de esa prueba pesan 13.416.467 y 41.923.809
+bytes, respectivamente. Cargar la política pública incorpora el almacén mayor
+del modelo cuyo coste fue aceptado; no se presenta como una regresión adicional
+de las rutas existentes ni como una comparación de políticas equivalentes.
+
+Revisión inicial: `task_5e837ddbd6bf`, dispatch `ctx_9d72c32d40f7`,
+`msg_d42307be8547`: pidió corregir el comando de generación del archivo
+comprimido de la prueba. La corrección y la repetición de las comprobaciones
+recibieron **APPROVE** en `task_265194a233be`, dispatch `ctx_3071ca949edd`,
+mensaje `msg_3c5d5ae78461`. [Informe final](review-performance/J01-preload-claude.md).
+La identidad persistida del prior queda para J08/J17; la documentación ya
+advierte que `values.txt` no conserva esa configuración. El adaptador sigue
+pendiente y conserva el límite original para cualquier regresión adicional.

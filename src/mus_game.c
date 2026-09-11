@@ -4120,6 +4120,56 @@ Status mus_score_information_set_from_ordago(
     return status == CFR_STATUS_INVALID_ARGUMENT ? CFR_STATUS_NOT_FOUND : status;
 }
 
+static Status translate_ordago_public_key(const MusScoreGame *game,
+                                           InfoSetKey key, bool to_score,
+                                           InfoSetKey *result) {
+    if (game == NULL || !mus_score_game_matches(&game->game) ||
+        game->continuation == NULL || result == NULL ||
+        game->continuation->target == 0 || game->continuation->target > MUS_ORDAGO_WAGER ||
+        game->initial_scores[0] >= game->continuation->target ||
+        game->initial_scores[1] >= game->continuation->target)
+        return CFR_STATUS_INVALID_ARGUMENT;
+    MusOrdagoInformationSet information;
+    Status status = to_score
+        ? mus_ordago_public_game_information_set_decode(key, &information)
+        : mus_score_game_information_set_decode(key, game->continuation->target, &information);
+    if (status != CFR_STATUS_SUCCESS)
+        return status;
+    if (information.hand_kind == MUS_ORDAGO_HAND_EXACT) {
+        *result = key;
+        return CFR_STATUS_SUCCESS;
+    }
+    for (int player = 0; player < MUS_GAME_PLAYER_COUNT; ++player) {
+        const int initial = game->initial_scores[player];
+        const int score = information.scores[player] + (to_score ? initial : -initial);
+        if (score < 0)
+            return CFR_STATUS_INVALID_ARGUMENT;
+        if (to_score && score >= game->continuation->target)
+            return CFR_STATUS_NOT_FOUND;
+        information.scores[player] = (uint8_t)score;
+    }
+    information.max_settled_score = information.scores[0] > information.scores[1]
+        ? information.scores[0] : information.scores[1];
+    information.score_enabled = to_score;
+    InfoSetKey translated;
+    status = to_score
+        ? mus_score_game_information_set_encode(&information, game->continuation->target, &translated)
+        : mus_ordago_public_game_information_set_encode(&information, &translated);
+    if (status == CFR_STATUS_SUCCESS)
+        *result = translated;
+    return to_score && status == CFR_STATUS_INVALID_ARGUMENT ? CFR_STATUS_NOT_FOUND : status;
+}
+
+Status mus_score_information_set_from_ordago_public(
+    const MusScoreGame *game, InfoSetKey source_key, InfoSetKey *result) {
+    return translate_ordago_public_key(game, source_key, true, result);
+}
+
+Status mus_score_information_set_to_ordago_public(
+    const MusScoreGame *game, InfoSetKey key, InfoSetKey *result) {
+    return translate_ordago_public_key(game, key, false, result);
+}
+
 Status mus_score_information_set_ordago_candidates(
     const MusScoreGame *game, InfoSetKey key, InfoSetKey *keys,
     size_t capacity, size_t *count) {

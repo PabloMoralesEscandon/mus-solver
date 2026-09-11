@@ -31,7 +31,7 @@ typedef struct {
 } MusScoreGame;
 
 typedef struct {
-    /* Borrow an ordago trainer whose store remains unchanged during use. */
+    /* Borrow an ordago or ordago-public trainer with an immutable store. */
     const Trainer *source;
     /* Synthetic regret and average-strategy mass per imported node. */
     double weight;
@@ -140,8 +140,19 @@ Status mus_score_game_information_set_encode(
 Status mus_score_information_set_from_ordago(
     const MusScoreGame *game, InfoSetKey source_key,
     unsigned int earned_a, unsigned int earned_b, InfoSetKey *result);
-/* Import mus, discard, and grande average policies into missing nodes of an
- * initialized store. Skip later lances and unreachable response nodes.
+/* Translate ordago-public keys in any lance by adding the cell's initial
+ * scores to public payments. Return NOT_FOUND if the match has ended or its
+ * wager budget excludes the response. An error preserves result. */
+Status mus_score_information_set_from_ordago_public(
+    const MusScoreGame *game, InfoSetKey source_key, InfoSetKey *result);
+/* Translate a score key to one ordago-public key by subtracting the cell's
+ * initial scores. A score below its initial value is invalid. Mus and discard
+ * keys are unchanged. An error preserves result. */
+Status mus_score_information_set_to_ordago_public(
+    const MusScoreGame *game, InfoSetKey key, InfoSetKey *result);
+/* Import average policies into missing nodes of an initialized store. With a
+ * legacy ordago source, import only mus, discard, and grande. With an
+ * ordago-public source, import all lances. Skip unreachable response nodes.
  * Map probabilities by action identity and seed synthetic positive regrets.
  * Do not copy source regrets, iteration counters, RNG, or continuation values.
  * Existing nodes are preserved. Requires exclusive access to destination.
@@ -160,9 +171,11 @@ Status mus_score_preload_ordago(const MusScoreGame *game,
 Status mus_score_information_set_ordago_candidates(
     const MusScoreGame *game, InfoSetKey key, InfoSetKey *keys,
     size_t capacity, size_t *count);
-/* Seed every new node, in all lances, from compatible legacy average policies.
- * Combine their strategy sums, restrict by action identity, and apply the
- * configured uniform mixture. A missing source policy leaves a uniform node.
+/* Seed every new node, in all lances, from compatible ordago average policies.
+ * An ordago-public source has one key per score decision. A legacy source has
+ * candidate keys whose strategy sums are combined. Restrict by action identity
+ * and apply the configured uniform mixture. A missing source policy leaves a
+ * uniform node.
  * Existing nodes are preserved. Requires exclusive destination access during
  * attachment. The source and binding must outlive subsequent insertions.
  * Checkpoints retain seeded arrays but not this binding. Attach it again after

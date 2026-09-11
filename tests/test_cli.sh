@@ -623,4 +623,35 @@ grep -q 'report iterations=12 threads=2' "$tmp_dir/public-parallel.out"
     --iterations 2 --threads 2 >"$tmp_dir/public-parallel-resumed.out"
 grep -q 'report iterations=14 threads=2' "$tmp_dir/public-parallel-resumed.out"
 
+# Both public checkpoint encodings seed all score lances without changing the source.
+cp "$tmp_dir/public.cfr" "$tmp_dir/public-preserved.cfr"
+"$solver" --format ordago-public --iterations 10 --seed 7 \
+    --save-compressed "$tmp_dir/public-prior.zst" >"$tmp_dir/public-prior.out"
+"$solver" --format ordago-score --target 3 --iterations 2 --seed 7 \
+    --evaluation-samples 20 --continuation "$tmp_dir/public-score" \
+    --preload-ordago "$tmp_dir/public.cfr" >"$tmp_dir/public-score.out"
+grep -q 'schema=mus.heads-up-single-hand.ordago-public/v1-muses-' "$tmp_dir/public-score.out"
+grep -Eq 'imported_later_nodes=[1-9]' "$tmp_dir/public-score.out"
+"$solver" --format ordago-score --target 3 --iterations 2 --seed 7 --threads 3 \
+    --evaluation-samples 20 --continuation "$tmp_dir/public-score-zstd" \
+    --preload-ordago-compressed "$tmp_dir/public-prior.zst" >"$tmp_dir/public-score-zstd.out"
+cmp "$tmp_dir/public-score/values.txt" "$tmp_dir/public-score-zstd/values.txt"
+for checkpoint in "$tmp_dir/public-score/"*.zst; do
+    name=${checkpoint##*/}
+    cmp "$checkpoint" "$tmp_dir/public-score-zstd/$name"
+done
+for encoding in raw zstd; do
+    set -- --preload-ordago "$tmp_dir/public.cfr"
+    if [ "$encoding" = zstd ]; then
+        set -- --preload-ordago-compressed "$tmp_dir/public-prior.zst"
+    fi
+    "$solver" --format ordago-score --target 3 --score 2:2 \
+        --continuation "$tmp_dir/public-score" \
+        --load-compressed "$tmp_dir/public-score/score-02-02.cfr.zst" \
+        --iterations 2 "$@" --save-compressed "$tmp_dir/public-score-resume-$encoding.zst" \
+        >"$tmp_dir/public-score-resume-$encoding.out"
+done
+cmp "$tmp_dir/public-score-resume-raw.zst" "$tmp_dir/public-score-resume-zstd.zst"
+cmp "$tmp_dir/public.cfr" "$tmp_dir/public-preserved.cfr"
+
 echo "Todas las pruebas de CLI pasaron."

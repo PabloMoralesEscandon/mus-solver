@@ -126,11 +126,11 @@ El esquema nuevo exige reentrenar. `ordago` mantiene su esquema histórico v9,
 sus lectores y su comportamiento, incluida la dependencia de resultados
 ocultos descrita en la revisión J01. No se reinterpretan esos checkpoints.
 Las tablas `ordago-score/v4` conservan su identidad y su contabilidad pública.
-En este primer bloque se admite entrenar, reanudar, exportar y ejecutar el
+Se admite entrenar, reanudar, exportar, precargar tablas con marcador y ejecutar el
 diagnóstico `bounded-final-lances` de `ordago-public`. Ese diagnóstico fija las
 dos manos; no mide la explotabilidad desde la raíz. La conexión de esta nueva
-política con el adaptador y la precarga se realiza en un bloque posterior;
-los lectores actuales de esas rutas rechazan su esquema.
+política con el adaptador se realiza en un bloque posterior;
+sus lectores actuales rechazan el esquema nuevo.
 
 ```sh
 ./build/release/mus-solver --format ordago-public --iterations 10000 --seed 7 \
@@ -335,9 +335,10 @@ conservan la abstracción `ordago-score/v4`. La evaluación restaura solo el est
 activo entre muestras. El [benchmark de rendimiento](docs/performance.md)
 permite medir iteraciones por segundo y comprobar que los resultados coinciden.
 
-### Precarga desde `ordago` sin marcador
+### Precarga desde `ordago` u `ordago-public` sin marcador
 
-Puede reutilizarse la **estrategia media** de un checkpoint de `ordago` como
+Puede reutilizarse la **estrategia media** de un checkpoint de `ordago` u
+`ordago-public` como
 política inicial de cada celda pendiente:
 
 ```sh
@@ -350,7 +351,7 @@ build/release/mus-solver \
 ```
 
 Para checkpoints sin compresión se usa `--preload-ordago ordago.cfr`.
-La carga valida el esquema de `ordago`, incluida la configuración de uno o dos
+La carga identifica y valida el esquema de origen, incluida la configuración de uno o dos
 muses. No acepta exportaciones de texto, otros formatos de juego ni checkpoints
 de ninguna versión de `ordago-score`.
 
@@ -359,7 +360,13 @@ grande, chica, pares y juego/punto. Comparte una sola estrategia genérica en RA
 entre las celdas activas. No recorre ni copia todos sus nodos para cada marcador.
 
 Para traducir una decisión, calcula por jugador `cobrado = marcador actual −
-marcador inicial de la celda`. Reconstruye el acumulado antiguo sumando esos
+marcador inicial de la celda`. Con `ordago-public`, esos cobros y los envites
+pendientes identifican una sola decisión de origen en cualquier lance. Se
+conservan las demás observaciones públicas. La correspondencia de claves es
+exacta, aunque la política de mano aislada optimiza una utilidad distinta y
+no garantiza una mejora de convergencia en partidas.
+
+Con el `ordago` histórico, reconstruye el acumulado antiguo sumando esos
 cobros a los envites aceptados pendientes. Conserva la mano abstracta, jugador,
 lance, historial de mus, fuerza previa e incrementos del envite activo.
 El máximo de puntos calculados de la genérica incluía resultados todavía
@@ -399,10 +406,13 @@ implícito a la genérica. La precarga no cambia el esquema `ordago-score/v4`.
 La API de [mus_score.h](include/mus_solver/mus_score.h) ofrece
 `mus_score_prior_attach()` para instalar la inicialización de todos los lances
 en un almacén nuevo o restaurado. El origen permanece inmutable y el binding debe
-vivir mientras se creen nodos. Los helpers anteriores
-`mus_score_information_set_from_ordago()` y `mus_score_preload_ordago()` conservan
-su operación limitada a mus, descartes y grande por compatibilidad. El coordinador
-usa automáticamente el nuevo binding:
+vivir mientras se creen nodos. `mus_score_information_set_from_ordago()` conserva
+su operación limitada a mus, descartes y grande por compatibilidad. Los helpers
+`mus_score_information_set_from_ordago_public()` y
+`mus_score_information_set_to_ordago_public()` traducen todos los lances entre
+la genérica pública y la celda. `mus_score_preload_ordago()` importa todos los
+lances si el origen es público; mantiene la restricción a mus, descartes y grande
+con el origen histórico. El coordinador usa automáticamente el binding:
 
 ```c
 MusScorePreloadOptions prior = {

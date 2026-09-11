@@ -11,6 +11,17 @@ typedef struct {
     MusScorePreloadStats stats;
 } PreloadContext;
 
+static bool public_source(const MusScorePreloadOptions *options) {
+    return options->source->game->context == mus_ordago_public_game_descriptor()->context;
+}
+
+static Status decode_source(const MusScorePreloadOptions *options, InfoSetKey key,
+                            MusOrdagoInformationSet *information) {
+    return public_source(options)
+        ? mus_ordago_public_game_information_set_decode(key, information)
+        : mus_ordago_game_information_set_decode(key, information);
+}
+
 static Status preload_node(const InfoNode *source, void *raw_context) {
     PreloadContext *context = raw_context;
     context->stats.source_nodes += 1;
@@ -20,10 +31,12 @@ static Status preload_node(const InfoNode *source, void *raw_context) {
     Probability average[MUS_GAME_MAX_LEGAL_ACTIONS];
     Utility prior[MUS_GAME_MAX_LEGAL_ACTIONS];
     size_t old_count = 0, new_count = 0;
-    Status status = mus_ordago_game_information_set_decode(source->key, &information);
+    Status status = decode_source(context->options, source->key, &information);
     if (status != CFR_STATUS_SUCCESS)
         return CFR_STATUS_FORMAT_ERROR;
-    if (information.hand_kind != MUS_ORDAGO_HAND_EXACT && information.phase != MUS_PHASE_GRANDE) {
+    const bool later = information.hand_kind != MUS_ORDAGO_HAND_EXACT &&
+                       information.phase != MUS_PHASE_GRANDE;
+    if (!public_source(context->options) && later) {
         context->stats.skipped_history_nodes += 1;
         return CFR_STATUS_SUCCESS;
     }
@@ -35,7 +48,9 @@ static Status preload_node(const InfoNode *source, void *raw_context) {
     if (status != CFR_STATUS_SUCCESS)
         return status;
     InfoSetKey key;
-    status = mus_score_information_set_from_ordago(context->game, source->key, 0, 0, &key);
+    status = public_source(context->options)
+        ? mus_score_information_set_from_ordago_public(context->game, source->key, &key)
+        : mus_score_information_set_from_ordago(context->game, source->key, 0, 0, &key);
     if (status == CFR_STATUS_NOT_FOUND) {
         context->stats.skipped_illegal_nodes += 1;
         return CFR_STATUS_SUCCESS;
@@ -93,6 +108,8 @@ static Status preload_node(const InfoNode *source, void *raw_context) {
     if (status != CFR_STATUS_SUCCESS)
         return status;
     context->stats.imported_nodes += 1;
+    if (later)
+        context->stats.imported_later_nodes += 1;
     if (shared < new_count)
         context->stats.expanded_action_nodes += 1;
     return CFR_STATUS_SUCCESS;
@@ -111,7 +128,8 @@ static Status validate_preload(const MusScoreGame *game,
         !isfinite(options->uniform_mix) || options->uniform_mix <= 0 || options->uniform_mix > 1)
         return CFR_STATUS_INVALID_ARGUMENT;
     const Trainer *source = options->source;
-    const Game *expected = mus_ordago_game_descriptor();
+    const Game *expected = source->game != NULL && public_source(options)
+        ? mus_ordago_public_game_descriptor() : mus_ordago_game_descriptor();
     if (source->game == NULL || source->game->context != expected->context ||
         source->game->operations != expected->operations ||
         source->game->trusted_operations != expected->trusted_operations ||
@@ -161,8 +179,13 @@ static Status initialize_from_ordago(InfoNode *node, void *raw_context) {
         MUS_GAME_MAX_LEGAL_ACTIONS, &count);
     if (status != CFR_STATUS_SUCCESS || count != node->action_count)
         return CFR_STATUS_INVALID_ARGUMENT;
-    status = mus_score_information_set_ordago_candidates(context->game, node->key,
-        candidates, MUS_ORDAGO_WAGER + 1, &candidate_count);
+    if (public_source(options)) {
+        status = mus_score_information_set_to_ordago_public(context->game, node->key, &candidates[0]);
+        candidate_count = 1;
+    } else {
+        status = mus_score_information_set_ordago_candidates(context->game, node->key,
+            candidates, MUS_ORDAGO_WAGER + 1, &candidate_count);
+    }
     if (status != CFR_STATUS_SUCCESS)
         return status;
     bool found = false;
@@ -175,14 +198,14 @@ static Status initialize_from_ordago(InfoNode *node, void *raw_context) {
             return status;
         Action old_actions[MUS_GAME_MAX_LEGAL_ACTIONS];
         size_t old_count = 0;
-        status = mus_ordago_game_information_set_decode(source->key, &information);
+        status = decode_source(options, source->key, &information);
         if (status == CFR_STATUS_SUCCESS)
             status = mus_ordago_game_information_set_legal_actions(&information, old_actions,
                 MUS_GAME_MAX_LEGAL_ACTIONS, &old_count);
         if (status != CFR_STATUS_SUCCESS || source->action_count != old_count)
             return CFR_STATUS_FORMAT_ERROR;
-        /* The source is immutable. Summing strategy mass marginalizes the old
-         * settled-score feature with the source's accumulated reach weights. */
+        /* The source is immutable. With legacy candidates, summing strategy
+         * mass marginalizes the settled-score feature by accumulated weight. */
         for (size_t j = 0; j < old_count; ++j) {
             const double mass = source->strategy_sums[j];
             if (!isfinite(mass) || mass < 0)

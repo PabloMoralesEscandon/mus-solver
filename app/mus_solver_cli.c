@@ -129,7 +129,7 @@ static bool print_usage(FILE *stream, const char *program) {
                "                          al checkpoint del marcador elegido.\n"
                "                          Requiere --save[-compressed] fuera de DIR;\n"
                "                          conserva values.txt y admite --report-every.\n"
-               "  --preload-ordago FILE   Precarga la estrategia media de ordago.\n"
+               "  --preload-ordago FILE   Precarga ordago u ordago-public.\n"
                "  --preload-ordago-compressed FILE\n"
                "                          Precarga desde un checkpoint Zstandard.\n"
                "  --preload-weight X     Peso inicial por nodo (1 por defecto).\n"
@@ -803,6 +803,13 @@ static Status load_score_prior_source(const CliOptions *options,
         status = load_checkpoint(options->preload_ordago_path, mus_ordago_game_descriptor(),
             mus_game_state_as_game_state(*state), store, trainer,
             options->preload_ordago_compressed);
+    if (status == CFR_STATUS_INCOMPATIBLE_GAME) {
+        status = mus_ordago_public_game_state_init(*state);
+        if (status == CFR_STATUS_SUCCESS)
+            status = load_checkpoint(options->preload_ordago_path, mus_ordago_public_game_descriptor(),
+                mus_game_state_as_game_state(*state), store, trainer,
+                options->preload_ordago_compressed);
+    }
     if (status != CFR_STATUS_SUCCESS) {
         fprintf(stderr, "error: no se pudo precargar '%s': %s\n",
                 options->preload_ordago_path, status_name(status));
