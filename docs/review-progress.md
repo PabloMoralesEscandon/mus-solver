@@ -46,7 +46,7 @@ rendimiento del bot desplegado son métricas diferentes.
 | J08 | Reutilizar celdas terminadas de una diagonal interrumpida | Completado |
 | J09 | Región opcional de continuaciones cerrada por incrementos y giro | Completado |
 | J10 | Incertidumbre y presupuesto de evaluación | Completado; integración terminal ensayada sin activar |
-| J11 | Precisar el alcance del diagnóstico de repartos fijos | Pendiente |
+| J11 | Precisar el alcance del diagnóstico de repartos fijos | Completado |
 | J12 | Evaluar partidas con la política desplegada del bot | Pendiente |
 | J13 | Conservar disponibilidad de política en TXT | Pendiente |
 | J14 | Rechazar explícitamente el adaptador incompatible con dos muses | Completado |
@@ -853,3 +853,36 @@ y los resultados completos quedan guardados para reproducir el ensayo.
 Claude aprobó esa conclusión limitada y pidió distinguir las medianas de una
 diferencia de tiempo demostrada; se ajustó esta presentación. Tarea
 `task_13c14dc4c95f`, dispatch `ctx_4f7ed5302862`, mensaje `msg_6e570dd2d06c`.
+
+
+## J11: alcance explícito del diagnóstico acotado
+
+La salida de `ordago` y `ordago-public` conserva `bounded-final-lances` y
+sus métricas, y añade `deals=2 opponent_cards=fixed best_responses=per-deal
+root_bound=none`. Se aclara en README y API que ambas manos están fijadas,
+con mus cortado y pases previos en grande/chica. Se optimiza cada respuesta
+por separado en juego y punto y después se promedian las métricas. No es la
+explotabilidad desde la raíz ni una cota superior o inferior demostrada.
+
+Se documenta cómo tendría que ampliarse el diagnóstico: ponderar manos
+rivales compatibles y acumular sus valores en los infosets compartidos antes
+de escoger acciones. Promediar respuestas independientes a más repartos no
+resuelve esa incertidumbre. Esa ampliación era consejo condicionado en J11,
+no una modificación exigida del evaluador actual. Los consumidores del CLI
+deben leer campos por nombre, porque `exploitability` deja de ser el último.
+
+Claude: **APPROVE**, tarea `task_a61c88621805`, dispatch `ctx_8805e77269bb`,
+mensaje `msg_dfdd8ad27541`. Se incorporaron sus aclaraciones de historial fijo
+y lectura de campos. El cálculo y las reglas permanecen intactos.
+
+Pasa la batería existente de CLI. La comprobación adicional exige los cuatro
+campos nuevos y todas las métricas anteriores idénticas para ambos órdagos,
+con uno y dos muses. Los archivos release `libmus_solver.a` y `mus-bot` son
+idénticos byte a byte al padre; esto comprueba que entrenamiento, evaluación
+numérica y decisiones del bot conservan su implementación compilada.
+
+[Rendimiento](review-performance/J11.json): tres pares alternados en CPU0,
+1.000 invocaciones del diagnóstico por tanda para amplificar la salida añadida.
+`ordago`: 0,3998 → 0,4008 s (+0,25 %); `ordago-public`: 0,4035 → 0,4068 s
+(+0,82 %), con el mismo RSS. No se activa el límite y estas variaciones no
+constituyen una pérdida relevante. No se atribuye ninguna mejora al algoritmo.

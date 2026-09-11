@@ -29,14 +29,20 @@ Status mus_raises_to_eight_evaluation_metrics_from_state(
     const MusRaisesToEightGameState *root, const InfoStore *store,
     EvaluationMetrics *metrics_out);
 
-/* Evaluates two fixed final-lance diagnostics for the ordago format. */
+/* Averages two fixed final-lance diagnostics (juego and punto). Both players'
+ * hands are fixed within each deal, so each best response has no uncertainty
+ * about the opponent's cards. Optimize separately, then average the metrics.
+ * This is not root exploitability or a proven upper or lower bound on it. */
 Status mus_ordago_evaluation_metrics(const InfoStore *store,
                                      EvaluationMetrics *metrics_out);
 Status mus_ordago_evaluation_metrics_from_state(
     const MusOrdagoGameState *root, const InfoStore *store,
     EvaluationMetrics *metrics_out);
 
-/* The same fixed-deal diagnostic, using public-deferred generic rules. */
+/* The same two fixed-deal diagnostics and limits, using public-deferred rules.
+ * A larger imperfect-information diagnostic would need to aggregate weighted
+ * compatible opponent hands at shared information sets before choosing the
+ * best-response action. Averaging independent best responses does not do this. */
 Status mus_ordago_public_evaluation_metrics(const InfoStore *store,
                                             EvaluationMetrics *metrics_out);
 Status mus_ordago_public_evaluation_metrics_from_state(

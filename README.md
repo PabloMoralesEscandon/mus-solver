@@ -927,13 +927,29 @@ las operaciones de confianza disponibles durante el recorrido; conserva la
 alternativa pública si el descriptor no las proporciona. La evaluación de
 `ordago` desde la raíz no es
 viable con el evaluador general por su árbol de mus, descartes y envites
-aditivos. Por eso, `--format ordago --evaluate` calcula un diagnóstico acotado:
+aditivos. Por eso, `--format ordago --evaluate` y
+`--format ordago-public --evaluate` calculan un diagnóstico acotado:
 promedia las métricas exactas de dos repartos fijos en el último lance, uno de
 juego y otro de punto. La salida lo identifica con
-`scope=bounded-final-lances`. Esta señal permite comparar checkpoints, pero no
-mide la explotabilidad desde la raíz ni restablece la garantía de convergencia.
+`scope=bounded-final-lances deals=2 opponent_cards=fixed best_responses=per-deal
+root_bound=none` (los campos aparecen junto a las métricas).
+Dentro de cada reparto están fijadas **las cartas de ambos jugadores**. Por
+tanto, la mejor respuesta se calcula sin incertidumbre sobre la mano rival,
+con el historial previo también fijo: se corta mus y ambos pasan en grande y
+chica. Se calcula por separado en juego y punto; después se promedian las métricas. Esta señal
+permite comparar esos subproblemas entre checkpoints. No mide la explotabilidad
+desde la raíz, no restablece la garantía de convergencia y no es una cota
+superior o inferior demostrada de la explotabilidad global.
+Los consumidores de la salida deben leer los campos por su nombre `clave=valor`;
+`exploitability` ya no es el último campo de las líneas de estos diagnósticos.
+
+Ampliar el diagnóstico a más repartos requiere ponderar las manos rivales
+compatibles y acumular sus valores en los conjuntos de información compartidos
+**antes** de elegir la mejor acción. Promediar mejores respuestas calculadas
+por separado para cada mano seguiría permitiendo responder a sus cartas.
 La API permite además evaluar cualquier subestado acotado mediante
-`mus_ordago_evaluation_metrics_from_state`.
+`mus_ordago_evaluation_metrics_from_state` o su equivalente `ordago-public`;
+el alcance depende del estado inicial proporcionado.
 
 Para medir todas las pasadas del evaluador con una estrategia entrenada:
 

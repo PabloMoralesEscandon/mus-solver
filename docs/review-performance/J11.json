@@ -1,0 +1,296 @@
+{
+  "parent_commit": "d293c57",
+  "method": "CLI diagnostic metadata only. Compare library and bot bytes, numeric evaluation fields in both affected generic formats; unchanged root routes are covered by existing CLI tests and identical library bytes, and one/two-mus ordago variants. Amplify the changed output path with 1000 fresh CLI evaluations per timed batch, three alternating pairs, CPU0. Gate 20% time or 25% RSS followed by five confirmation pairs. No concurrent own build/test work.",
+  "runs": [
+    {
+      "group": "ordago",
+      "version": "parent",
+      "repeat": 1,
+      "calls": 1000,
+      "command": [
+        "/home/pablome/orca/workspaces/mus-solver/mejoras/build/review-j10/release/mus-solver",
+        "--format",
+        "ordago",
+        "--evaluate"
+      ],
+      "wall_seconds": 0.39544579299763427,
+      "peak_rss_kib": 21252
+    },
+    {
+      "group": "ordago",
+      "version": "candidate",
+      "repeat": 1,
+      "calls": 1000,
+      "command": [
+        "/home/pablome/orca/workspaces/mus-solver/mejoras/build/review-j11/release/mus-solver",
+        "--format",
+        "ordago",
+        "--evaluate"
+      ],
+      "wall_seconds": 0.3953219299983175,
+      "peak_rss_kib": 21252
+    },
+    {
+      "group": "ordago",
+      "version": "candidate",
+      "repeat": 2,
+      "calls": 1000,
+      "command": [
+        "/home/pablome/orca/workspaces/mus-solver/mejoras/build/review-j11/release/mus-solver",
+        "--format",
+        "ordago",
+        "--evaluate"
+      ],
+      "wall_seconds": 0.4008019289976801,
+      "peak_rss_kib": 21252
+    },
+    {
+      "group": "ordago",
+      "version": "parent",
+      "repeat": 2,
+      "calls": 1000,
+      "command": [
+        "/home/pablome/orca/workspaces/mus-solver/mejoras/build/review-j10/release/mus-solver",
+        "--format",
+        "ordago",
+        "--evaluate"
+      ],
+      "wall_seconds": 0.3997978029983642,
+      "peak_rss_kib": 21252
+    },
+    {
+      "group": "ordago",
+      "version": "parent",
+      "repeat": 3,
+      "calls": 1000,
+      "command": [
+        "/home/pablome/orca/workspaces/mus-solver/mejoras/build/review-j10/release/mus-solver",
+        "--format",
+        "ordago",
+        "--evaluate"
+      ],
+      "wall_seconds": 0.3999215270014247,
+      "peak_rss_kib": 21252
+    },
+    {
+      "group": "ordago",
+      "version": "candidate",
+      "repeat": 3,
+      "calls": 1000,
+      "command": [
+        "/home/pablome/orca/workspaces/mus-solver/mejoras/build/review-j11/release/mus-solver",
+        "--format",
+        "ordago",
+        "--evaluate"
+      ],
+      "wall_seconds": 0.40698029800114455,
+      "peak_rss_kib": 21252
+    },
+    {
+      "group": "ordago-public",
+      "version": "parent",
+      "repeat": 1,
+      "calls": 1000,
+      "command": [
+        "/home/pablome/orca/workspaces/mus-solver/mejoras/build/review-j10/release/mus-solver",
+        "--format",
+        "ordago-public",
+        "--evaluate"
+      ],
+      "wall_seconds": 0.3988848289991438,
+      "peak_rss_kib": 21252
+    },
+    {
+      "group": "ordago-public",
+      "version": "candidate",
+      "repeat": 1,
+      "calls": 1000,
+      "command": [
+        "/home/pablome/orca/workspaces/mus-solver/mejoras/build/review-j11/release/mus-solver",
+        "--format",
+        "ordago-public",
+        "--evaluate"
+      ],
+      "wall_seconds": 0.4048796509996464,
+      "peak_rss_kib": 21252
+    },
+    {
+      "group": "ordago-public",
+      "version": "candidate",
+      "repeat": 2,
+      "calls": 1000,
+      "command": [
+        "/home/pablome/orca/workspaces/mus-solver/mejoras/build/review-j11/release/mus-solver",
+        "--format",
+        "ordago-public",
+        "--evaluate"
+      ],
+      "wall_seconds": 0.414715757000522,
+      "peak_rss_kib": 21252
+    },
+    {
+      "group": "ordago-public",
+      "version": "parent",
+      "repeat": 2,
+      "calls": 1000,
+      "command": [
+        "/home/pablome/orca/workspaces/mus-solver/mejoras/build/review-j10/release/mus-solver",
+        "--format",
+        "ordago-public",
+        "--evaluate"
+      ],
+      "wall_seconds": 0.40354963899881113,
+      "peak_rss_kib": 21252
+    },
+    {
+      "group": "ordago-public",
+      "version": "parent",
+      "repeat": 3,
+      "calls": 1000,
+      "command": [
+        "/home/pablome/orca/workspaces/mus-solver/mejoras/build/review-j10/release/mus-solver",
+        "--format",
+        "ordago-public",
+        "--evaluate"
+      ],
+      "wall_seconds": 0.40637281100134715,
+      "peak_rss_kib": 21252
+    },
+    {
+      "group": "ordago-public",
+      "version": "candidate",
+      "repeat": 3,
+      "calls": 1000,
+      "command": [
+        "/home/pablome/orca/workspaces/mus-solver/mejoras/build/review-j11/release/mus-solver",
+        "--format",
+        "ordago-public",
+        "--evaluate"
+      ],
+      "wall_seconds": 0.40684642500127666,
+      "peak_rss_kib": 21252
+    }
+  ],
+  "summary": [
+    {
+      "group": "ordago",
+      "confirmation": false,
+      "wall_seconds": {
+        "parent": 0.3997978029983642,
+        "candidate": 0.4008019289976801,
+        "change_percent": 0.25115845854710717
+      },
+      "peak_rss_kib": {
+        "parent": 21252,
+        "candidate": 21252,
+        "change_percent": 0.0
+      },
+      "gate_triggered": false
+    },
+    {
+      "group": "ordago-public",
+      "confirmation": false,
+      "wall_seconds": {
+        "parent": 0.40354963899881113,
+        "candidate": 0.40684642500127666,
+        "change_percent": 0.8169468347548836
+      },
+      "peak_rss_kib": {
+        "parent": 21252,
+        "candidate": 21252,
+        "change_percent": 0.0
+      },
+      "gate_triggered": false
+    }
+  ],
+  "validation": [
+    {
+      "muses": 1,
+      "format": "ordago",
+      "same_original_fields": true,
+      "metrics": {
+        "scope": "bounded-final-lances",
+        "iterations": "0",
+        "profile_value_player_0": "1.2598331404320993",
+        "profile_value_player_1": "-1.2598331404320993",
+        "best_response_value_player_0": "11.583333333333334",
+        "best_response_value_player_1": "10.124999999999998",
+        "improvement_player_0": "10.323500192901234",
+        "improvement_player_1": "11.384833140432097",
+        "nash_conv": "21.708333333333329",
+        "exploitability": "10.854166666666664"
+      }
+    },
+    {
+      "muses": 1,
+      "format": "ordago-public",
+      "same_original_fields": true,
+      "metrics": {
+        "scope": "bounded-final-lances",
+        "iterations": "0",
+        "profile_value_player_0": "1.2598331404320993",
+        "profile_value_player_1": "-1.2598331404320993",
+        "best_response_value_player_0": "11.583333333333334",
+        "best_response_value_player_1": "10.124999999999998",
+        "improvement_player_0": "10.323500192901234",
+        "improvement_player_1": "11.384833140432097",
+        "nash_conv": "21.708333333333329",
+        "exploitability": "10.854166666666664"
+      }
+    },
+    {
+      "muses": 2,
+      "format": "ordago",
+      "same_original_fields": true,
+      "metrics": {
+        "scope": "bounded-final-lances",
+        "iterations": "0",
+        "profile_value_player_0": "1.2598331404320993",
+        "profile_value_player_1": "-1.2598331404320993",
+        "best_response_value_player_0": "11.583333333333334",
+        "best_response_value_player_1": "10.124999999999998",
+        "improvement_player_0": "10.323500192901234",
+        "improvement_player_1": "11.384833140432097",
+        "nash_conv": "21.708333333333329",
+        "exploitability": "10.854166666666664"
+      }
+    },
+    {
+      "muses": 2,
+      "format": "ordago-public",
+      "same_original_fields": true,
+      "metrics": {
+        "scope": "bounded-final-lances",
+        "iterations": "0",
+        "profile_value_player_0": "1.2598331404320993",
+        "profile_value_player_1": "-1.2598331404320993",
+        "best_response_value_player_0": "11.583333333333334",
+        "best_response_value_player_1": "10.124999999999998",
+        "improvement_player_0": "10.323500192901234",
+        "improvement_player_1": "11.384833140432097",
+        "nash_conv": "21.708333333333329",
+        "exploitability": "10.854166666666664"
+      }
+    }
+  ],
+  "hashes": {
+    "parent": {
+      "libmus_solver.a": "d9d7a8fda5e53497e0f86839c67a93631a0c522b96ff93ae45390c4245ad5cf0",
+      "mus-bot": "8f2604281d0002bd1c158dc6c89865d39feb6cb8408dc6ca9fecc1b9cf2d13e7",
+      "mus-solver": "c67027714002974793decf3b6d3d60d75ab52e9cea46c0368d1fdb8f21fba16b"
+    },
+    "candidate": {
+      "libmus_solver.a": "d9d7a8fda5e53497e0f86839c67a93631a0c522b96ff93ae45390c4245ad5cf0",
+      "mus-bot": "8f2604281d0002bd1c158dc6c89865d39feb6cb8408dc6ca9fecc1b9cf2d13e7",
+      "mus-solver": "b55fa9c104b33899fdd94c6a48516ffe7707c8b308fd2e8aa09b9d8ac20611c5"
+    }
+  },
+  "blocked": false,
+  "script": "import hashlib,json,os,statistics,subprocess,tempfile,time\nfrom pathlib import Path\nos.sched_setaffinity(0,{0})\nbinaries={k:str(Path(v).resolve()) for k,v in {'parent':'build/review-j10/release/mus-solver','candidate':'build/review-j11/release/mus-solver'}.items()}\noutput=Path('/tmp/mus-review-j11-performance.json')\ndata={'parent_commit':'d293c57','method':'CLI diagnostic metadata only. Compare library and bot bytes, numeric evaluation fields in both affected generic formats; unchanged root routes are covered by existing CLI tests and identical library bytes, and one/two-mus ordago variants. Amplify the changed output path with 1000 fresh CLI evaluations per timed batch, three alternating pairs, CPU0. Gate 20% time or 25% RSS followed by five confirmation pairs. No concurrent own build/test work.','runs':[],'summary':[],'validation':[],'hashes':{}}\nfor version,binary in binaries.items():\n data['hashes'][version]={name:hashlib.sha256((Path(binary).parent/name).read_bytes()).hexdigest() for name in ['libmus_solver.a','mus-bot','mus-solver']}\nfor name in ['libmus_solver.a','mus-bot']:assert data['hashes']['parent'][name]==data['hashes']['candidate'][name]\nextras={'deals':'2','opponent_cards':'fixed','best_responses':'per-deal','root_bound':'none'}\ndef metrics(command):\n stdout=subprocess.check_output(command,text=True)\n line=next(l for l in stdout.splitlines() if l.startswith('evaluation '))\n return dict(token.split('=',1) for token in line.split()[1:])\nfor variant in ['ordago','ordago-public']:\n args=['--format',variant,'--evaluate']\n a=metrics([binaries['parent'],*args]);b=metrics([binaries['candidate'],*args])\n if variant in ('ordago','ordago-public'):\n  for k,v in extras.items():assert b.pop(k)==v\n assert a==b\n data['validation'].append({'muses':1,'format':variant,'same_original_fields':True,'metrics':a})\nfor variant in ['ordago','ordago-public']:\n a=metrics([str(Path('build/review-j10-two/debug/mus-solver').resolve()),'--format',variant,'--evaluate'])\n b=metrics([str(Path('build/review-j11-two/debug/mus-solver').resolve()),'--format',variant,'--evaluate'])\n for k,v in extras.items():assert b.pop(k)==v\n assert a==b\n data['validation'].append({'muses':2,'format':variant,'same_original_fields':True,'metrics':a})\n\ndef save():output.write_text(json.dumps(data,indent=2)+'\\n')\ndef batch(group,version,repeat):\n command=[binaries[version],'--format',group,'--evaluate']\n with tempfile.TemporaryFile(mode='w+') as log:\n  start=time.perf_counter();rss=0\n  for _ in range(1000):\n   pid=os.posix_spawn(command[0],command,os.environ,file_actions=[(os.POSIX_SPAWN_DUP2,log.fileno(),1),(os.POSIX_SPAWN_DUP2,log.fileno(),2)])\n   _,status,usage=os.wait4(pid,0);rss=max(rss,usage.ru_maxrss)\n   if status:log.seek(0);raise RuntimeError(log.read())\n  elapsed=time.perf_counter()-start\n row={'group':group,'version':version,'repeat':repeat,'calls':1000,'command':command,'wall_seconds':elapsed,'peak_rss_kib':rss}\n data['runs'].append(row);save();print(row,flush=True)\ndef summary(group,confirmation=False):\n rows=[r for r in data['runs'] if r['group']==group and (r['repeat']>3)==confirmation]\n s={'group':group,'confirmation':confirmation}\n for field in ['wall_seconds','peak_rss_kib']:\n  a=statistics.median(r[field] for r in rows if r['version']=='parent');b=statistics.median(r[field] for r in rows if r['version']=='candidate')\n  s[field]={'parent':a,'candidate':b,'change_percent':100*(b/a-1)}\n s['gate_triggered']=s['wall_seconds']['change_percent']>=20 or s['peak_rss_kib']['change_percent']>=25\n data['summary'].append(s);save();print(s,flush=True);return s['gate_triggered']\nfor group in ['ordago','ordago-public']:\n for repeat in range(1,4):\n  for version in (['parent','candidate'] if repeat%2 else ['candidate','parent']):batch(group,version,repeat)\n if summary(group):\n  for repeat in range(4,9):\n   for version in (['parent','candidate'] if repeat%2 else ['candidate','parent']):batch(group,version,repeat)\n  if summary(group,True):data['blocked']=True;save();break\nelse:data['blocked']=False;save()\n",
+  "review": {
+    "task": "task_a61c88621805",
+    "dispatch": "ctx_8805e77269bb",
+    "message": "msg_dfdd8ad27541",
+    "verdict": "APPROVE"
+  }
+}

@@ -608,6 +608,7 @@ static bool print_report(const Trainer *trainer, size_t thread_count,
 
 static bool print_evaluation(size_t iterations, CliFormat format,
                              const EvaluationMetrics *metrics) {
+    const bool fixed_deals = format == CLI_FORMAT_ORDAGO || format == CLI_FORMAT_ORDAGO_PUBLIC;
     return printf(
                "evaluation scope=%s iterations=%zu "
                "profile_value_player_0=%.17g "
@@ -615,17 +616,17 @@ static bool print_evaluation(size_t iterations, CliFormat format,
                "best_response_value_player_0=%.17g "
                "best_response_value_player_1=%.17g "
                "improvement_player_0=%.17g improvement_player_1=%.17g "
-               "nash_conv=%.17g exploitability=%.17g\n",
-               (format == CLI_FORMAT_ORDAGO || format == CLI_FORMAT_ORDAGO_PUBLIC)
-                   ? "bounded-final-lances"
-                                            : "root",
+               "nash_conv=%.17g exploitability=%.17g%s\n",
+               fixed_deals ? "bounded-final-lances" : "root",
                iterations, metrics->profile_value_player_0,
                metrics->profile_value_player_1,
                metrics->best_response_value_player_0,
                metrics->best_response_value_player_1,
                metrics->improvement_player_0,
                metrics->improvement_player_1, metrics->nash_conv,
-               metrics->exploitability) >= 0;
+               metrics->exploitability,
+               fixed_deals ? " deals=2 opponent_cards=fixed best_responses=per-deal root_bound=none"
+                           : "") >= 0;
 }
 
 static char *score_path(const char *directory, const char *name) {
