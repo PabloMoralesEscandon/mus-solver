@@ -11,6 +11,8 @@ typedef struct {
     bool prior_compressed;
     size_t iterations;
     size_t evaluation_samples;
+    size_t evaluation_min_samples;
+    double evaluation_target_se;
     uint64_t seed;
     size_t threads;
     size_t threads_per_cell;

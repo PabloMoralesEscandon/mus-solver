@@ -75,6 +75,13 @@ Las iteraciones por segundo son las 45.000 iteraciones divididas por ese tiempo.
 La comprobación SHA-256 de todos los archivos queda fuera del tiempo medido y
 exige igualdad entre todas las variantes.
 
+Si la referencia es anterior a las estadísticas de evaluación, añada
+`--ignore-sampling-statistics`: compara los checkpoints completos y los seis
+campos originales de cada valor, omitiendo solo el sufijo y las columnas de
+varianza. La salida usa `policy_files_and_values_equal` y
+`sampling_statistics_checked=false`; con la opción omitida también se exige
+igualdad de las estadísticas guardadas.
+
 `--threads N` aplica paralelismo entre celdas de una misma diagonal. Cada celda
 conserva su propio almacén y semilla. Las llamadas para guardar estrategias
 ocurren en el hilo del llamador y en orden de marcador. Solo se publican los

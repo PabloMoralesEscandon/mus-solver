@@ -45,7 +45,7 @@ rendimiento del bot desplegado son métricas diferentes.
 | J07 | Mezclar bits en la tabla de mejor respuesta | Completado |
 | J08 | Reutilizar celdas terminadas de una diagonal interrumpida | Completado |
 | J09 | Región opcional de continuaciones cerrada por incrementos y giro | Completado |
-| J10 | Incertidumbre y presupuesto de evaluación | Pendiente |
+| J10 | Incertidumbre y presupuesto de evaluación | Completado; integración terminal ensayada sin activar |
 | J11 | Precisar el alcance del diagnóstico de repartos fijos | Pendiente |
 | J12 | Evaluar partidas con la política desplegada del bot | Pendiente |
 | J13 | Conservar disponibilidad de política en TXT | Pendiente |
@@ -748,3 +748,108 @@ con una iteración y una muestra, pasa de 0,7717 a 0,7820 s (+1,33 %), sin
 cambio de RSS ni diferencias en las políticas guardadas. No se activa ningún
 límite de regresión. Las medidas son de estas cargas; la reducción de celdas
 no garantiza el mismo ahorro en otros marcadores.
+
+
+## J10: varianza local y presupuesto adaptativo
+
+Se acumula la varianza con Welford y se informa el error estándar de la media
+`SE = sqrt(varianza_muestral / muestras)`. En la escala `(V+1)/2` el error es
+`SE/2`. Una muestra o una celda antigua sin estadísticas produce `unknown`.
+La media del modo fijo conserva exactamente la operación y las muestras
+anteriores. Se añade una API con mínimo, máximo y objetivo opcional de error;
+el CLI exige juntas `--evaluation-min-samples` y `--evaluation-target-se`.
+El máximo sigue siendo `--evaluation-samples`. Se guarda el recuento real y
+se informa si se alcanzó el objetivo estimado o el límite de muestras.
+
+El error es local y condicionado a la política y continuaciones actuales.
+No incorpora la incertidumbre de las celdas superiores ni el error de la
+política frente a una óptima. La parada adaptativa es una regla práctica:
+un mínimo pequeño puede observar varianza cero por casualidad y parar en
+función de las muestras puede sesgar tanto la media como su error estimado.
+Se mantienen presupuestos fijos como opción predeterminada. El README explica
+cómo dedicar más muestras a las diagonales altas antes de bajar a otras.
+No se impone una semilla común entre celdas: sin un acoplamiento definido,
+compartir semilla no demuestra menor varianza de sus diferencias.
+
+La cabecera versionada `statistics=sample-variance-v1` añade disponibilidad y
+varianza a cada fila de `values.txt`. El lector conserva archivos antiguos y
+filas mixtas; el nuevo formato exige lectores actualizados. Los checkpoints,
+TXT y reglas conservan sus esquemas porque las estadísticas no entran en la
+huella de continuaciones. Los registros `mus-score-recovery/v2` incorporan
+varianza, recuento real y ajustes adaptativos; los registros provisionales
+anteriores se recalculan, sin tocar celdas publicadas. La ampliación conserva
+los ajustes en su manifiesto y rechaza cambios aunque den el mismo recuento.
+La dependencia `-lm` es explícita para `sqrt`, adelantando ese punto de J22.
+
+Pruebas: identidad analítica de la varianza para utilidades ±1; parada exacta
+respecto al prefijo anterior; máximo, mínimo, una muestra, parámetros
+inválidos y salidas conservadas ante error; persistencia antigua/mixta,
+cabeceras y filas inválidas, esquemas estables, evaluación individual,
+ampliación y recuperación con ajustes distintos. Pasan la batería completa,
+núcleo y hot paths con dos muses, y CLI de estadísticas, región y recuperación
+con ambas configuraciones. ASan/UBSan pasa en núcleo, estadísticas, región
+y recuperación. La recuperación instrumentada agotó 30 s al coincidir con las
+pruebas de dos muses; pasó sin cambios al ejecutarla sola. No se amplió el plazo
+ni se redujo la carga para resolverlo. Logs `/tmp/mus-review-j10-*.log`.
+
+Claude: **APPROVE**, tarea `task_9b6661d82207`, dispatch `ctx_f62fedf1274b`,
+mensaje `msg_75c1d5d7bbf4`. La herramienta de benchmark ofrece ahora
+`--ignore-sampling-statistics` para comparar con referencias antiguas sin
+confundir la identidad de las medias con la del archivo ampliado; el modo
+predeterminado conserva la comparación completa. Sus dos modos se verificaron.
+Claude aprobó ese ajuste: tarea `task_0963c8b6e952`, dispatch `ctx_72f419d0af46`,
+mensaje `msg_3d268fe5d8fc`. Se aclaró además el texto del error del modo normalizado.
+
+[Rendimiento](review-performance/J10.json), tres pares alternados, CPU0,
+Btrfs, un trabajador, 1.000 iteraciones y 10.000 muestras por celda:
+
+| Carga | Padre | Candidato | Tiempo | RSS |
+|---|---:|---:|---:|---:|
+| 45 celdas desde 35:35 | 3,8415 s | 3,7762 s | −1,70 % | +1,26 % |
+| Ampliación de esas 45 celdas | 4,1051 s | 4,0771 s | −0,68 % | +1,39 % |
+| Región 35:35, 25 celdas | 2,1635 s | 2,0737 s | −4,15 % | +0,85 % |
+
+No hay regresión grave; las fluctuaciones no demuestran que calcular varianza
+acelere el entrenamiento. Checkpoints idénticos y las seis columnas originales
+de valores idénticas en todos los pares. Los orígenes permanecen intactos.
+La [carga mínima](review-performance/J10-small.json), 100 tablas de 45 celdas
+con una iteración y una muestra, pasa de 0,7849 a 0,7777 s (−0,92 %), RSS igual.
+También conserva todos los archivos de políticas y valores.
+
+Un ejemplo adaptativo con mínimo 1.000, máximo 10.000 y objetivo SE 0,03 usa
+25.632 muestras en las 25 celdas, frente a 250.000: 2,1586 → 1,8827 s
+(−12,78 %), RSS +2,02 %. Es un intercambio entre tiempo y precisión, no una
+aceleración con resultados iguales. La diferencia absoluta media entre valores
+es 0,02982 y la máxima 0,083; también pueden cambiar las políticas de celdas
+inferiores porque reciben otras continuaciones. Ninguna medida activa el límite.
+
+### Ensayo de integración exacta parcial
+
+El [programa exploratorio](review-performance/J10-terminal-trial.json), fuera
+de producción, integra respuestas de juego/punto con como máximo dos acciones
+cuando todos sus sucesores son terminales. Aplica y deshace cada acción y suma
+las utilidades ponderadas por la política; el resto mantiene el muestreo.
+Se midieron dos políticas fijas, 10.000 manos por cada una de 32 semillas,
+y tres pares alternados. Los pares repiten esas mismas semillas; hay 32
+réplicas estadísticas, no 96. Se excluye la carga del checkpoint del tiempo.
+
+| Marcador | Varianza muestral media | Diferencia de tiempo |
+|---|---:|---|
+| 35:35 | −8,46 % | No resuelta frente a las fluctuaciones |
+| 39:39 | −0,063 % | No resuelta frente a las fluctuaciones |
+
+En 35:35 se integraron 67.515 de 320.000 manos; en 39:39 solo 421. Los tiempos
+de 0,22–0,39 s tienen rangos solapados: sus pequeñas diferencias de medianas
+no permiten atribuir un coste ni ahorro al cambio. El producto varianza × tiempo
+y la varianza entre las 32 medias se conservan como datos exploratorios en el
+JSON, sin inferir una mejora de eficiencia ni estabilidad entre semillas.
+Al omitir algunos
+sorteos cambian las trayectorias de las semillas; no se espera identidad exacta.
+El ensayo apoya una mejora local en un caso, pero no una mejora general de las
+tablas. Se conserva el muestreador ordinario y no se introduce una modalidad
+general de integración con esta evidencia limitada. El código, los comandos
+y los resultados completos quedan guardados para reproducir el ensayo.
+
+Claude aprobó esa conclusión limitada y pidió distinguir las medianas de una
+diferencia de tiempo demostrada; se ajustó esta presentación. Tarea
+`task_13c14dc4c95f`, dispatch `ctx_4f7ed5302862`, mensaje `msg_6e570dd2d06c`.

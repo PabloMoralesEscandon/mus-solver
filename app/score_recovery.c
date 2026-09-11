@@ -88,13 +88,15 @@ static Status format_record(const ScoreRecovery *recovery, const MusScoreGame *g
         : &o->source_table->cells[game->initial_scores[0]][game->initial_scores[1]];
     const int length = snprintf(text, capacity,
         "%u %u %a %zu %zu %" PRIu64 " %016" PRIx64
-        " mus-score-recovery/v1 schema=%s added=%zu samples=%zu seed=%" PRIu64
+        " %u %a mus-score-recovery/v2 schema=%s added=%zu samples=%zu min_samples=%zu target_se=%a seed=%" PRIu64
         " threads=%zu threads_per_cell=%zu reserve=%zu report=%zu"
         " prior=%u compressed=%u prior_hash=%016" PRIx64 " weight=%a mix=%a"
         " extension=%u source_hash=%016" PRIx64 " source_iterations=%zu source_seed=%" PRIu64,
         game->initial_scores[0], game->initial_scores[1], cell->value,
         cell->iterations, cell->evaluation_samples, cell->training_seed, checkpoint_hash,
-        game->schema, o->iterations, o->evaluation_samples, o->seed,
+        cell->variance_known ? 1U : 0U, cell->sample_variance,
+        game->schema, o->iterations, o->evaluation_samples, o->evaluation_min_samples,
+        o->evaluation_target_se, o->seed,
         o->threads, o->threads_per_cell, o->reserve_information_sets, o->report_every,
         o->prior_path != NULL ? 1U : 0U, o->prior_compressed ? 1U : 0U,
         recovery->prior_hash, o->prior_weight, o->uniform_mix,
@@ -198,23 +200,31 @@ Status score_recovery_load(const MusScoreGame *game, MusScoreCell *cell, void *c
     const ScoreRecovery *recovery = context;
     const char *record = recovery->records[game->initial_scores[0]][game->initial_scores[1]];
     if (record == NULL) return CFR_STATUS_NOT_FOUND;
-    char tokens[7][80];
-    if (sscanf(record, "%79s %79s %79s %79s %79s %79s %79s", tokens[0], tokens[1],
-               tokens[2], tokens[3], tokens[4], tokens[5], tokens[6]) != 7)
+    char tokens[9][80];
+    if (sscanf(record, "%79s %79s %79s %79s %79s %79s %79s %79s %79s", tokens[0], tokens[1],
+               tokens[2], tokens[3], tokens[4], tokens[5], tokens[6], tokens[7], tokens[8]) != 9)
         return CFR_STATUS_NOT_FOUND;
-    uintmax_t iterations, samples, seed;
+    uintmax_t iterations, samples, seed, known;
     uint64_t stored_hash;
     if (!unsigned_number(tokens[3], SIZE_MAX, &iterations) || iterations == 0 ||
         !unsigned_number(tokens[4], SIZE_MAX, &samples) || samples == 0 ||
         !unsigned_number(tokens[5], UINT64_MAX, &seed) ||
-        !hexadecimal_hash(tokens[6], &stored_hash)) return CFR_STATUS_NOT_FOUND;
+        !hexadecimal_hash(tokens[6], &stored_hash) ||
+        !unsigned_number(tokens[7], 1, &known)) return CFR_STATUS_NOT_FOUND;
     char *end;
     errno = 0;
     const double value = strtod(tokens[2], &end);
     if (errno != 0 || *end != '\0' || !isfinite(value) || value < -1 || value > 1)
         return CFR_STATUS_NOT_FOUND;
     MusScoreCell recovered = {.ready = true, .value = value, .iterations = (size_t)iterations,
-        .evaluation_samples = (size_t)samples, .training_seed = (uint64_t)seed};
+        .evaluation_samples = (size_t)samples, .training_seed = (uint64_t)seed,
+        .variance_known = known != 0};
+    errno = 0;
+    recovered.sample_variance = strtod(tokens[8], &end);
+    if (errno != 0 || end == tokens[8] || *end != '\0' || !isfinite(recovered.sample_variance) ||
+        recovered.sample_variance < 0 || recovered.sample_variance > 2.0 + 1e-12 ||
+        (recovered.variance_known ? samples < 2 : recovered.sample_variance != 0))
+        return CFR_STATUS_NOT_FOUND;
     char expected[RECORD_CAPACITY];
     Status status = format_record(recovery, game, &recovered, stored_hash, expected, sizeof(expected));
     if (status != CFR_STATUS_SUCCESS) return status;

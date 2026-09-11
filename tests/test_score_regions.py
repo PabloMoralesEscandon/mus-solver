@@ -60,7 +60,7 @@ with tempfile.TemporaryDirectory(prefix='mus-region-tests-') as tmp:
     # Both orientations share one canonical region and their declared coverage.
     asymmetric=root/'asymmetric';run(train(asymmetric,region='2:1'))
     assert set(rows(asymmetric))=={(1,2),(2,1),(2,2)}
-    assert (asymmetric/'values.txt').read_text().splitlines()[0].endswith('region=1:2')
+    assert ' region=1:2' in (asymmetric/'values.txt').read_text().splitlines()[0]
     run(train(asymmetric,region='1:2'))
 
     # Bounds survive a failure before even the first checkpoint is published.

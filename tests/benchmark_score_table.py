@@ -21,6 +21,8 @@ def main():
     parser.add_argument("--iterations", type=int, default=1000)
     parser.add_argument("--samples", type=int, default=10000)
     parser.add_argument("--seed", type=int, default=7)
+    parser.add_argument("--ignore-sampling-statistics", action="store_true",
+                        help="Compare original value fields against a pre-statistics baseline.")
     args = parser.parse_args()
     try:
         a, b = map(int, args.score.split(":"))
@@ -35,6 +37,7 @@ def main():
     if args.baseline:
         variants.insert(0, ("baseline-1", args.baseline, 1))
     expected = None
+    equality_key = "policy_files_and_values_equal" if args.ignore_sampling_statistics else "files_equal"
     runs = {label: [] for label, _, _ in variants}
     for repeat in range(args.repeats):
         order = variants if repeat % 2 == 0 else variants[::-1]
@@ -53,6 +56,13 @@ def main():
                 for path in sorted(destination.iterdir()):
                     if path.name in ("training.lock", "recovery.txt"):
                         continue  # Auxiliary metadata is not a policy artifact.
+                    if path.name == "values.txt" and args.ignore_sampling_statistics:
+                        lines = path.read_text().splitlines()
+                        header = lines[0].replace(" statistics=sample-variance-v1", "")
+                        original = header + "\n" + "\n".join(
+                            " ".join(line.split()[:6]) for line in lines[1:]) + "\n"
+                        hashes[path.name] = hashlib.sha256(original.encode()).hexdigest()
+                        continue
                     with path.open("rb") as stream:
                         hashes[path.name] = hashlib.file_digest(stream, "sha256").hexdigest()
                 if len(hashes) != cells + 1:
@@ -60,13 +70,16 @@ def main():
                 if expected is None:
                     expected = hashes
                 if hashes != expected:
-                    raise SystemExit(f"Table or checkpoint bytes differ for {label}")
+                    detail = "Original table fields or checkpoint bytes" if args.ignore_sampling_statistics \
+                        else "Table or checkpoint bytes"
+                    raise SystemExit(f"{detail} differ for {label}")
             runs[label].append(elapsed)
             print(json.dumps({"variant": label, "repeat": repeat + 1,
-                              "seconds": elapsed, "files_equal": True}), flush=True)
+                              "seconds": elapsed, equality_key: True}), flush=True)
     summary = {"score": args.score, "cells": cells,
                "iterations_per_cell": args.iterations, "samples_per_cell": args.samples,
-               "seed": args.seed, "repeats": args.repeats, "files_equal": True}
+               "seed": args.seed, "repeats": args.repeats, equality_key: True,
+               "sampling_statistics_checked": not args.ignore_sampling_statistics}
     for label, measurements in runs.items():
         elapsed = statistics.median(measurements)
         summary[label] = {"seconds": elapsed,

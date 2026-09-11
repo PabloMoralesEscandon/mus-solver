@@ -1,0 +1,334 @@
+{
+  "method": "Exploratory program outside production: when a final-lance player decision has at most two legal actions and every successor is terminal, integrate the exact policy-weighted utilities instead of drawing that final action. All attempted actions are undone. Other decisions retain ordinary sampling. Compare the same frozen policies, 32 evaluation seeds per run, 10000 hands per seed, three alternating pairs, CPU0. Time excludes checkpoint loading. Fewer draws change subsequent seeded trajectories; sample means are not expected to be identical. Evaluate estimated variance times time as a local efficiency measure; this is not a whole-table error bound or a production candidate.",
+  "runs": [
+    {
+      "group": "35:35",
+      "mode": "sample",
+      "repeat": 1,
+      "command": [
+        "/tmp/mus-review-j10-terminal-trial",
+        "sample",
+        "/home/pablome/orca/workspaces/mus-solver/mejoras/build/review-j17-sync-io/terminal-trial-4145fso1/scores",
+        "35",
+        "35",
+        "10000",
+        "32"
+      ],
+      "seconds": 0.385836505,
+      "mean": 0.04487644916331253,
+      "mean_sample_variance": 0.8419677132563238,
+      "seed_mean_variance": 9.009708913689146e-05,
+      "integrated_hands": 0.0,
+      "samples": 10000.0,
+      "repeats": 32.0
+    },
+    {
+      "group": "35:35",
+      "mode": "integrate",
+      "repeat": 1,
+      "command": [
+        "/tmp/mus-review-j10-terminal-trial",
+        "integrate",
+        "/home/pablome/orca/workspaces/mus-solver/mejoras/build/review-j17-sync-io/terminal-trial-4145fso1/scores",
+        "35",
+        "35",
+        "10000",
+        "32"
+      ],
+      "seconds": 0.378310421,
+      "mean": 0.04431452570518034,
+      "mean_sample_variance": 0.7707761631008807,
+      "seed_mean_variance": 7.342972982695097e-05,
+      "integrated_hands": 67515.0,
+      "samples": 10000.0,
+      "repeats": 32.0
+    },
+    {
+      "group": "35:35",
+      "mode": "integrate",
+      "repeat": 2,
+      "command": [
+        "/tmp/mus-review-j10-terminal-trial",
+        "integrate",
+        "/home/pablome/orca/workspaces/mus-solver/mejoras/build/review-j17-sync-io/terminal-trial-4145fso1/scores",
+        "35",
+        "35",
+        "10000",
+        "32"
+      ],
+      "seconds": 0.38515574,
+      "mean": 0.04431452570518034,
+      "mean_sample_variance": 0.7707761631008807,
+      "seed_mean_variance": 7.342972982695097e-05,
+      "integrated_hands": 67515.0,
+      "samples": 10000.0,
+      "repeats": 32.0
+    },
+    {
+      "group": "35:35",
+      "mode": "sample",
+      "repeat": 2,
+      "command": [
+        "/tmp/mus-review-j10-terminal-trial",
+        "sample",
+        "/home/pablome/orca/workspaces/mus-solver/mejoras/build/review-j17-sync-io/terminal-trial-4145fso1/scores",
+        "35",
+        "35",
+        "10000",
+        "32"
+      ],
+      "seconds": 0.367772911,
+      "mean": 0.04487644916331253,
+      "mean_sample_variance": 0.8419677132563238,
+      "seed_mean_variance": 9.009708913689146e-05,
+      "integrated_hands": 0.0,
+      "samples": 10000.0,
+      "repeats": 32.0
+    },
+    {
+      "group": "35:35",
+      "mode": "sample",
+      "repeat": 3,
+      "command": [
+        "/tmp/mus-review-j10-terminal-trial",
+        "sample",
+        "/home/pablome/orca/workspaces/mus-solver/mejoras/build/review-j17-sync-io/terminal-trial-4145fso1/scores",
+        "35",
+        "35",
+        "10000",
+        "32"
+      ],
+      "seconds": 0.363763809,
+      "mean": 0.04487644916331253,
+      "mean_sample_variance": 0.8419677132563238,
+      "seed_mean_variance": 9.009708913689146e-05,
+      "integrated_hands": 0.0,
+      "samples": 10000.0,
+      "repeats": 32.0
+    },
+    {
+      "group": "35:35",
+      "mode": "integrate",
+      "repeat": 3,
+      "command": [
+        "/tmp/mus-review-j10-terminal-trial",
+        "integrate",
+        "/home/pablome/orca/workspaces/mus-solver/mejoras/build/review-j17-sync-io/terminal-trial-4145fso1/scores",
+        "35",
+        "35",
+        "10000",
+        "32"
+      ],
+      "seconds": 0.373693712,
+      "mean": 0.04431452570518034,
+      "mean_sample_variance": 0.7707761631008807,
+      "seed_mean_variance": 7.342972982695097e-05,
+      "integrated_hands": 67515.0,
+      "samples": 10000.0,
+      "repeats": 32.0
+    },
+    {
+      "group": "39:39",
+      "mode": "sample",
+      "repeat": 1,
+      "command": [
+        "/tmp/mus-review-j10-terminal-trial",
+        "sample",
+        "/home/pablome/orca/workspaces/mus-solver/mejoras/build/review-j17-sync-io/terminal-trial-4145fso1/scores",
+        "39",
+        "39",
+        "10000",
+        "32"
+      ],
+      "seconds": 0.22563056699999995,
+      "mean": 0.04878750000000002,
+      "mean_sample_variance": 0.9976212971297134,
+      "seed_mean_variance": 0.00010141403225806491,
+      "integrated_hands": 0.0,
+      "samples": 10000.0,
+      "repeats": 32.0
+    },
+    {
+      "group": "39:39",
+      "mode": "integrate",
+      "repeat": 1,
+      "command": [
+        "/tmp/mus-review-j10-terminal-trial",
+        "integrate",
+        "/home/pablome/orca/workspaces/mus-solver/mejoras/build/review-j17-sync-io/terminal-trial-4145fso1/scores",
+        "39",
+        "39",
+        "10000",
+        "32"
+      ],
+      "seconds": 0.225058246,
+      "mean": 0.04859999999999998,
+      "mean_sample_variance": 0.9969958752125201,
+      "seed_mean_variance": 0.00010773096774193436,
+      "integrated_hands": 421.0,
+      "samples": 10000.0,
+      "repeats": 32.0
+    },
+    {
+      "group": "39:39",
+      "mode": "integrate",
+      "repeat": 2,
+      "command": [
+        "/tmp/mus-review-j10-terminal-trial",
+        "integrate",
+        "/home/pablome/orca/workspaces/mus-solver/mejoras/build/review-j17-sync-io/terminal-trial-4145fso1/scores",
+        "39",
+        "39",
+        "10000",
+        "32"
+      ],
+      "seconds": 0.229551992,
+      "mean": 0.04859999999999998,
+      "mean_sample_variance": 0.9969958752125201,
+      "seed_mean_variance": 0.00010773096774193436,
+      "integrated_hands": 421.0,
+      "samples": 10000.0,
+      "repeats": 32.0
+    },
+    {
+      "group": "39:39",
+      "mode": "sample",
+      "repeat": 2,
+      "command": [
+        "/tmp/mus-review-j10-terminal-trial",
+        "sample",
+        "/home/pablome/orca/workspaces/mus-solver/mejoras/build/review-j17-sync-io/terminal-trial-4145fso1/scores",
+        "39",
+        "39",
+        "10000",
+        "32"
+      ],
+      "seconds": 0.224705961,
+      "mean": 0.04878750000000002,
+      "mean_sample_variance": 0.9976212971297134,
+      "seed_mean_variance": 0.00010141403225806491,
+      "integrated_hands": 0.0,
+      "samples": 10000.0,
+      "repeats": 32.0
+    },
+    {
+      "group": "39:39",
+      "mode": "sample",
+      "repeat": 3,
+      "command": [
+        "/tmp/mus-review-j10-terminal-trial",
+        "sample",
+        "/home/pablome/orca/workspaces/mus-solver/mejoras/build/review-j17-sync-io/terminal-trial-4145fso1/scores",
+        "39",
+        "39",
+        "10000",
+        "32"
+      ],
+      "seconds": 0.231585092,
+      "mean": 0.04878750000000002,
+      "mean_sample_variance": 0.9976212971297134,
+      "seed_mean_variance": 0.00010141403225806491,
+      "integrated_hands": 0.0,
+      "samples": 10000.0,
+      "repeats": 32.0
+    },
+    {
+      "group": "39:39",
+      "mode": "integrate",
+      "repeat": 3,
+      "command": [
+        "/tmp/mus-review-j10-terminal-trial",
+        "integrate",
+        "/home/pablome/orca/workspaces/mus-solver/mejoras/build/review-j17-sync-io/terminal-trial-4145fso1/scores",
+        "39",
+        "39",
+        "10000",
+        "32"
+      ],
+      "seconds": 0.232307196,
+      "mean": 0.04859999999999998,
+      "mean_sample_variance": 0.9969958752125201,
+      "seed_mean_variance": 0.00010773096774193436,
+      "integrated_hands": 421.0,
+      "samples": 10000.0,
+      "repeats": 32.0
+    }
+  ],
+  "summary": [
+    {
+      "group": "35:35",
+      "seconds": {
+        "sample": 0.367772911,
+        "integrate": 0.378310421,
+        "change_percent": 2.8652219031977566
+      },
+      "mean_sample_variance": {
+        "sample": 0.8419677132563238,
+        "integrate": 0.7707761631008807,
+        "change_percent": -8.455377686646514
+      },
+      "seed_mean_variance": {
+        "sample": 9.009708913689146e-05,
+        "integrate": 7.342972982695097e-05,
+        "change_percent": -18.499331631698436
+      },
+      "integrated_hands": {
+        "sample": 0.0,
+        "integrate": 67515.0,
+        "change_percent": null
+      },
+      "variance_time_change_percent": -5.832421116924635
+    },
+    {
+      "group": "39:39",
+      "seconds": {
+        "sample": 0.22563056699999995,
+        "integrate": 0.229551992,
+        "change_percent": 1.7379848183424862
+      },
+      "mean_sample_variance": {
+        "sample": 0.9976212971297134,
+        "integrate": 0.9969958752125201,
+        "change_percent": -0.06269131573199971
+      },
+      "seed_mean_variance": {
+        "sample": 0.00010141403225806491,
+        "integrate": 0.00010773096774193436,
+        "change_percent": 6.228857430493395
+      },
+      "integrated_hands": {
+        "sample": 0.0,
+        "integrate": 421.0,
+        "change_percent": null
+      },
+      "variance_time_change_percent": 1.6742039370606365
+    }
+  ],
+  "source": "#include <math.h>\n#include <stddef.h>\n#include <stdlib.h>\n#include <string.h>\n#include <time.h>\n#include \"cfr/checkpoint.h\"\n#include \"cfr/info_node.h\"\n#include \"mus_solver/mus_score.h\"\nstatic size_t integrated_hands;\nstatic double random_unit(uint64_t *state) {\n    *state += UINT64_C(0x9e3779b97f4a7c15);\n    uint64_t z = *state;\n    z = (z ^ (z >> 30)) * UINT64_C(0xbf58476d1ce4e5b9);\n    z = (z ^ (z >> 27)) * UINT64_C(0x94d049bb133111eb);\n    z ^= z >> 31;\n    return (double)(z >> 11) * 0x1p-53;\n}\n\nstatic bool valid_evaluation_options(const MusScoreEvaluationOptions *options) {\n    return options != NULL && options->min_samples > 0 &&\n        options->min_samples <= options->max_samples &&\n        isfinite(options->target_standard_error) && options->target_standard_error >= 0 &&\n        (options->target_standard_error > 0 ? options->min_samples >= 2\n                                            : options->min_samples == options->max_samples);\n}\n\nstatic bool evaluation_target_reached(size_t samples, double variance, double target) {\n    return target > 0 && samples >= 2 && sqrt(variance / (double)samples) <= target;\n}\n\nStatus trial_evaluate(const MusScoreGame *game, const InfoStore *store,\n    const MusScoreEvaluationOptions *options, uint64_t seed, MusScoreEvaluation *result) {\n    if (game == NULL || store == NULL || result == NULL || !valid_evaluation_options(options))\n        return CFR_STATUS_INVALID_ARGUMENT;\n    MusGameState *state = malloc(sizeof(*state));\n    if (state == NULL)\n        return CFR_STATUS_OUT_OF_MEMORY;\n    const GameOperations *ops = game->game.trusted_operations;\n    const void *context = game->game.context;\n    double mean = 0, m2 = 0;\n    MusScoreEvaluation evaluation = {0};\n    Status status = mus_score_game_state_init(state, game);\n    if (status != CFR_STATUS_SUCCESS) {\n        free(state);\n        return status;\n    }\n    /* Only the active state needs resetting. Each action writes its undo\n     * entry before that entry can be read. */\n    unsigned char root[offsetof(MusGameState, undo_history)];\n    memcpy(root, state, sizeof(root));\n    for (size_t sample = 0; sample < options->max_samples; sample += 1) {\n        bool integrated = false;\n        double integrated_value = 0;\n        memcpy(state, root, sizeof(root));\n        state->undo_count = 0;\n        GameState *raw = mus_game_state_as_game_state(state);\n        while (state->model.phase != MUS_PHASE_TERMINAL) {\n            Action actions[MUS_GAME_MAX_LEGAL_ACTIONS];\n            Probability probabilities[MUS_GAME_MAX_LEGAL_ACTIONS];\n            size_t count = 0;\n            Actor actor;\n            status = ops->current_actor(context, raw, &actor);\n            if (status != CFR_STATUS_SUCCESS)\n                break;\n            if (actor.kind == CFR_ACTOR_CHANCE) {\n                status = ops->chance_outcomes(context, raw, actions, probabilities,\n                                              MUS_GAME_MAX_LEGAL_ACTIONS, &count);\n            } else {\n                InfoSetKey key;\n                const InfoNode *node;\n                status = ops->legal_actions(context, raw, actions,\n                                            MUS_GAME_MAX_LEGAL_ACTIONS, &count);\n                if (status != CFR_STATUS_SUCCESS)\n                    break;\n                status = ops->information_set_key(context, raw, &key);\n                if (status != CFR_STATUS_SUCCESS)\n                    break;\n                status = cfr_info_store_find_const(store, key, &node);\n                if (status == CFR_STATUS_NOT_FOUND) {\n                    for (size_t i = 0; i < count; i += 1)\n                        probabilities[i] = 1.0 / (double)count;\n                    status = CFR_STATUS_SUCCESS;\n                } else if (status == CFR_STATUS_SUCCESS) {\n                    status = node->action_count == count\n                                 ? cfr_info_node_average_strategy(node, probabilities, count)\n                                 : CFR_STATUS_INVALID_ARGUMENT;\n                }\n            }\n            if (status != CFR_STATUS_SUCCESS)\n                break;\n            if (actor.kind != CFR_ACTOR_CHANCE && count <= 2 &&\n                (state->model.phase == MUS_PHASE_JUEGO || state->model.phase == MUS_PHASE_PUNTO)) {\n                bool all_terminal = true;\n                double expected = 0;\n                for (size_t i = 0; i < count; ++i) {\n                    status = ops->apply_action(context, raw, actions[i]);\n                    if (status != CFR_STATUS_SUCCESS) break;\n                    all_terminal = state->model.phase == MUS_PHASE_TERMINAL;\n                    Utility child_value = 0;\n                    if (all_terminal) status = mus_score_terminal_utility(state, CFR_PLAYER_0, &child_value);\n                    const Status undone = ops->undo_action(context, raw);\n                    if (undone != CFR_STATUS_SUCCESS) status = undone;\n                    if (status != CFR_STATUS_SUCCESS || !all_terminal) break;\n                    expected += probabilities[i] * child_value;\n                }\n                if (status != CFR_STATUS_SUCCESS) break;\n                if (all_terminal) {\n                    integrated = true;\n                    integrated_value = expected;\n                    integrated_hands++;\n                    break;\n                }\n            }\n            double draw = random_unit(&seed);\n            size_t selected = 0;\n            while (selected + 1 < count && draw >= probabilities[selected]) {\n                draw -= probabilities[selected];\n                selected += 1;\n            }\n            status = ops->apply_action(context, raw, actions[selected]);\n            if (status != CFR_STATUS_SUCCESS)\n                break;\n        }\n        if (status != CFR_STATUS_SUCCESS)\n            break;\n        Utility utility;\n        if (integrated) utility = integrated_value;\n        else status = mus_score_terminal_utility(state, CFR_PLAYER_0, &utility);\n        if (status != CFR_STATUS_SUCCESS)\n            break;\n        const double delta = utility - mean;\n        mean += delta / (double)(sample + 1);\n        m2 += delta * (utility - mean);\n        evaluation.samples = sample + 1;\n        if (options->target_standard_error > 0 && evaluation.samples >= options->min_samples &&\n            evaluation_target_reached(evaluation.samples, m2 / (double)sample,\n                                      options->target_standard_error)) {\n            evaluation.target_reached = true;\n            break;\n        }\n    }\n    free(state);\n    if (status == CFR_STATUS_SUCCESS) {\n        evaluation.value = mean;\n        evaluation.variance_known = evaluation.samples >= 2;\n        if (evaluation.variance_known) {\n            evaluation.sample_variance = m2 / (double)(evaluation.samples - 1);\n            evaluation.standard_error = sqrt(evaluation.sample_variance / (double)evaluation.samples);\n        }\n        *result = evaluation;\n    }\n    return status;\n}\n\nint main(int argc, char **argv) {\n    if (argc != 7) return 2;\n    const bool integrate = strcmp(argv[1], \"integrate\") == 0;\n    const unsigned int a = (unsigned int)strtoul(argv[3], NULL, 10);\n    const unsigned int b = (unsigned int)strtoul(argv[4], NULL, 10);\n    const size_t samples = strtoull(argv[5], NULL, 10), repeats = strtoull(argv[6], NULL, 10);\n    char path[4096];\n    (void)snprintf(path, sizeof(path), \"%s/values.txt\", argv[2]);\n    FILE *stream = fopen(path, \"r\");\n    MusScoreTable table;\n    if (!stream || mus_score_table_read(stream, &table) != CFR_STATUS_SUCCESS || fclose(stream) != 0) return 3;\n    MusScoreGame game;\n    MusGameState *state = malloc(sizeof(*state));\n    InfoStore store = {0};\n    Trainer trainer;\n    if (!state || mus_score_game_init(&game, &table, a, b) != CFR_STATUS_SUCCESS ||\n        mus_score_game_state_init(state, &game) != CFR_STATUS_SUCCESS) return 4;\n    (void)snprintf(path, sizeof(path), \"%s/score-%02u-%02u.cfr.zst\", argv[2], a, b);\n    stream = fopen(path, \"rb\");\n    if (!stream || cfr_checkpoint_read_zstd(stream, &game.game, mus_game_state_as_game_state(state),\n        &store, &trainer) != CFR_STATUS_SUCCESS || fclose(stream) != 0) return 5;\n    MusScoreEvaluationOptions options = {.min_samples = samples, .max_samples = samples};\n    struct timespec before, after;\n    if (clock_gettime(CLOCK_MONOTONIC, &before) != 0) return 6;\n    double mean = 0, variance = 0, between_m2 = 0;\n    for (size_t i = 0; i < repeats; ++i) {\n        MusScoreEvaluation evaluation;\n        const Status status = integrate ? trial_evaluate(&game, &store, &options, i, &evaluation)\n            : mus_score_evaluate_with_options(&game, &store, &options, i, &evaluation);\n        if (status != CFR_STATUS_SUCCESS) return 7;\n        const double delta = evaluation.value - mean;\n        mean += delta / (double)(i + 1);\n        between_m2 += delta * (evaluation.value - mean);\n        variance += evaluation.sample_variance / (double)repeats;\n    }\n    if (clock_gettime(CLOCK_MONOTONIC, &after) != 0) return 8;\n    const double elapsed = (double)(after.tv_sec-before.tv_sec) + (double)(after.tv_nsec-before.tv_nsec)/1e9;\n    printf(\"mode=%s seconds=%.17g mean=%.17g mean_sample_variance=%.17g seed_mean_variance=%.17g integrated_hands=%zu samples=%zu repeats=%zu\\n\",\n        argv[1], elapsed, mean, variance, between_m2/(double)(repeats-1), integrated_hands, samples, repeats);\n    (void)cfr_info_store_destroy(&store);\n    free(state);\n    return 0;\n}\n",
+  "binary_sha256": "7549eff626c98dd8a4039d6842d2c1a26aab16e2bab2a7fe02161ac4bdb2f23d",
+  "training_command": [
+    "/home/pablome/orca/workspaces/mus-solver/mejoras/build/review-j10/release/mus-solver",
+    "--format",
+    "ordago-score",
+    "--score-region",
+    "35:35",
+    "--iterations",
+    "1000",
+    "--evaluation-samples",
+    "10000",
+    "--seed",
+    "7",
+    "--continuation",
+    "/home/pablome/orca/workspaces/mus-solver/mejoras/build/review-j17-sync-io/terminal-trial-4145fso1/scores"
+  ],
+  "setup_script": "from pathlib import Path\nsource=Path('src/mus_score.c').read_text()\nstart=source.index('static double random_unit(')\nend=source.index('\\nStatus mus_score_evaluate(',start)\ncode=source[start:end].replace('mus_score_evaluate_with_options(', 'trial_evaluate(')\ncode=code.replace('        memcpy(state, root, sizeof(root));', '        bool integrated = false;\\n        double integrated_value = 0;\\n        memcpy(state, root, sizeof(root));')\ncode=code.replace('            double draw = random_unit(&seed);', '''            if (actor.kind != CFR_ACTOR_CHANCE && count <= 2 &&\n                (state->model.phase == MUS_PHASE_JUEGO || state->model.phase == MUS_PHASE_PUNTO)) {\n                bool all_terminal = true;\n                double expected = 0;\n                for (size_t i = 0; i < count; ++i) {\n                    status = ops->apply_action(context, raw, actions[i]);\n                    if (status != CFR_STATUS_SUCCESS) break;\n                    all_terminal = state->model.phase == MUS_PHASE_TERMINAL;\n                    Utility child_value = 0;\n                    if (all_terminal) status = mus_score_terminal_utility(state, CFR_PLAYER_0, &child_value);\n                    const Status undone = ops->undo_action(context, raw);\n                    if (undone != CFR_STATUS_SUCCESS) status = undone;\n                    if (status != CFR_STATUS_SUCCESS || !all_terminal) break;\n                    expected += probabilities[i] * child_value;\n                }\n                if (status != CFR_STATUS_SUCCESS) break;\n                if (all_terminal) {\n                    integrated = true;\n                    integrated_value = expected;\n                    integrated_hands++;\n                    break;\n                }\n            }\n            double draw = random_unit(&seed);''')\ncode=code.replace('        status = mus_score_terminal_utility(state, CFR_PLAYER_0, &utility);', '        if (integrated) utility = integrated_value;\\n        else status = mus_score_terminal_utility(state, CFR_PLAYER_0, &utility);')\nheader='''#include <math.h>\n#include <stddef.h>\n#include <stdlib.h>\n#include <string.h>\n#include <time.h>\n#include \"cfr/checkpoint.h\"\n#include \"cfr/info_node.h\"\n#include \"mus_solver/mus_score.h\"\nstatic size_t integrated_hands;\n'''\nmain=r'''\nint main(int argc, char **argv) {\n    if (argc != 7) return 2;\n    const bool integrate = strcmp(argv[1], \"integrate\") == 0;\n    const unsigned int a = (unsigned int)strtoul(argv[3], NULL, 10);\n    const unsigned int b = (unsigned int)strtoul(argv[4], NULL, 10);\n    const size_t samples = strtoull(argv[5], NULL, 10), repeats = strtoull(argv[6], NULL, 10);\n    char path[4096];\n    (void)snprintf(path, sizeof(path), \"%s/values.txt\", argv[2]);\n    FILE *stream = fopen(path, \"r\");\n    MusScoreTable table;\n    if (!stream || mus_score_table_read(stream, &table) != CFR_STATUS_SUCCESS || fclose(stream) != 0) return 3;\n    MusScoreGame game;\n    MusGameState *state = malloc(sizeof(*state));\n    InfoStore store = {0};\n    Trainer trainer;\n    if (!state || mus_score_game_init(&game, &table, a, b) != CFR_STATUS_SUCCESS ||\n        mus_score_game_state_init(state, &game) != CFR_STATUS_SUCCESS) return 4;\n    (void)snprintf(path, sizeof(path), \"%s/score-%02u-%02u.cfr.zst\", argv[2], a, b);\n    stream = fopen(path, \"rb\");\n    if (!stream || cfr_checkpoint_read_zstd(stream, &game.game, mus_game_state_as_game_state(state),\n        &store, &trainer) != CFR_STATUS_SUCCESS || fclose(stream) != 0) return 5;\n    MusScoreEvaluationOptions options = {.min_samples = samples, .max_samples = samples};\n    struct timespec before, after;\n    if (clock_gettime(CLOCK_MONOTONIC, &before) != 0) return 6;\n    double mean = 0, variance = 0, between_m2 = 0;\n    for (size_t i = 0; i < repeats; ++i) {\n        MusScoreEvaluation evaluation;\n        const Status status = integrate ? trial_evaluate(&game, &store, &options, i, &evaluation)\n            : mus_score_evaluate_with_options(&game, &store, &options, i, &evaluation);\n        if (status != CFR_STATUS_SUCCESS) return 7;\n        const double delta = evaluation.value - mean;\n        mean += delta / (double)(i + 1);\n        between_m2 += delta * (evaluation.value - mean);\n        variance += evaluation.sample_variance / (double)repeats;\n    }\n    if (clock_gettime(CLOCK_MONOTONIC, &after) != 0) return 8;\n    const double elapsed = (double)(after.tv_sec-before.tv_sec) + (double)(after.tv_nsec-before.tv_nsec)/1e9;\n    printf(\"mode=%s seconds=%.17g mean=%.17g mean_sample_variance=%.17g seed_mean_variance=%.17g integrated_hands=%zu samples=%zu repeats=%zu\\n\",\n        argv[1], elapsed, mean, variance, between_m2/(double)(repeats-1), integrated_hands, samples, repeats);\n    (void)cfr_info_store_destroy(&store);\n    free(state);\n    return 0;\n}\n'''\nPath('/tmp/mus-review-j10-terminal-trial.c').write_text(header+code+main)\n",
+  "runner_script": "import hashlib,json,os,statistics,subprocess,tempfile\nfrom pathlib import Path\nos.sched_setaffinity(0,{0})\nroot=Path.cwd();binary=root/'build/review-j10/release/mus-solver'\ntrial=Path('/tmp/mus-review-j10-terminal-trial')\noutput=Path('/tmp/mus-review-j10-terminal-trial.json')\ndata={'method':'Exploratory program outside production: when a final-lance player decision has at most two legal actions and every successor is terminal, integrate the exact policy-weighted utilities instead of drawing that final action. All attempted actions are undone. Other decisions retain ordinary sampling. Compare the same frozen policies, 32 evaluation seeds per run, 10000 hands per seed, three alternating pairs, CPU0. Time excludes checkpoint loading. Fewer draws change subsequent seeded trajectories; sample means are not expected to be identical. Evaluate estimated variance times time as a local efficiency measure; this is not a whole-table error bound or a production candidate.','runs':[],'summary':[],'source':Path('/tmp/mus-review-j10-terminal-trial.c').read_text(),'binary_sha256':hashlib.sha256(trial.read_bytes()).hexdigest()}\nwith tempfile.TemporaryDirectory(prefix='terminal-trial-',dir=root/'build/review-j17-sync-io') as tmp:\n    table=Path(tmp)/'scores'\n    command=[str(binary),'--format','ordago-score','--score-region','35:35','--iterations','1000','--evaluation-samples','10000','--seed','7','--continuation',str(table)]\n    subprocess.run(command,stdout=subprocess.DEVNULL,check=True)\n    data['training_command']=command\n    for a,b in [(35,35),(39,39)]:\n        group=f'{a}:{b}'\n        for repeat in range(1,4):\n            for mode in (['sample','integrate'] if repeat%2 else ['integrate','sample']):\n                command=[str(trial),mode,str(table),str(a),str(b),'10000','32']\n                line=subprocess.check_output(command,text=True).strip()\n                values=dict(p.split('=',1) for p in line.split())\n                row={'group':group,'mode':mode,'repeat':repeat,'command':command,**{k:float(v) for k,v in values.items() if k!='mode'}}\n                data['runs'].append(row);output.write_text(json.dumps(data,indent=2)+'\\n');print(group,repeat,line,flush=True)\n        summary={'group':group}\n        for field in ['seconds','mean_sample_variance','seed_mean_variance','integrated_hands']:\n            before=statistics.median(r[field] for r in data['runs'] if r['group']==group and r['mode']=='sample')\n            after=statistics.median(r[field] for r in data['runs'] if r['group']==group and r['mode']=='integrate')\n            summary[field]={'sample':before,'integrate':after,'change_percent':100*(after/before-1) if before else None}\n        summary['variance_time_change_percent']=100*(summary['seconds']['integrate']*summary['mean_sample_variance']['integrate']/(summary['seconds']['sample']*summary['mean_sample_variance']['sample'])-1)\n        data['summary'].append(summary);output.write_text(json.dumps(data,indent=2)+'\\n');print('SUMMARY',summary,flush=True)\n",
+  "decision": "Keep ordinary sampling in production. This trial supports a local benefit at one policy, not a general improvement across a table. The experiment requested by J10 is recorded; no general integration mode is added.",
+  "interpretation": "The per-hand variance reduction is resolved at 35:35. The short timing ranges overlap, so the small median time changes and variance*time products do not establish efficiency gains or regressions. Between-seed variance from 32 means is exploratory. No general integration mode is added.",
+  "review": {
+    "task": "task_13c14dc4c95f",
+    "dispatch": "ctx_4f7ed5302862",
+    "message": "msg_6e570dd2d06c",
+    "verdict": "APPROVE limited conclusion; timing interpretation clarified"
+  }
+}

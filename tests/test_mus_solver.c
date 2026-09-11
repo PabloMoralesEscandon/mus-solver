@@ -4268,7 +4268,90 @@ static void test_score_training_and_persistence(void) {
     }
 }
 
+static void test_score_sampling_statistics(void) {
+    MusScoreTable table;
+    MusScoreGame game;
+    InfoStore store = {0};
+    CHECK(mus_score_table_init(&table, 1) == CFR_STATUS_SUCCESS);
+    CHECK(mus_score_game_init(&game, &table, 0, 0) == CFR_STATUS_SUCCESS);
+    CHECK(cfr_info_store_init(&store) == CFR_STATUS_SUCCESS);
+    MusScoreEvaluationOptions options = {.min_samples = 1000, .max_samples = 1000};
+    MusScoreEvaluation result;
+    CHECK(mus_score_evaluate_with_options(&game, &store, &options, 7, &result) == CFR_STATUS_SUCCESS);
+    CHECK(result.samples == 1000 && result.variance_known && !result.target_reached);
+    /* With target one every return is -1 or +1. This independently gives
+     * sum(x*x) = n and the sample variance from the measured mean. */
+    const double expected = 1000.0 * (1.0 - result.value * result.value) / 999.0;
+    CHECK(fabs(result.sample_variance - expected) < 1e-12);
+    CHECK(fabs(result.standard_error - sqrt(expected / 1000.0)) < 1e-12);
+    double legacy;
+    CHECK(mus_score_evaluate(&game, &store, 1000, 7, &legacy) == CFR_STATUS_SUCCESS);
+    CHECK(result.value == legacy);
+
+    options = (MusScoreEvaluationOptions){.min_samples = 32, .max_samples = 1000,
+                                          .target_standard_error = 0.08};
+    CHECK(mus_score_evaluate_with_options(&game, &store, &options, 7, &result) == CFR_STATUS_SUCCESS);
+    CHECK(result.samples > 32 && result.samples < 1000 && result.target_reached);
+    CHECK(result.standard_error <= 0.08);
+    MusScoreEvaluation prefix;
+    MusScoreEvaluationOptions fixed = {.min_samples = result.samples, .max_samples = result.samples};
+    CHECK(mus_score_evaluate_with_options(&game, &store, &fixed, 7, &prefix) == CFR_STATUS_SUCCESS);
+    CHECK(prefix.value == result.value && prefix.sample_variance == result.sample_variance);
+    fixed.min_samples--; fixed.max_samples--;
+    CHECK(mus_score_evaluate_with_options(&game, &store, &fixed, 7, &prefix) == CFR_STATUS_SUCCESS);
+    CHECK(prefix.standard_error > 0.08);
+    options.target_standard_error = 1e-12;
+    CHECK(mus_score_evaluate_with_options(&game, &store, &options, 7, &result) == CFR_STATUS_SUCCESS);
+    CHECK(result.samples == 1000 && !result.target_reached && result.standard_error > 1e-12);
+    options = (MusScoreEvaluationOptions){.min_samples = 1, .max_samples = 1};
+    CHECK(mus_score_evaluate_with_options(&game, &store, &options, 7, &result) == CFR_STATUS_SUCCESS);
+    CHECK(result.samples == 1 && !result.variance_known && result.sample_variance == 0);
+    const MusScoreEvaluation preserved = result;
+    static const MusScoreEvaluationOptions invalid[] = {
+        {0, 100, 0.1}, {1, 100, 0.1}, {10, 5, 0.1}, {10, 100, 0},
+        {10, 100, -1}, {10, 100, INFINITY}, {10, 100, NAN},
+    };
+    for (size_t i = 0; i < sizeof(invalid) / sizeof(invalid[0]); ++i) {
+        CHECK(mus_score_evaluate_with_options(&game, &store, &invalid[i], 7, &result) ==
+              CFR_STATUS_INVALID_ARGUMENT);
+        CHECK(memcmp(&result, &preserved, sizeof(result)) == 0);
+    }
+    CHECK(cfr_info_store_destroy(&store) == CFR_STATUS_SUCCESS);
+
+    MusScoreTrainingOptions training = {.iterations = 2, .evaluation_samples = 100,
+        .evaluation_min_samples = 10, .evaluation_target_se = 0.5, .seed = 7};
+    CHECK(mus_score_table_init(&table, 2) == CFR_STATUS_SUCCESS);
+    CHECK(mus_score_train(&table, 0, &training, NULL, NULL, NULL) == CFR_STATUS_SUCCESS);
+    for (unsigned int a = 0; a < 2; ++a)
+        for (unsigned int b = 0; b < 2; ++b) {
+            CHECK(table.cells[a][b].evaluation_samples == 10);
+            CHECK(table.cells[a][b].variance_known);
+        }
+    char schema[256];
+    CHECK(mus_score_game_init(&game, &table, 0, 0) == CFR_STATUS_SUCCESS);
+    strcpy(schema, game.schema);
+    table.cells[1][1].variance_known = false;
+    table.cells[1][1].sample_variance = 0;
+    CHECK(mus_score_game_init(&game, &table, 0, 0) == CFR_STATUS_SUCCESS);
+    CHECK(strcmp(schema, game.schema) == 0);
+    FILE *stream = tmpfile();
+    CHECK(stream != NULL);
+    if (stream != NULL) {
+        MusScoreTable loaded;
+        CHECK(mus_score_table_write(stream, &table) == CFR_STATUS_SUCCESS);
+        rewind(stream);
+        CHECK(mus_score_table_read(stream, &loaded) == CFR_STATUS_SUCCESS);
+        CHECK(!loaded.cells[1][1].variance_known && loaded.cells[1][1].sample_variance == 0);
+        CHECK(loaded.cells[0][0].variance_known);
+        CHECK(loaded.cells[0][0].sample_variance == table.cells[0][0].sample_variance);
+        table.cells[0][0].sample_variance = -1;
+        CHECK(mus_score_table_write(stream, &table) == CFR_STATUS_INVALID_ARGUMENT);
+        fclose(stream);
+    }
+}
+
 int main(void) {
+    test_score_sampling_statistics();
     test_score_payment_timing();
     test_score_public_information();
     test_score_response_codec();

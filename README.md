@@ -372,6 +372,63 @@ conservan la abstracción `ordago-score/v4`. La evaluación restaura solo el est
 activo entre muestras. El [benchmark de rendimiento](docs/performance.md)
 permite medir iteraciones por segundo y comprobar que los resultados coinciden.
 
+### Incertidumbre de la evaluación por marcador
+
+Cada celda guarda la media y la varianza muestral de las utilidades obtenidas
+durante su evaluación. La salida incluye `standard_error`, calculado como
+`sqrt(varianza_muestral / muestras)`, y `win_probability_se`, la mitad de ese
+valor para la escala `(V + 1) / 2`. La varianza se acumula con Welford, sin
+guardar todas las muestras. Con una sola muestra o un valor antiguo sin
+estadísticas, la incertidumbre se informa como `unknown`.
+
+Estas cifras miden **el ruido local de muestreo**, con la política y las
+continuaciones actuales fijas. No miden el error frente a la estrategia óptima
+ni incluyen la incertidumbre propagada desde otras celdas. No son un intervalo
+de confianza de toda la tabla ni una medición de las victorias del bot
+desplegado, que puede usar otros respaldos para nodos ausentes.
+
+El modo predeterminado usa exactamente `--evaluation-samples` manos y conserva
+la media y los checkpoints del evaluador anterior. Para adaptar el número
+de muestras por celda, indique juntas estas dos opciones:
+
+```sh
+build/release/mus-solver \
+    --format ordago-score --score-region 35:35 \
+    --iterations 1000 --seed 7 --continuation marcador-adaptativo \
+    --evaluation-min-samples 1000 --evaluation-samples 50000 \
+    --evaluation-target-se 0.01
+```
+
+Se evalúan al menos 1.000 manos y se comprueba el error estimado después de
+cada muestra adicional. Se detiene cuando es menor o igual a 0,01, o al llegar
+a 50.000 manos. `stop=estimated-target` o `stop=sample-limit` explica el motivo;
+el recuento guardado es el realmente usado. Las opciones también sirven con
+`--evaluate`, incluida la evaluación de un checkpoint individual.
+
+El objetivo es una regla práctica de parada, no una garantía estadística:
+un mínimo pequeño puede observar varianza cero por casualidad. Además, parar
+según las muestras puede sesgar la media y el error estimado. Si necesita una
+comparación con un presupuesto fijo, omita las dos opciones. Cambiar las
+muestras cambia los valores estimados y puede cambiar las políticas de las
+celdas inferiores. Aumentar las iteraciones de CFR por sí solo no reduce este
+ruido. Para dedicar más evaluación a una zona, entrene primero esas diagonales
+con más muestras y reanude después hacia abajo con otro presupuesto; las
+celdas publicadas conservan su valor.
+
+`values.txt` añade `statistics=sample-variance-v1` a la cabecera cuando contiene
+varianzas conocidas. En ese formato cada fila añade dos columnas: disponibilidad
+(`0` o `1`) y varianza muestral. Las filas antiguas cargan con incertidumbre
+desconocida; las tablas mixtas conservan esa distinción. La cabecera y las filas
+antiguas siguen aceptadas, pero los lectores anteriores a esta ampliación no
+leen el formato con estadísticas. Los esquemas de checkpoints y TXT no cambian:
+las varianzas no alteran las reglas, las claves ni la identidad de los pagos.
+
+Las ampliaciones y el registro de recuperación incluyen el mínimo y el error
+solicitados para evitar mezclar criterios. Los registros provisionales de
+recuperación anteriores a `mus-score-recovery/v2` se recalculan al reanudar;
+las celdas ya publicadas se conservan. Una evaluación nueva con `--evaluate`
+informa sus estadísticas sin reemplazar el valor ni la varianza guardados.
+
 ### Precarga desde `ordago` u `ordago-public` sin marcador
 
 Puede reutilizarse la **estrategia media** de un checkpoint de `ordago` u

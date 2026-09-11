@@ -66,6 +66,8 @@ typedef struct {
     const char *extend_continuation_dir;
     size_t score_target;
     size_t evaluation_samples;
+    size_t evaluation_min_samples;
+    double evaluation_target_se;
     unsigned int score_a;
     unsigned int score_b;
     bool score_set;
@@ -74,6 +76,8 @@ typedef struct {
     unsigned int region_b;
     bool target_set;
     bool evaluation_samples_set;
+    bool evaluation_min_samples_set;
+    bool evaluation_target_se_set;
     const char *preload_ordago_path;
     bool preload_ordago_compressed;
     double preload_weight;
@@ -131,6 +135,10 @@ static bool print_usage(FILE *stream, const char *program) {
                "                          Sin --score, empieza desde A:B.\n"
                "  --target N             Objetivo de ordago-score (40 por defecto).\n"
                "  --evaluation-samples N Manos para evaluar cada celda (10000).\n"
+               "  --evaluation-min-samples N\n"
+               "  --evaluation-target-se X\n"
+               "                          Juntas: muestreo adaptativo desde N manos,\n"
+               "                          hasta --evaluation-samples; error local estimado.\n"
                "                          En ordago-score, --iterations se aplica\n"
                "                          a cada celda pendiente; se guarda por diagonal.\n"
                "                          Con --load[-compressed], se suman solo\n"
@@ -345,6 +353,14 @@ static bool parse_options(int argc, char *argv[], CliOptions *options) {
                 !parse_size(value, &options->evaluation_samples))
                 return false;
             options->evaluation_samples_set = true;
+        } else if (strcmp(argument, "--evaluation-min-samples") == 0) {
+            if (options->evaluation_min_samples_set || !option_value(argc, argv, &index, &value) ||
+                !parse_size(value, &options->evaluation_min_samples)) return false;
+            options->evaluation_min_samples_set = true;
+        } else if (strcmp(argument, "--evaluation-target-se") == 0) {
+            if (options->evaluation_target_se_set || !option_value(argc, argv, &index, &value) ||
+                !parse_positive_double(value, &options->evaluation_target_se)) return false;
+            options->evaluation_target_se_set = true;
         } else if (strcmp(argument, "--preload-ordago") == 0 ||
                    strcmp(argument, "--preload-ordago-compressed") == 0) {
             if (options->preload_ordago_path != NULL ||
@@ -369,6 +385,12 @@ static bool parse_options(int argc, char *argv[], CliOptions *options) {
     }
     if (options->help)
         return true;
+    if (options->evaluation_min_samples_set != options->evaluation_target_se_set ||
+        (options->evaluation_target_se_set &&
+         (options->evaluation_min_samples < 2 ||
+          options->evaluation_min_samples > options->evaluation_samples ||
+          (!options->evaluate && (!options->iterations_set || options->load_path != NULL)))))
+        return false;
     if (options->format == CLI_FORMAT_ORDAGO_SCORE) {
         if (options->score_region_set) {
             if (options->region_a >= options->score_target ||
@@ -409,6 +431,7 @@ static bool parse_options(int argc, char *argv[], CliOptions *options) {
     }
     if (options->continuation_dir != NULL || options->extend_continuation_dir != NULL || options->score_set ||
         options->target_set || options->score_region_set || options->evaluation_samples_set ||
+        options->evaluation_min_samples_set || options->evaluation_target_se_set ||
         options->preload_ordago_path != NULL || options->preload_weight_set ||
         options->threads_per_cell_set)
         return false;
@@ -653,6 +676,42 @@ static Status report_score_progress(const MusScoreGame *game, const Trainer *tra
     return CFR_STATUS_SUCCESS;
 }
 
+static MusScoreEvaluationOptions score_evaluation_options(const CliOptions *options) {
+    return (MusScoreEvaluationOptions){
+        .min_samples = options->evaluation_min_samples_set ? options->evaluation_min_samples
+                                                         : options->evaluation_samples,
+        .max_samples = options->evaluation_samples,
+        .target_standard_error = options->evaluation_target_se,
+    };
+}
+
+static bool print_score_statistics(size_t samples, bool known, double variance,
+                                    const CliOptions *options) {
+    const double standard_error = known ? sqrt(variance / (double)samples) : 0;
+    if (known) {
+        if (printf(" uncertainty=local-sampling sample_variance=%.17g standard_error=%.17g "
+                   "win_probability_se=%.17g", variance, standard_error, standard_error / 2) < 0)
+            return false;
+    } else if (printf(" uncertainty=local-sampling sample_variance=unknown "
+                      "standard_error=unknown win_probability_se=unknown") < 0) return false;
+    if (options != NULL && options->evaluation_target_se_set &&
+        printf(" sampling=adaptive min_samples=%zu max_samples=%zu target_se=%.17g stop=%s",
+            options->evaluation_min_samples, options->evaluation_samples, options->evaluation_target_se,
+            known && samples >= options->evaluation_min_samples &&
+                standard_error <= options->evaluation_target_se ? "estimated-target" : "sample-limit") < 0)
+        return false;
+    return putchar('\n') != EOF;
+}
+
+static bool score_sampling_matches(const MusScoreCell *cell, const CliOptions *options) {
+    const MusScoreEvaluationOptions evaluation = score_evaluation_options(options);
+    return cell->evaluation_samples >= evaluation.min_samples &&
+        cell->evaluation_samples <= evaluation.max_samples &&
+        (cell->evaluation_samples == evaluation.max_samples ||
+         (cell->variance_known && evaluation.target_standard_error > 0 &&
+          sqrt(cell->sample_variance / (double)cell->evaluation_samples) <= evaluation.target_standard_error));
+}
+
 static Status save_score_cell(const MusScoreGame *game, const Trainer *trainer,
                                const MusScoreCell *cell, void *context) {
     const ScorePersistence *persistence = context;
@@ -669,11 +728,13 @@ static Status save_score_cell(const MusScoreGame *game, const Trainer *trainer,
         status = report_score_preload(game, persistence->preload_stats);
     if (status == CFR_STATUS_SUCCESS &&
         printf("score-cell score=%u:%u target=%u iterations=%zu "
-               "evaluation_samples=%zu value=%.17g win_probability=%.17g\n",
+               "evaluation_samples=%zu value=%.17g win_probability=%.17g",
                game->initial_scores[0], game->initial_scores[1],
                game->continuation->target, cell->iterations, cell->evaluation_samples,
                cell->value, (cell->value + 1) / 2) < 0)
         status = CFR_STATUS_IO_ERROR;
+    if (status == CFR_STATUS_SUCCESS && !print_score_statistics(cell->evaluation_samples,
+        cell->variance_known, cell->sample_variance, options)) status = CFR_STATUS_IO_ERROR;
     (void)fflush(stdout);
     return status;
 }
@@ -792,7 +853,7 @@ static bool print_score_resume(const MusScoreTable *table, const CliOptions *opt
             const size_t iterations = options->iterations +
                 (source == NULL ? 0 : source->cells[a][b].iterations);
             if (cell->iterations != iterations ||
-                cell->evaluation_samples != options->evaluation_samples ||
+                !score_sampling_matches(cell, options) ||
                 cell->training_seed != seed)
                 mismatched += 1;
         }
@@ -1052,16 +1113,19 @@ static int run_score_checkpoint(const CliOptions *options) {
         goto done;
     }
     if (options->evaluate) {
-        double value;
-        status = mus_score_evaluate(&game, &store, options->evaluation_samples,
-                                    options->seed, &value);
+        const MusScoreEvaluationOptions evaluation_options = score_evaluation_options(options);
+        MusScoreEvaluation evaluation;
+        status = mus_score_evaluate_with_options(&game, &store, &evaluation_options,
+                                                  options->seed, &evaluation);
         if (status == CFR_STATUS_SUCCESS &&
             printf("evaluation scope=score-checkpoint-average-policy score=%u:%u "
                    "iterations=%zu samples=%zu estimate=fresh seed=%" PRIu64 " "
-                   "profile_value_player_0=%.17g win_probability=%.17g\n",
+                   "profile_value_player_0=%.17g win_probability=%.17g",
                    options->score_a, options->score_b, trainer.training_iterations,
-                   options->evaluation_samples, options->seed, value, (value + 1) / 2) < 0)
+                   evaluation.samples, options->seed, evaluation.value, (evaluation.value + 1) / 2) < 0)
             status = CFR_STATUS_IO_ERROR;
+        if (status == CFR_STATUS_SUCCESS && !print_score_statistics(evaluation.samples,
+            evaluation.variance_known, evaluation.sample_variance, options)) status = CFR_STATUS_IO_ERROR;
     }
     if (status == CFR_STATUS_SUCCESS && options->export_path != NULL)
         status = export_strategy(options->export_path, &trainer, options->format);
@@ -1163,6 +1227,10 @@ static Status check_score_extension_manifest(const CliOptions *options,
                 source_path, options->iterations, options->evaluation_samples,
                 prior_path, options->preload_ordago_compressed ? 1U : 0U,
                 options->preload_weight, MUS_SCORE_PRELOAD_DEFAULT_UNIFORM_MIX) < 0)
+        status = CFR_STATUS_IO_ERROR;
+    if (status == CFR_STATUS_SUCCESS && options->evaluation_target_se_set &&
+        fprintf(expected, "evaluation_min_samples=%zu\nevaluation_target_se=%.17g\n",
+            options->evaluation_min_samples, options->evaluation_target_se) < 0)
         status = CFR_STATUS_IO_ERROR;
     if (status == CFR_STATUS_SUCCESS)
         status = mus_score_table_write(expected, source);
@@ -1359,6 +1427,8 @@ static int run_score(const CliOptions *options) {
             .prior_compressed = options->preload_ordago_compressed,
             .iterations = options->iterations,
             .evaluation_samples = options->evaluation_samples,
+            .evaluation_min_samples = options->evaluation_min_samples,
+            .evaluation_target_se = options->evaluation_target_se,
             .seed = options->seed,
             .threads = options->threads,
             .threads_per_cell = options->threads_per_cell,
@@ -1373,6 +1443,8 @@ static int run_score(const CliOptions *options) {
             .extension = options->extend_continuation_dir == NULL ? NULL : &extension,
             .iterations = options->iterations,
             .evaluation_samples = options->evaluation_samples,
+            .evaluation_min_samples = options->evaluation_min_samples,
+            .evaluation_target_se = options->evaluation_target_se,
             .seed = options->seed,
             .reserve_information_sets = options->reserve_information_sets,
             .threads = options->threads,
@@ -1395,9 +1467,14 @@ static int run_score(const CliOptions *options) {
         status = CFR_STATUS_NOT_FOUND;
         goto done;
     }
-    if (printf("score-table score=%u:%u target=%u value=%.17g win_probability=%.17g\n",
+    if (printf("score-table score=%u:%u target=%u value=%.17g win_probability=%.17g",
                options->score_a, options->score_b, table.target, cell->value,
                (cell->value + 1) / 2) < 0) {
+        status = CFR_STATUS_IO_ERROR;
+        goto done;
+    }
+    if (!print_score_statistics(cell->evaluation_samples, cell->variance_known,
+                                cell->sample_variance, NULL)) {
         status = CFR_STATUS_IO_ERROR;
         goto done;
     }
@@ -1424,19 +1501,22 @@ static int run_score(const CliOptions *options) {
             goto done;
         }
         if (options->evaluate) {
-            double value;
-            status = mus_score_evaluate(&game, &store, options->evaluation_samples,
-                                        options->seed, &value);
+            const MusScoreEvaluationOptions evaluation_options = score_evaluation_options(options);
+            MusScoreEvaluation evaluation;
+            status = mus_score_evaluate_with_options(&game, &store, &evaluation_options,
+                                                      options->seed, &evaluation);
             if (status != CFR_STATUS_SUCCESS)
                 goto done;
             if (printf("evaluation scope=score-average-policy score=%u:%u "
                        "samples=%zu estimate=fresh seed=%" PRIu64 " "
                        "stored_value=%.17g stored_samples=%zu "
                        "profile_value_player_0=%.17g "
-                       "profile_value_player_1=%.17g win_probability=%.17g\n",
-                       options->score_a, options->score_b, options->evaluation_samples,
+                       "profile_value_player_1=%.17g win_probability=%.17g",
+                       options->score_a, options->score_b, evaluation.samples,
                        options->seed, cell->value, cell->evaluation_samples,
-                       value, -value, (value + 1) / 2) < 0) {
+                       evaluation.value, -evaluation.value, (evaluation.value + 1) / 2) < 0 ||
+                !print_score_statistics(evaluation.samples, evaluation.variance_known,
+                                        evaluation.sample_variance, options)) {
                 status = CFR_STATUS_IO_ERROR;
                 goto done;
             }

@@ -14,7 +14,30 @@ typedef struct {
     size_t iterations;
     size_t evaluation_samples;
     uint64_t training_seed;
+    /* Local sampling variance, conditional on this policy and continuation.
+     * False for legacy values and evaluations with fewer than two samples. */
+    bool variance_known;
+    double sample_variance;
 } MusScoreCell;
+
+typedef struct {
+    size_t min_samples;
+    size_t max_samples;
+    /* Zero selects fixed sampling and requires min_samples == max_samples.
+     * A positive value stops after min_samples when the estimated local
+     * standard error is small enough, or at max_samples. */
+    double target_standard_error;
+} MusScoreEvaluationOptions;
+
+typedef struct {
+    double value;
+    size_t samples;
+    bool variance_known;
+    double sample_variance;
+    /* Defined only when variance_known is true. No whole-table error bound. */
+    double standard_error;
+    bool target_reached;
+} MusScoreEvaluation;
 
 /* Index 0 is always mano. Publish complete diagonals after evaluation.
  * Use one InfoStore per score cell. The initial score is constant in that store.
@@ -98,6 +121,10 @@ typedef struct {
     /* New iterations per cell. With extension, add to the loaded counter. */
     size_t iterations;
     size_t evaluation_samples;
+    /* Maximum samples is evaluation_samples. Zero minimum selects that same
+     * count. A positive target enables estimated local-error stopping. */
+    size_t evaluation_min_samples;
+    double evaluation_target_se;
     uint64_t seed;
     size_t reserve_information_sets;
     /* Optional ordago prior, applied separately to each missing score cell. */
@@ -142,6 +169,10 @@ Status mus_score_table_init_region(MusScoreTable *table, unsigned int target,
 bool mus_score_table_contains(const MusScoreTable *table, unsigned int a, unsigned int b);
 Status mus_score_table_read(FILE *stream, MusScoreTable *table);
 Status mus_score_table_write(FILE *stream, const MusScoreTable *table);
+/* The reported error excludes policy error and uncertainty in continuations.
+ * An error preserves result. Fixed sampling preserves the original mean. */
+Status mus_score_evaluate_with_options(const MusScoreGame *game, const InfoStore *store,
+    const MusScoreEvaluationOptions *options, uint64_t seed, MusScoreEvaluation *result);
 Status mus_score_game_init(MusScoreGame *game, const MusScoreTable *table,
                            unsigned int a, unsigned int b);
 /* Checks the game adapter before a caller interprets an opaque state. */

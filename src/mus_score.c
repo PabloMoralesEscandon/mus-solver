@@ -39,6 +39,12 @@ static bool valid_cell(const MusScoreCell *cell) {
            cell->iterations > 0 && cell->evaluation_samples > 0;
 }
 
+static bool valid_cell_statistics(const MusScoreCell *cell) {
+    if (!cell->variance_known) return cell->sample_variance == 0;
+    return cell->evaluation_samples >= 2 && isfinite(cell->sample_variance) &&
+           cell->sample_variance >= 0 && cell->sample_variance <= 2.0 + 1e-12;
+}
+
 /* A persisted table contains complete consecutive diagonals from the top. */
 static bool valid_table(const MusScoreTable *table) {
     if (table == NULL || table->target == 0 || table->target > MUS_ORDAGO_WAGER)
@@ -60,7 +66,7 @@ static bool valid_table(const MusScoreTable *table) {
             }
             count += 1;
             if (cell->ready) {
-                if (missing || !valid_cell(cell))
+                if (missing || !valid_cell(cell) || !valid_cell_statistics(cell))
                     return false;
                 ready += 1;
             }
@@ -76,6 +82,10 @@ static bool valid_table(const MusScoreTable *table) {
 Status mus_score_table_write(FILE *stream, const MusScoreTable *table) {
     if (stream == NULL || !valid_table(table))
         return CFR_STATUS_INVALID_ARGUMENT;
+    bool statistics = false;
+    for (unsigned int a = 0; a < table->target; ++a)
+        for (unsigned int b = 0; b < table->target; ++b)
+            statistics |= table->cells[a][b].ready && table->cells[a][b].variance_known;
     if (fprintf(stream, "%s base=%s target=%u orientation=mano utility=signed-one",
                 table->region_enabled ? MUS_SCORE_REGION_SCHEMA_ID : MUS_SCORE_SCHEMA_ID,
                 MUS_ORDAGO_STRATEGY_SCHEMA_ID,
@@ -83,14 +93,19 @@ Status mus_score_table_write(FILE *stream, const MusScoreTable *table) {
         return CFR_STATUS_IO_ERROR;
     if (table->region_enabled && fprintf(stream, " region=%u:%u",
         table->region_scores[0], table->region_scores[1]) < 0) return CFR_STATUS_IO_ERROR;
+    if (statistics && fputs(" statistics=sample-variance-v1", stream) == EOF)
+        return CFR_STATUS_IO_ERROR;
     if (fputc('\n', stream) == EOF) return CFR_STATUS_IO_ERROR;
     for (unsigned int a = 0; a < table->target; a += 1) {
         for (unsigned int b = 0; b < table->target; b += 1) {
             const MusScoreCell *cell = &table->cells[a][b];
-            if (cell->ready &&
-                fprintf(stream, "%u %u %.17g %zu %zu %" PRIu64 "\n", a, b, cell->value,
+            if (!cell->ready) continue;
+            if (fprintf(stream, "%u %u %.17g %zu %zu %" PRIu64, a, b, cell->value,
                         cell->iterations, cell->evaluation_samples, cell->training_seed) < 0)
                 return CFR_STATUS_IO_ERROR;
+            if (statistics && fprintf(stream, " %u %.17g", cell->variance_known ? 1U : 0U,
+                                      cell->sample_variance) < 0) return CFR_STATUS_IO_ERROR;
+            if (fputc('\n', stream) == EOF) return CFR_STATUS_IO_ERROR;
         }
     }
     return ferror(stream) ? CFR_STATUS_IO_ERROR : CFR_STATUS_SUCCESS;
@@ -118,6 +133,14 @@ Status mus_score_table_read(FILE *stream, MusScoreTable *table) {
         return CFR_STATUS_INVALID_ARGUMENT;
     if (fgets(header, sizeof(header), stream) == NULL)
         return CFR_STATUS_FORMAT_ERROR;
+    const char statistics_suffix[] = " statistics=sample-variance-v1\n";
+    const size_t header_size = strlen(header), suffix_size = sizeof(statistics_suffix) - 1;
+    const bool statistics = header_size >= suffix_size &&
+        strcmp(header + header_size - suffix_size, statistics_suffix) == 0;
+    if (statistics) {
+        header[header_size - suffix_size] = '\n';
+        header[header_size - suffix_size + 1] = '\0';
+    }
     char schema[64], base[128], target_token[32], region_a[32], region_b[32];
     uintmax_t parsed_target, a_bound = 0, b_bound = 0;
     const int fields = sscanf(header, "%63s base=%127s target=%31s orientation=mano "
@@ -145,11 +168,12 @@ Status mus_score_table_read(FILE *stream, MusScoreTable *table) {
     if (strcmp(expected, header) != 0)
         return CFR_STATUS_FORMAT_ERROR;
     while (fgets(header, sizeof(header), stream) != NULL) {
-        char tokens[6][64];
+        char tokens[8][64];
         char extra;
         uintmax_t a, b, iterations, samples, seed;
-        if (sscanf(header, "%63s %63s %63s %63s %63s %63s %c", tokens[0],
-                   tokens[1], tokens[2], tokens[3], tokens[4], tokens[5], &extra) != 6 ||
+        if (sscanf(header, "%63s %63s %63s %63s %63s %63s %63s %63s %c", tokens[0],
+                   tokens[1], tokens[2], tokens[3], tokens[4], tokens[5], tokens[6],
+                   tokens[7], &extra) != (statistics ? 8 : 6) ||
             !parse_unsigned_token(tokens[0], target - 1, &a) ||
             !parse_unsigned_token(tokens[1], target - 1, &b) ||
             !parse_unsigned_token(tokens[3], SIZE_MAX, &iterations) ||
@@ -161,11 +185,19 @@ Status mus_score_table_read(FILE *stream, MusScoreTable *table) {
         const double value = strtod(tokens[2], &end);
         if (errno != 0 || *end != '\0' || end == tokens[2])
             return CFR_STATUS_FORMAT_ERROR;
-        const MusScoreCell cell = {
+        MusScoreCell cell = {
             .ready = true, .value = value, .iterations = (size_t)iterations,
             .evaluation_samples = (size_t)samples, .training_seed = (uint64_t)seed,
         };
-        if (temporary.cells[a][b].ready || !valid_cell(&cell) ||
+        if (statistics) {
+            uintmax_t known;
+            if (!parse_unsigned_token(tokens[6], 1, &known)) return CFR_STATUS_FORMAT_ERROR;
+            cell.variance_known = known != 0;
+            errno = 0;
+            cell.sample_variance = strtod(tokens[7], &end);
+            if (errno != 0 || end == tokens[7] || *end != '\0') return CFR_STATUS_FORMAT_ERROR;
+        }
+        if (temporary.cells[a][b].ready || !valid_cell(&cell) || !valid_cell_statistics(&cell) ||
             !mus_score_table_contains(&temporary, (unsigned int)a, (unsigned int)b))
             return CFR_STATUS_FORMAT_ERROR;
         temporary.cells[a][b] = cell;
@@ -258,16 +290,29 @@ static double random_unit(uint64_t *state) {
     return (double)(z >> 11) * 0x1p-53;
 }
 
-Status mus_score_evaluate(const MusScoreGame *game, const InfoStore *store,
-                          size_t samples, uint64_t seed, double *value) {
-    if (game == NULL || store == NULL || value == NULL || samples == 0)
+static bool valid_evaluation_options(const MusScoreEvaluationOptions *options) {
+    return options != NULL && options->min_samples > 0 &&
+        options->min_samples <= options->max_samples &&
+        isfinite(options->target_standard_error) && options->target_standard_error >= 0 &&
+        (options->target_standard_error > 0 ? options->min_samples >= 2
+                                            : options->min_samples == options->max_samples);
+}
+
+static bool evaluation_target_reached(size_t samples, double variance, double target) {
+    return target > 0 && samples >= 2 && sqrt(variance / (double)samples) <= target;
+}
+
+Status mus_score_evaluate_with_options(const MusScoreGame *game, const InfoStore *store,
+    const MusScoreEvaluationOptions *options, uint64_t seed, MusScoreEvaluation *result) {
+    if (game == NULL || store == NULL || result == NULL || !valid_evaluation_options(options))
         return CFR_STATUS_INVALID_ARGUMENT;
     MusGameState *state = malloc(sizeof(*state));
     if (state == NULL)
         return CFR_STATUS_OUT_OF_MEMORY;
     const GameOperations *ops = game->game.trusted_operations;
     const void *context = game->game.context;
-    double mean = 0;
+    double mean = 0, m2 = 0;
+    MusScoreEvaluation evaluation = {0};
     Status status = mus_score_game_state_init(state, game);
     if (status != CFR_STATUS_SUCCESS) {
         free(state);
@@ -277,7 +322,7 @@ Status mus_score_evaluate(const MusScoreGame *game, const InfoStore *store,
      * entry before that entry can be read. */
     unsigned char root[offsetof(MusGameState, undo_history)];
     memcpy(root, state, sizeof(root));
-    for (size_t sample = 0; sample < samples; sample += 1) {
+    for (size_t sample = 0; sample < options->max_samples; sample += 1) {
         memcpy(state, root, sizeof(root));
         state->undo_count = 0;
         GameState *raw = mus_game_state_as_game_state(state);
@@ -331,12 +376,57 @@ Status mus_score_evaluate(const MusScoreGame *game, const InfoStore *store,
         status = mus_score_terminal_utility(state, CFR_PLAYER_0, &utility);
         if (status != CFR_STATUS_SUCCESS)
             break;
-        mean += (utility - mean) / (double)(sample + 1);
+        const double delta = utility - mean;
+        mean += delta / (double)(sample + 1);
+        m2 += delta * (utility - mean);
+        evaluation.samples = sample + 1;
+        if (options->target_standard_error > 0 && evaluation.samples >= options->min_samples &&
+            evaluation_target_reached(evaluation.samples, m2 / (double)sample,
+                                      options->target_standard_error)) {
+            evaluation.target_reached = true;
+            break;
+        }
     }
     free(state);
-    if (status == CFR_STATUS_SUCCESS)
-        *value = mean;
+    if (status == CFR_STATUS_SUCCESS) {
+        evaluation.value = mean;
+        evaluation.variance_known = evaluation.samples >= 2;
+        if (evaluation.variance_known) {
+            evaluation.sample_variance = m2 / (double)(evaluation.samples - 1);
+            evaluation.standard_error = sqrt(evaluation.sample_variance / (double)evaluation.samples);
+        }
+        *result = evaluation;
+    }
     return status;
+}
+
+Status mus_score_evaluate(const MusScoreGame *game, const InfoStore *store,
+                          size_t samples, uint64_t seed, double *value) {
+    if (value == NULL) return CFR_STATUS_INVALID_ARGUMENT;
+    const MusScoreEvaluationOptions options = {.min_samples = samples, .max_samples = samples};
+    MusScoreEvaluation result;
+    const Status status = mus_score_evaluate_with_options(game, store, &options, seed, &result);
+    if (status == CFR_STATUS_SUCCESS) *value = result.value;
+    return status;
+}
+
+static MusScoreEvaluationOptions training_evaluation_options(const MusScoreTrainingOptions *options) {
+    return (MusScoreEvaluationOptions){
+        .min_samples = options->evaluation_min_samples == 0 ? options->evaluation_samples
+                                                          : options->evaluation_min_samples,
+        .max_samples = options->evaluation_samples,
+        .target_standard_error = options->evaluation_target_se,
+    };
+}
+
+static bool cell_evaluation_matches(const MusScoreCell *cell,
+                                    const MusScoreTrainingOptions *options) {
+    const MusScoreEvaluationOptions evaluation = training_evaluation_options(options);
+    return cell->evaluation_samples >= evaluation.min_samples &&
+        cell->evaluation_samples <= evaluation.max_samples &&
+        (cell->evaluation_samples == evaluation.max_samples ||
+         (cell->variance_known && evaluation_target_reached(cell->evaluation_samples,
+            cell->sample_variance, evaluation.target_standard_error)));
 }
 
 typedef struct {
@@ -385,8 +475,9 @@ static void *train_score_cell(void *raw_worker) {
                 (source == NULL ? 0 : source->iterations);
             const uint64_t expected_seed = source == NULL ? seed : source->training_seed;
             if (!worker->cell.ready || !valid_cell(&worker->cell) ||
+                !valid_cell_statistics(&worker->cell) ||
                 worker->cell.iterations != iterations ||
-                worker->cell.evaluation_samples != options->evaluation_samples ||
+                !cell_evaluation_matches(&worker->cell, options) ||
                 worker->cell.training_seed != expected_seed)
                 status = CFR_STATUS_INCOMPATIBLE_GAME;
             worker->recovered = status == CFR_STATUS_SUCCESS;
@@ -448,11 +539,18 @@ static void *train_score_cell(void *raw_worker) {
         .ready = true, .iterations = worker->trainer.training_iterations,
         .evaluation_samples = options->evaluation_samples, .training_seed = seed,
     };
-    if (status == CFR_STATUS_SUCCESS)
-        status = mus_score_evaluate(&worker->game, &worker->store,
-                                    options->evaluation_samples,
-                                    seed ^ UINT64_C(0xd1b54a32d192ed03),
-                                    &worker->cell.value);
+    if (status == CFR_STATUS_SUCCESS) {
+        const MusScoreEvaluationOptions evaluation_options = training_evaluation_options(options);
+        MusScoreEvaluation evaluation;
+        status = mus_score_evaluate_with_options(&worker->game, &worker->store,
+            &evaluation_options, seed ^ UINT64_C(0xd1b54a32d192ed03), &evaluation);
+        if (status == CFR_STATUS_SUCCESS) {
+            worker->cell.value = evaluation.value;
+            worker->cell.evaluation_samples = evaluation.samples;
+            worker->cell.variance_known = evaluation.variance_known;
+            worker->cell.sample_variance = evaluation.sample_variance;
+        }
+    }
     worker->status = status;
     return NULL;
 }
@@ -462,9 +560,10 @@ Status mus_score_train(MusScoreTable *table, unsigned int minimum_sum,
                        MusScoreSaveCell save_cell,
                        MusScoreSaveDiagonal save_diagonal, void *context) {
     if (!valid_table(table) || options == NULL || options->iterations == 0 ||
-        options->evaluation_samples == 0 ||
         minimum_sum > 2U * (unsigned int)(table->target - 1))
         return CFR_STATUS_INVALID_ARGUMENT;
+    const MusScoreEvaluationOptions evaluation_options = training_evaluation_options(options);
+    if (!valid_evaluation_options(&evaluation_options)) return CFR_STATUS_INVALID_ARGUMENT;
     if (options->extension != NULL) {
         const MusScoreExtension *extension = options->extension;
         if (extension->table == table || !valid_table(extension->table) ||
@@ -482,7 +581,7 @@ Status mus_score_train(MusScoreTable *table, unsigned int minimum_sum,
                     return CFR_STATUS_INVALID_ARGUMENT;
                 if (destination->ready &&
                     (destination->iterations != source->iterations + options->iterations ||
-                     destination->evaluation_samples != options->evaluation_samples ||
+                     !cell_evaluation_matches(destination, options) ||
                      destination->training_seed != source->training_seed))
                     return CFR_STATUS_INCOMPATIBLE_GAME;
             }

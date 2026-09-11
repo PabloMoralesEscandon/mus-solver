@@ -531,7 +531,8 @@ static void write_score_fixture(const char *directory) {
     for (int a = 0; a < 40; ++a)
         for (int b = 0; b < 40; ++b)
             if (a + b >= 60)
-                table.cells[a][b] = (MusScoreCell){true, 0, 50000000, 1000, 7};
+                table.cells[a][b] = (MusScoreCell){.ready = true, .value = 0,
+                    .iterations = 50000000, .evaluation_samples = 1000, .training_seed = 7};
     char path[4096];
     snprintf(path, sizeof(path), "%s/values.txt", directory);
     FILE *file = fopen(path, "w");
