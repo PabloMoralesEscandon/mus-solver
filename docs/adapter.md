@@ -398,3 +398,9 @@ Python. Para medir este bot ligero, usar `bot_peak_rss_kib`, leído de su propio
 proceso. Las diferencias de cobertura respecto al binario pueden incluir nodos
 sin masa acumulada que el exportador representa como uniformes, tal como se
 explica en el contrato de respuesta.
+
+## Repetición de la semilla
+
+El CLI valida cada aparición de `--seed` y utiliza el último valor válido para
+inicializar la secuencia. Una aparición inválida termina con error, aunque haya
+otra válida después. Por ejemplo, `--seed 8 --seed 123` equivale a `--seed 123`.

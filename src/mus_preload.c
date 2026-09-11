@@ -108,6 +108,8 @@ static Status preload_node(const InfoNode *source, void *raw_context) {
     if (status != CFR_STATUS_SUCCESS)
         return status;
     context->stats.imported_nodes += 1;
+    if (mass == 0)
+        context->stats.uniform_after_filter_nodes += 1;
     if (later)
         context->stats.imported_later_nodes += 1;
     if (shared < new_count)
@@ -244,6 +246,8 @@ static Status initialize_from_ordago(InfoNode *node, void *raw_context) {
     status = cfr_info_node_apply_deltas(node, prior, prior, count);
     if (status == CFR_STATUS_SUCCESS && context->stats != NULL) {
         __atomic_fetch_add(&context->stats->imported_nodes, 1, __ATOMIC_RELAXED);
+        if (mass == 0)
+            __atomic_fetch_add(&context->stats->uniform_after_filter_nodes, 1, __ATOMIC_RELAXED);
         if (later)
             __atomic_fetch_add(&context->stats->imported_later_nodes, 1, __ATOMIC_RELAXED);
         if (expanded)

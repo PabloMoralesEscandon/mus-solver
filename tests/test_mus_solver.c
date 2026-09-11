@@ -2548,6 +2548,7 @@ static void test_score_preload_policy(void) {
     MusScorePreloadStats stats;
     CHECK(mus_score_preload_ordago(&score, &options, &destination, &stats) == CFR_STATUS_SUCCESS);
     CHECK(stats.source_nodes == 2 && stats.imported_nodes == 1 && stats.existing_nodes == 0);
+    CHECK(stats.uniform_after_filter_nodes == 0);
     CHECK(stats.expanded_action_nodes == 0 && stats.skipped_history_nodes == 1);
     CHECK(cfr_info_store_find(&destination, target_key, &node) == CFR_STATUS_SUCCESS);
     CHECK(node->action_count == 6);
@@ -2565,6 +2566,7 @@ static void test_score_preload_policy(void) {
     const double existing_regret = node->regret_sums[0];
     CHECK(mus_score_preload_ordago(&score, &options, &destination, &stats) == CFR_STATUS_SUCCESS);
     CHECK(stats.imported_nodes == 0 && stats.existing_nodes == 1);
+    CHECK(stats.uniform_after_filter_nodes == 0);
     CHECK(node->regret_sums[0] == existing_regret);
     CHECK(source.training_iterations == 123456 && source.mccfr_rng.state == original_rng);
     if (after != NULL)
@@ -2613,6 +2615,7 @@ static void test_score_preload_policy(void) {
     CHECK(mus_score_preload_ordago(&score, &options, &destination, &stats) == CFR_STATUS_SUCCESS);
     CHECK(stats.imported_nodes == 3 && stats.skipped_history_nodes == 1 &&
           stats.skipped_illegal_nodes == 0);
+    CHECK(stats.uniform_after_filter_nodes == 1);
     CHECK(mus_score_information_set_from_ordago(&score, numeric_key, 0, 0, &target_key) ==
           CFR_STATUS_SUCCESS);
     CHECK(cfr_info_store_find(&destination, target_key, &node) == CFR_STATUS_SUCCESS);
@@ -2735,6 +2738,7 @@ static void test_score_prior_all_lances(void) {
             score_apply(&score, &state, MUS_ACTION_PASS);
         }
         CHECK(stats.imported_later_nodes > 0 && stats.missing_source_nodes == 0);
+        CHECK(stats.uniform_after_filter_nodes == 0);
         CHECK(cfr_info_store_destroy(&destination) == CFR_STATUS_SUCCESS);
     }
     CHECK(phases[MUS_PHASE_GRANDE] && phases[MUS_PHASE_CHICA] && phases[MUS_PHASE_PARES]);
@@ -2796,6 +2800,7 @@ static void test_score_prior_all_lances(void) {
     seed_legacy_action(&source_store, candidates[0], MUS_ACTION_BET_TEN, 1);
     CHECK(mus_score_prior_attach(&prior, &score, &options, &destination, &stats) == CFR_STATUS_SUCCESS);
     CHECK(cfr_info_store_get_or_create(&destination, key, 5, &node) == CFR_STATUS_SUCCESS);
+    CHECK(stats.imported_nodes == 1 && stats.uniform_after_filter_nodes == 1);
     CHECK(cfr_info_node_average_strategy(node, average, 5) == CFR_STATUS_SUCCESS);
     for (size_t i = 0; i < 5; ++i) CHECK(fabs(average[i] - .2) < 1e-12);
     CHECK(cfr_info_store_destroy(&destination) == CFR_STATUS_SUCCESS);
@@ -2805,6 +2810,7 @@ static void test_score_prior_all_lances(void) {
     CHECK(mus_score_prior_attach(&prior, &score, &options, &destination, &stats) == CFR_STATUS_SUCCESS);
     CHECK(cfr_info_store_get_or_create(&destination, key, 5, &node) == CFR_STATUS_SUCCESS);
     CHECK(stats.missing_source_nodes == 1 && stats.imported_nodes == 0);
+    CHECK(stats.uniform_after_filter_nodes == 0);
     CHECK(cfr_info_node_average_strategy(node, average, 5) == CFR_STATUS_SUCCESS);
     for (size_t i = 0; i < 5; ++i) CHECK(fabs(average[i] - .2) < 1e-12);
     CHECK(cfr_info_store_destroy(&destination) == CFR_STATUS_SUCCESS);

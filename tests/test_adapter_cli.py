@@ -58,6 +58,17 @@ with tempfile.TemporaryDirectory(prefix="mus-adapter-") as directory:
     assert results[-1]["ok"], results[-1]
     assert subprocess.run(command, input=json.dumps(base) + "\n", text=True, capture_output=True,
                           check=True).stdout.splitlines()[0] == output.stdout.splitlines()[0]
+    # Each occurrence is validated; the last valid seed controls the sequence.
+    seed_input = (json.dumps(base) + "\n") * 64
+    seed_output = subprocess.run(command, input=seed_input, text=True,
+                                 capture_output=True, check=True).stdout
+    duplicate_seed = [bot, "--load", str(checkpoint), "--seed", "999", "--seed", "123"]
+    assert subprocess.run(duplicate_seed, input=seed_input, text=True,
+                          capture_output=True, check=True).stdout == seed_output
+    assert subprocess.run(command[:-1] + ["999"], input=seed_input, text=True,
+                          capture_output=True, check=True).stdout != seed_output
+    assert subprocess.run([bot, "--load", str(checkpoint), "--seed", "bad", "--seed", "123"],
+                          input="", text=True, capture_output=True).returncode != 0
     compressed = pathlib.Path(directory) / "fixture.cfr.zst"
     with compressed.open("wb") as stream:
         subprocess.run(["zstd", "-q", "-c", str(checkpoint)], stdout=stream, check=True)

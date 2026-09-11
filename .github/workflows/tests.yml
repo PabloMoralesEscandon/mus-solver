@@ -1,0 +1,71 @@
+name: Mus solver tests
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  variants:
+    name: Mus ${{ matrix.muses }} / ${{ matrix.instrumentation }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        muses: [1, 2]
+        instrumentation: [normal, asan-ubsan, tsan]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config libzstd-dev libjson-c-dev zstd python3
+      # GCC 13 sanitizer runtimes can conflict with high-entropy mappings.
+      # https://gcc.gnu.org/bugzilla/show_bug.cgi?id=113430
+      - name: Configure address mappings for sanitizer runtimes
+        if: matrix.instrumentation != 'normal'
+        run: sudo sysctl -w vm.mmap_rnd_bits=28
+      - name: Test all five formats
+        env:
+          MUS_LIMIT: ${{ matrix.muses }}
+          INSTRUMENTATION: ${{ matrix.instrumentation }}
+        run: |
+          target=test
+          if [ "$MUS_LIMIT" = 2 ]; then target=test-core; fi
+          cflags=
+          ldflags=
+          case "$INSTRUMENTATION" in
+            asan-ubsan)
+              cflags='-fsanitize=address,undefined -fno-sanitize-recover=all'
+              ldflags='-fsanitize=address,undefined'
+              ;;
+            tsan)
+              cflags='-fsanitize=thread -fno-omit-frame-pointer'
+              ldflags='-fsanitize=thread'
+              ;;
+          esac
+          make -j2 MUS_MAX_MUSES="$MUS_LIMIT" CFLAGS="$cflags" LDFLAGS="$ldflags" "$target"
+
+  build-contracts:
+    name: Release and incremental builds
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config libzstd-dev libjson-c-dev zstd python3
+      - name: Build release with LTO
+        run: make -j2 all
+      - name: Test configuration changes
+        run: python3 tests/test_build_config.py
+      - name: Test incremental dependencies
+        run: python3 tests/test_build_incremental.py
+      - name: Test component dependencies and cleanup
+        run: python3 tests/test_build_components.py

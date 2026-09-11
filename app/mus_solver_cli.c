@@ -653,11 +653,13 @@ static Status report_score_preload(const MusScoreGame *game,
                                    const MusScorePreloadStats *stats) {
     return printf("score-preload score=%u:%u source_nodes=%zu imported_nodes=%zu "
                   "existing_nodes=%zu expanded_action_nodes=%zu "
-                  "missing_source_nodes=%zu imported_later_nodes=%zu mode=lazy-all-lances\n",
+                  "missing_source_nodes=%zu imported_later_nodes=%zu "
+                  "uniform_after_filter_nodes=%zu mode=lazy-all-lances\n",
                   game->initial_scores[0], game->initial_scores[1],
                   stats->source_nodes, stats->imported_nodes, stats->existing_nodes,
                   stats->expanded_action_nodes, stats->missing_source_nodes,
-                  stats->imported_later_nodes) < 0 ? CFR_STATUS_IO_ERROR : CFR_STATUS_SUCCESS;
+                  stats->imported_later_nodes, stats->uniform_after_filter_nodes) < 0
+                      ? CFR_STATUS_IO_ERROR : CFR_STATUS_SUCCESS;
 }
 
 static Status report_score_progress(const MusScoreGame *game, const Trainer *trainer,
@@ -669,10 +671,11 @@ static Status report_score_progress(const MusScoreGame *game, const Trainer *tra
         return status;
     if (printf("score-report score=%u:%u iterations=%zu information_sets=%zu "
                "imported_nodes=%zu imported_later_nodes=%zu missing_source_nodes=%zu "
-               "existing_nodes=%zu added_iterations=%zu\n",
+               "existing_nodes=%zu uniform_after_filter_nodes=%zu added_iterations=%zu\n",
                game->initial_scores[0], game->initial_scores[1], trainer->training_iterations, stats.size,
                preload->imported_nodes, preload->imported_later_nodes,
-               preload->missing_source_nodes, preload->existing_nodes, completed) < 0 || fflush(stdout) != 0)
+               preload->missing_source_nodes, preload->existing_nodes,
+               preload->uniform_after_filter_nodes, completed) < 0 || fflush(stdout) != 0)
         return CFR_STATUS_IO_ERROR;
     return CFR_STATUS_SUCCESS;
 }
@@ -833,13 +836,22 @@ static Status acquire_score_lock(const char *directory, bool exclusive, int *res
 static bool print_score_resume(const MusScoreTable *table, const CliOptions *options,
                                const MusScoreTable *source) {
     size_t count = 0, mismatched = 0;
+    size_t pending_by_diagonal[2 * MUS_ORDAGO_WAGER] = {0};
+    size_t cell_limit = 0;
     size_t min_iterations = SIZE_MAX, max_iterations = 0;
     size_t min_samples = SIZE_MAX, max_samples = 0;
     for (unsigned int a = 0; a < table->target; a += 1) {
         for (unsigned int b = 0; b < table->target; b += 1) {
             const MusScoreCell *cell = &table->cells[a][b];
-            if (!cell->ready)
+            if (!cell->ready) {
+                if (a + b >= options->score_a + options->score_b &&
+                    mus_score_table_contains(table, a, b)) {
+                    const size_t pending = ++pending_by_diagonal[a + b];
+                    if (pending > cell_limit)
+                        cell_limit = pending;
+                }
                 continue;
+            }
             count += 1;
             if (cell->iterations < min_iterations)
                 min_iterations = cell->iterations;
@@ -859,6 +871,11 @@ static bool print_score_resume(const MusScoreTable *table, const CliOptions *opt
                 mismatched += 1;
         }
     }
+    if (cell_limit > options->threads)
+        cell_limit = options->threads;
+    if (printf("score-workers requested=%zu cell_limit=%zu threads_per_cell=%zu\n",
+               options->threads, cell_limit, options->threads_per_cell) < 0)
+        return false;
     return count == 0 ||
            printf("score-resume cells=%zu iterations_min=%zu iterations_max=%zu "
                   "samples_min=%zu samples_max=%zu requested_iterations=%zu "
@@ -1237,8 +1254,9 @@ static Status check_score_extension_manifest(const CliOptions *options,
         status = mus_score_table_write(expected, source);
     if (status == CFR_STATUS_SUCCESS && fflush(expected) != 0)
         status = CFR_STATUS_IO_ERROR;
+    if (status == CFR_STATUS_SUCCESS && fseeko(expected, 0, SEEK_SET) != 0)
+        status = CFR_STATUS_IO_ERROR;
     if (status == CFR_STATUS_SUCCESS) {
-        rewind(expected);
         if (existing != NULL) {
             int a, b;
             do {

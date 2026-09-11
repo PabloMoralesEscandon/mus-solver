@@ -156,6 +156,7 @@ make
 make test
 make test-tsan
 make test-sanitize
+make MUS_MAX_MUSES=2 test-core
 make dependencies
 ```
 
@@ -170,6 +171,20 @@ evaluador de partidas necesita las fuentes del simulador.
 normales.
 `make test-tsan` comprueba con ThreadSanitizer tanto el acceso concurrente al
 almacén de C-CFR como el entrenamiento paralelo del CLI.
+
+El workflow del repositorio ejecuta los cinco formatos (`single-bet`,
+`raises-to-eight`, `ordago`, `ordago-public`, `ordago-score`) con uno y dos muses,
+en modo normal, ASan/UBSan y TSan. `test-core` comprueba el núcleo, las claves,
+el modelo público, el CLI y la guarda del adaptador; `test` añade las pruebas de
+persistencia, estadísticas, bots genérico/público/híbrido y partidas desplegadas.
+El bot sigue requiriendo un mus. Otro job verifica el build release con LTO y
+las tres pruebas de configuración, dependencias incrementales y componentes.
+El checkout del workflow usa la [acción oficial de GitHub](https://github.com/actions/checkout)
+fijada al commit correspondiente a v7.
+Los jobs instrumentados ajustan el mapa de direcciones de su runner temporal por
+la [incompatibilidad conocida del runtime de GCC 13](https://gcc.gnu.org/bugzilla/show_bug.cgi?id=113430).
+Antes de publicar una rama del repositorio principal, publique los commits de
+submódulos que esa rama referencia: el checkout de CI necesita poder descargarlos.
 
 Para volver a permitir dos muses en una compilación independiente:
 
@@ -380,6 +395,12 @@ está limitado por el número de celdas de cada diagonal.
     --threads 4 --continuation marcador-40
 ```
 
+`score-workers` muestra los trabajadores solicitados, `cell_limit` y los hilos
+por celda. `cell_limit` es el máximo de celdas pendientes que puede atender una
+diagonal, limitado por `--threads`, el marcador, la región y las celdas ya
+publicadas. Vale cero si no queda trabajo. Es una cota de concurrencia; la
+recuperación de celdas o un fallo al crear hilos puede reducir el trabajo real.
+
 `--threads-per-cell M` permite que hasta M hilos entrenen **la misma estrategia**
 dentro de cada celda; también vale 1 por defecto. Cada hilo tiene su estado,
 generador aleatorio y espacio de recorrido, y todos actualizan el mismo almacén
@@ -536,7 +557,12 @@ optimiza la utilidad de ganar la partida. Los nodos existentes se conservan.
 dentro de cada marcador mediante líneas `score-report`.
 
 `score-preload-source` identifica el origen y sus parámetros; `score-preload`
-informa por celda con `mode=lazy-all-lances`. Conserva el checkpoint genérico y
+informa por celda con `mode=lazy-all-lances`. `uniform_after_filter_nodes` cuenta
+los nodos importados cuyo prior queda sin masa en las acciones legales del
+destino, antes de añadir la mezcla uniforme. Es un subconjunto de
+`imported_nodes`; los orígenes ausentes se cuentan en `missing_source_nodes`.
+No mide la calidad de la política ni indica por sí solo cuánto se ha aprendido.
+Conserva el checkpoint genérico y
 repite las opciones al reanudar para inicializar también los nodos que aparezcan
 después. `values.txt` no guarda la configuración del prior y las celdas publicadas
 no se vuelven a entrenar. Para rehacerlas con esta precarga, usa un directorio nuevo.

@@ -52,7 +52,7 @@ DEPENDENCY_FILES := $(RELEASE_OBJECTS:.o=.d) $(DEBUG_OBJECTS:.o=.d) \
 	$(RELEASE_APP_OBJECT:.o=.d) $(DEBUG_APP_OBJECT:.o=.d) \
 	$(DEBUG_TEST_OBJECT:.o=.d)
 
-.PHONY: all lto debug test test-tsan test-sanitize dependencies cfr-release \
+.PHONY: all lto debug test test-core test-tsan test-sanitize dependencies cfr-release \
 	cfr-debug clean clean-all solver bot match-eval \
 	benchmark-score benchmark-score-threads benchmark-evaluation
 
@@ -114,14 +114,18 @@ debug: $(DEBUG_BINARY) $(TEST_BINARY) $(DEBUG_DIR)/mus-bot $(DEBUG_DIR)/mus_adap
 	$(DEBUG_DIR)/mus_hotpaths_tests $(DEBUG_DIR)/mus_adapter_configuration_tests \
 	$(DEBUG_DIR)/mus_ordago_public_tests $(DEBUG_DIR)/mus-match-eval $(DEBUG_DIR)/mus_match_tests
 
-test: $(TEST_BINARY) $(DEBUG_BINARY) $(DEBUG_DIR)/mus-bot $(DEBUG_DIR)/mus_adapter_tests \
-	$(DEBUG_DIR)/mus_hotpaths_tests $(DEBUG_DIR)/mus_adapter_configuration_tests \
-	$(DEBUG_DIR)/mus_ordago_public_tests $(DEBUG_DIR)/mus-match-eval $(DEBUG_DIR)/mus_match_tests \
-	$(DEBUG_DIR)/mus_adapter_candidates_tests
+test-core: $(TEST_BINARY) $(DEBUG_BINARY) $(DEBUG_DIR)/mus_hotpaths_tests \
+	$(DEBUG_DIR)/mus_ordago_public_tests $(DEBUG_DIR)/mus_adapter_configuration_tests
 	./$(TEST_BINARY)
 	./$(DEBUG_DIR)/mus_hotpaths_tests
 	./$(DEBUG_DIR)/mus_ordago_public_tests
+	./$(DEBUG_DIR)/mus_adapter_configuration_tests
 	./tests/test_cli.sh ./$(DEBUG_BINARY)
+
+test: test-core $(DEBUG_DIR)/mus-bot $(DEBUG_DIR)/mus_adapter_tests \
+	$(DEBUG_DIR)/mus_hotpaths_tests $(DEBUG_DIR)/mus_adapter_configuration_tests \
+	$(DEBUG_DIR)/mus_ordago_public_tests $(DEBUG_DIR)/mus-match-eval $(DEBUG_DIR)/mus_match_tests \
+	$(DEBUG_DIR)/mus_adapter_candidates_tests
 	python3 tests/test_score_locks.py ./$(DEBUG_BINARY)
 	python3 tests/test_score_recovery.py ./$(DEBUG_BINARY)
 	python3 tests/test_score_regions.py ./$(DEBUG_BINARY) ./$(DEBUG_DIR)/mus-bot
@@ -130,7 +134,6 @@ test: $(TEST_BINARY) $(DEBUG_BINARY) $(DEBUG_DIR)/mus-bot $(DEBUG_DIR)/mus_adapt
 	python3 tests/test_match_evaluation.py ./$(DEBUG_BINARY) ./$(DEBUG_DIR)/mus-match-eval
 	./$(DEBUG_DIR)/mus_adapter_tests
 	./$(DEBUG_DIR)/mus_adapter_candidates_tests
-	./$(DEBUG_DIR)/mus_adapter_configuration_tests
 	python3 tests/test_adapter_cli.py ./$(DEBUG_DIR)/mus-bot ./$(DEBUG_DIR)/mus_adapter_tests
 	python3 tests/test_hybrid_adapter_cli.py ./$(DEBUG_DIR)/mus-bot ./$(DEBUG_DIR)/mus_adapter_tests
 	python3 tests/test_public_adapter_cli.py ./$(DEBUG_DIR)/mus-bot ./$(DEBUG_DIR)/mus_adapter_tests

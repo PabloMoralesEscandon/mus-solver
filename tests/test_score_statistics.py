@@ -36,6 +36,17 @@ def fields(line):
 adaptive = ['--evaluation-min-samples', '10', '--evaluation-target-se', '0.5']
 with tempfile.TemporaryDirectory(prefix='mus-statistics-') as tmp:
     root = Path(tmp)
+    # The cap reflects pending cells in a diagonal, including score and region.
+    for label, score, extra, limit in [
+        ('wide', '0:0', [], 3), ('top', '2:2', [], 1),
+        ('region', '1:1', ['--score-region', '1:1'], 2),
+    ]:
+        path = root/('workers-' + label)
+        output = run(train(path, ['--threads', '100', *extra], score=score, samples=2))
+        workers = fields(next(line for line in output.splitlines() if line.startswith('score-workers ')))
+        assert workers == {'requested': '100', 'cell_limit': str(limit), 'threads_per_cell': '1'}
+        output = run(train(path, ['--threads', '100', *extra], score=score, samples=2))
+        assert 'cell_limit=0 ' in output
     fixed = root/'fixed'
     output = run(train(fixed, ['--seed', '7']))
     assert (fixed/'values.txt').read_text().splitlines()[0].endswith('statistics=sample-variance-v1')

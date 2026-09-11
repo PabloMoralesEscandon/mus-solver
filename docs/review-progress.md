@@ -58,7 +58,7 @@ rendimiento del bot desplegado son métricas diferentes.
 | J20 | Invalidar objetos al cambiar la configuración | Completado |
 | J21 | Evitar enlaces sin cambios conservando dependencias reales | Completado |
 | J22 | Dependencias, portabilidad y separación del simulador | Completado |
-| J23 | Matriz de pruebas, observabilidad y contratos menores | Pendiente |
+| J23 | Matriz de pruebas, observabilidad y contratos menores | Completado localmente; CI remoto pendiente de publicación |
 
 ## J03: reintento de publicación
 
@@ -1288,3 +1288,123 @@ los hashes medidos. La prueba comprueba ese recuento.
 Revisión final: **APPROVE**, tarea `task_35b07274b3de`, dispatch
 `ctx_a6038bee5198`, mensaje `msg_20168e0f89f5`. Se actualizó el resultado final de
 la prueba de componentes y se incorporó la precisión de los tres pares públicos.
+
+## J23: matriz de pruebas y diagnósticos
+
+El workflow combina uno/dos muses con compilación normal, ASan/UBSan y TSan.
+Un mus ejecuta `make test` completo; dos muses ejecuta `test-core`, incluida la
+guarda del adaptador incompatible. Un segundo job comprueba release con LTO y
+las tres pruebas de configuración/dependencias/componentes de J20–J22. El YAML
+y sus fragmentos de shell pasan validación sintáctica local.
+
+Las propiedades incorporadas en bloques anteriores quedan bajo esa matriz:
+
+- Los tests del núcleo y CLI cubren los cinco formatos actuales, no solo los
+  cuatro que existían cuando se redactó el informe conjunto.
+- `test_ordago_public.c` contrasta 75.900 parejas de manos ocultas con un mus y 141.358 con dos, y contiene
+  casos de contabilidad escritos independientemente; `test_mus_hotpaths.c`
+  contrasta las rutas de claves con las rutas generales.
+- `test_score_diagonal_retry` y los scripts de bloqueos, recuperación y regiones
+  cubren fallos de publicación, reintentos y muerte de procesos; las pruebas de
+  adaptador cubren checkpoint/TXT malformados y truncados según sus contratos.
+- Los tests de precarga cubren límites de dejes, candidatos incompatibles,
+  políticas históricas/públicas y fases posteriores; la configuración de dos
+  muses ejecuta la guarda del adaptador.
+
+`uniform_after_filter_nodes` cuenta importaciones cuya masa sobre acciones
+legales del destino es cero antes de la mezcla uniforme. Se actualiza únicamente
+si se importa el nodo; los nodos ausentes y existentes conservan sus contadores
+separados. La ruta bajo demanda usa incrementos atómicos. No se cambian las
+probabilidades ni los regrets. Las pruebas distinguen prior retenido, prior
+filtrado por completo, reutilización de nodos y ausencia de origen.
+
+`score-workers` muestra la solicitud y `cell_limit`: el máximo de celdas
+pendientes por diagonal dentro del marcador y región, limitado por `--threads`.
+Vale cero al reanudar una tabla ya terminada. Es una cota: la recuperación o la
+imposibilidad de crear un hilo pueden reducir el trabajo efectivo. El planificador
+permanece intacto. Se prueban límites 3, 1 y 2 en tablas de objetivo 3, además de
+cero al repetirlas.
+
+El manifiesto de una extensión comprueba `fseeko` después de vaciar el archivo
+temporal y devuelve error de E/S si falla. Se documenta y prueba el contrato del
+bot para `--seed`: valida cada aparición y utiliza la última; una aparición
+inválida sigue causando error aunque después haya una válida.
+
+**Publicación de CI:** la revisión de Claude identificó que los commits del
+simulador `c837741` y `2fda65e` todavía son locales. Se conserva el último en la
+rama local `Simulador-Mus:review/mus-audit-fixes`, sin cambiar su checkout. Debe
+publicarse esa rama antes de publicar la del repositorio principal para que un
+checkout remoto pueda obtener el submódulo. Esta tarea prepara y comprueba los
+cambios localmente; no se ha solicitado publicación ni se ha ejecutado GitHub CI.
+El commit de C-CFR ya está disponible en su remoto.
+
+El workflow fija checkout al commit de su tag v7 y configura únicamente sus
+runners temporales instrumentados para evitar el conflicto de direcciones de
+GCC 13, documentado en [GCC 113430](https://gcc.gnu.org/bugzilla/show_bug.cgi?id=113430)
+y en el [informe de los sanitizadores](https://github.com/google/sanitizers/issues/1716).
+Estos ajustes no modifican el kernel del equipo de trabajo.
+
+Validación final local: pasan las seis combinaciones uno/dos muses × normal,
+ASan/UBSan y TSan. Pasan además las tres pruebas de construcción y el build
+release completo con LTO. Los primeros intentos ASan y TSan agotaron los 30 s
+que tenía la finalización de la prueba de proceso interrumpido (500 iteraciones),
+sin diagnóstico del sanitizador. Solo esa llamada de prueba dispone ahora de
+180 s; las demás conservan 30 s. Las baterías instrumentadas completas volvieron
+a ejecutarse y pasaron, con las mismas aserciones.
+
+Claude aprobó el código en `task_c757d829d768` / `ctx_59c5d50f5848`, mensaje
+`msg_7803ddfd30d8`. La revisión de seguimiento `task_c0e0328f0871` /
+`ctx_3bc3cfb1c9e2`, mensaje `msg_101f04f91ad4`, aprueba la finalización local,
+la protección de los commits del simulador y el requisito documentado para
+publicarlos antes del checkout remoto de CI.
+
+La prueba de semilla usa 64 decisiones con una política no determinista, exige
+igualdad entre la semilla única y la última repetida, y confirma que usar solo la
+primera semilla cambia la secuencia. Así evita una comprobación vacía sobre una
+política que siempre escogería la misma acción.
+
+Esta versión final de la prueba de semillas pasó en modo normal, ASan/UBSan y
+TSan después de terminar las mediciones. El compilador local es GCC 16.1.1;
+la ejecución remota del workflow en Ubuntu 24.04 queda pendiente de publicación.
+
+[Rendimiento frente a J22](review-performance/J23.json), tres pares alternos,
+CPU 0, semilla 7, ambos proyectos con O3 sin LTO:
+
+| Carga | Tiempo J22 → J23 | Variación | Variación RSS |
+|---|---:|---:|---:|
+| Entrenamiento público, 500 iteraciones | 9,6838 → 10,2908 s | +6,27 % | +0,001 % |
+| Marcador, 45 celdas sin precarga | 3,8409 → 3,9565 s | +3,01 % | −0,14 % |
+| Marcador, precarga histórica | 6,8810 → 7,0723 s | +2,78 % | +0,003 % |
+| Marcador, precarga pública | 9,1973 → 9,6254 s | +4,65 % | +0,010 % |
+| Bot TXT histórico, 1.000 partidas | 0,9334 → 0,9352 s | +0,20 % | +2,32 % |
+| Bot TXT público, 10.000 partidas | 1,2860 → 1,2849 s | −0,09 % | +0,14 % |
+
+Las cargas de marcador usan 1.000 iteraciones y 10.000 muestras por celda.
+Se conservan los aumentos de tiempo observados, sin atribuir su causa a partir
+de estos tres pares. Ninguna carga activa el límite de confirmación. Los
+checkpoints, archivos de valores y resultados de partidas —exceptuando los
+tiempos— son idénticos en las seis ejecuciones de cada carga.
+
+En cada repetición, el contador nuevo identifica 7.323 nodos sin masa tras el
+filtrado entre 934.055 importaciones históricas, y 7.332 entre 819.575
+importaciones públicas, sumando las 45 celdas. Los checkpoints de origen tienen
+500 iteraciones: sirven como cargas de rendimiento, no como evaluación de
+fuerza de juego. No se modifica C-CFR ni se recupera el planificador retirado J19.
+
+Las tres mediciones de entrenamiento público de J23 son mayores que las tres
+de J22: los intervalos no se solapan. Esto refuerza la observación del aumento
+en esta carga, aunque no identifica su causa.
+
+[Revisión final de Claude](review-performance/J23-claude-final.md): **APPROVE**,
+tarea `task_48e1c218c721`, dispatch `ctx_e70d8b39a036`, mensaje
+`msg_73b93f6abdc8`. Recalculó las medianas y los contadores a partir de los datos,
+comprobó la identidad de resultados y aprobó el cierre local sin correcciones.
+
+## Estado al terminar la aplicación
+
+Quedan completados veinte bloques y la parte de bloqueo de J17. J13 permanece
+descartado por decisión del usuario. La sincronización de J17 y el candidato
+de trabajadores J19 siguen retirados y pendientes de decisión por su coste
+medido. No quedan otros bloques del informe conjunto pendientes de implementar.
+La publicación de los commits del simulador y del repositorio principal queda
+fuera de esta ejecución local; el workflow remoto necesita esa publicación.

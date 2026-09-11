@@ -22,8 +22,8 @@ def args(path,position='1:1',seed=7,iterations=10,samples=100,extra=()):
             '--iterations',str(iterations),'--evaluation-samples',str(samples),
             '--continuation',str(path),'--seed',str(seed),*extra]
 
-def run(command,success=True):
-    p=subprocess.run([solver,*command],capture_output=True,text=True,timeout=30)
+def run(command,success=True,timeout=30):
+    p=subprocess.run([solver,*command],capture_output=True,text=True,timeout=timeout)
     assert (p.returncode==0)==success,(command,p.returncode,p.stdout,p.stderr)
     return p.stdout
 
@@ -140,7 +140,9 @@ with tempfile.TemporaryDirectory(prefix='mus-recovery-tests-') as tmp:
         if child.poll() is None:child.kill();child.wait()
         child.stdout.close();child.stderr.close()
     checkpoint=killed/'score-01-02.cfr.zst';before=(digest(checkpoint),checkpoint.stat().st_mtime_ns)
-    output=run(command)
+    # Completing the deliberately long interrupted run is much slower under
+    # ASan/TSan than the small recovery fixtures above.
+    output=run(command,timeout=180)
     assert 'score-recovered score=1:2' in output
     assert (digest(checkpoint),checkpoint.stat().st_mtime_ns)==before
 print('All completed-cell recovery checks passed.')

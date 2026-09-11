@@ -79,6 +79,10 @@ typedef struct {
     size_t skipped_illegal_nodes;
     size_t missing_source_nodes;
     size_t imported_later_nodes;
+    /* Imported nodes whose prior has zero mass on the destination menu before
+     * the uniform mixture. This is a subset of imported_nodes, not a measure
+     * of policy quality. Missing source nodes are counted separately. */
+    size_t uniform_after_filter_nodes;
 } MusScorePreloadStats;
 
 /* Keep this binding alive while its destination store can create nodes.
