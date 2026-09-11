@@ -48,7 +48,7 @@ rendimiento del bot desplegado son métricas diferentes.
 | J10 | Incertidumbre y presupuesto de evaluación | Completado; integración terminal ensayada sin activar |
 | J11 | Precisar el alcance del diagnóstico de repartos fijos | Completado |
 | J12 | Evaluar partidas con la política desplegada del bot | Completado |
-| J13 | Conservar disponibilidad de política en TXT | Pendiente |
+| J13 | Conservar disponibilidad de política en TXT | Candidato retirado: coste alrededor del 20 % en partidas con TXT público; a la espera del usuario |
 | J14 | Rechazar explícitamente el adaptador incompatible con dos muses | Completado |
 | J15 | Rechazar fases de azar/terminal en la clave rápida | Completado |
 | J16 | Gramática explícita para opciones enteras sin signo | Completado |
@@ -974,3 +974,33 @@ de explicar el posprocesado del JSON, ya incorporada: se sustituyeron las
 salidas completas repetidas por su SHA256, sin cambiar ninguna muestra ni
 resumen. El script incorporado reproduce ese formato compacto; el ejecutado
 guardaba las salidas completas. El cast del simulador quedó en `2fda65e`.
+
+
+## J13: candidato retirado por rendimiento
+
+El TXT v2 conservaba disponibilidad de política y añadía un pie de finalización,
+con lectura compatible de v1. Claude aprobó la implementación, y pasaron las
+pruebas de los cinco formatos, uno/dos muses y sanitizadores. La comparación de
+partidas encontró +19,67 % con la genérica pública; se confirmaron cinco pares
+adicionales por su proximidad al límite: **+21,29 %**, 1,3423 → 1,6281 s para
+10.000 partidas. Cambian las decisiones y la duración de las partidas; no es
+una pérdida del entrenamiento ni de una consulta de trabajo idéntico.
+
+El entrenamiento público y la tabla conservaron checkpoints/valores, con
+−1,35 % y +3,09 % de tiempo. Usar el mismo TXT v1 en ambos ejecutables tampoco
+mostró pérdida. La explicación y los límites de la medición están en el
+[informe de bloqueo](../ASTRA_BLOQUEO_RENDIMIENTO_J13_2026-09-11.md), con
+[datos](review-performance/J13-blocked.json) y [parche](review-performance/J13-blocked.patch).
+El candidato se retiró y el parche pasa `git apply --check` contra `f723699`.
+Se conserva J12; queda pendiente la decisión del usuario sobre J13 antes de
+seguir aplicando cambios. La aprobación de la implementación es la tarea
+`task_28ef84a839e1`, dispatch `ctx_2f85833c6973`, mensaje `msg_37ab196ec5ac`.
+
+Claude verificó las medidas: tarea `task_186ec2467f47`, dispatch
+`ctx_5d9b7195b430`, mensaje `msg_14a555c99e52`. Se precisó que la regla automática
+no se activó con +19,67 %: los cinco pares adicionales fueron una decisión
+por proximidad al límite. El efecto ronda el 20 %; con las ocho parejas la
+razón de medianas da +20,03 %, y la mediana de razones por pareja, +19,32 %.
+Se conserva una pareja con tiempos anormalmente altos (2,4248 s y 1,8412 s).
+El candidato queda retirado por prudencia ante ese coste fronterizo; no se
+presenta el +21,29 % de la confirmación como una penalización exacta universal.
