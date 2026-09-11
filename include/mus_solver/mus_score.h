@@ -178,7 +178,12 @@ Status mus_score_game_set_schema(MusScoreGame *game);
 /* Samples complete hands under the average strategy. Does not update CFR. */
 Status mus_score_evaluate(const MusScoreGame *game, const InfoStore *store,
                           size_t samples, uint64_t seed, double *value);
-/* Resolves all missing diagonals down to minimum_sum, inclusive. */
+/* Resolves all missing diagonals down to minimum_sum, inclusive.
+ * A save_diagonal failure restores that diagonal's previous in-memory cells.
+ * A save_cell failure leaves the current diagonal unpublished.
+ * Earlier completed diagonals remain ready. A retry trains the failed diagonal
+ * again, so both save callbacks must support replacement of prior output.
+ * Callbacks must not retain pointers to temporary games, trainers, or cells. */
 Status mus_score_train(MusScoreTable *table, unsigned int minimum_sum,
                        const MusScoreTrainingOptions *options,
                        MusScoreSaveCell save_cell,

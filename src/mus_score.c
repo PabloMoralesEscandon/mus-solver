@@ -476,14 +476,23 @@ Status mus_score_train(MusScoreTable *table, unsigned int minimum_sum,
         }
         if (count == 0)
             continue;
-        for (int a = 0; a < table->target; a += 1) {
-            if (batch[a].ready)
-                table->cells[a][sum - a] = batch[a];
+        for (size_t i = 0; i < count; i += 1) {
+            const unsigned int a = scores[i];
+            MusScoreCell previous = table->cells[a][(unsigned int)sum - a];
+            table->cells[a][(unsigned int)sum - a] = batch[a];
+            batch[a] = previous;
         }
         if (save_diagonal != NULL) {
             status = save_diagonal(table, context);
-            if (status != CFR_STATUS_SUCCESS)
+            if (status != CFR_STATUS_SUCCESS) {
+                /* A retry must publish this diagonal again. Preserve all
+                 * previously committed diagonals and unready metadata. */
+                for (size_t i = 0; i < count; i += 1) {
+                    const unsigned int a = scores[i];
+                    table->cells[a][(unsigned int)sum - a] = batch[a];
+                }
                 goto done;
+            }
         }
     }
 done:

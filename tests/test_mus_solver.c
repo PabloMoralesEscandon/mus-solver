@@ -3509,8 +3509,8 @@ static Status test_score_save_diagonal(const MusScoreTable *table, void *context
     return CFR_STATUS_SUCCESS;
 }
 
-static Status fail_score_diagonal(const MusScoreGame *game, const Trainer *trainer,
-                                  const MusScoreCell *cell, void *context) {
+static Status fail_score_cell(const MusScoreGame *game, const Trainer *trainer,
+                              const MusScoreCell *cell, void *context) {
     (void)trainer;
     (void)cell;
     (void)context;
@@ -3616,7 +3616,7 @@ static void test_score_parallel_training(void) {
         if (right != NULL)
             fclose(right);
         CHECK(mus_score_table_init(&parallel, 3) == CFR_STATUS_SUCCESS);
-        CHECK(mus_score_train(&parallel, 0, &options, fail_score_diagonal,
+        CHECK(mus_score_train(&parallel, 0, &options, fail_score_cell,
                               NULL, NULL) == CFR_STATUS_IO_ERROR);
         CHECK(parallel.cells[2][2].ready);
         CHECK(!parallel.cells[1][2].ready && !parallel.cells[2][1].ready);
@@ -3821,13 +3821,93 @@ static void test_score_extension(void) {
     }
 }
 
+typedef struct {
+    size_t cells[3][3];
+    size_t diagonals;
+    bool fail;
+} ScoreRetrySave;
+
+static Status count_retry_score_cell(const MusScoreGame *game, const Trainer *trainer,
+                                     const MusScoreCell *cell, void *context) {
+    (void)trainer;
+    (void)cell;
+    ScoreRetrySave *saved = context;
+    const unsigned int a = game->initial_scores[0], b = game->initial_scores[1];
+    CHECK(!game->continuation->cells[a][b].ready);
+    saved->cells[a][b] += 1;
+    return CFR_STATUS_SUCCESS;
+}
+
+static Status retry_score_diagonal(const MusScoreTable *table, void *context) {
+    ScoreRetrySave *saved = context;
+    saved->diagonals += 1;
+    CHECK(table->cells[2][2].ready);
+    if (saved->fail) {
+        CHECK(table->cells[1][2].ready && table->cells[2][1].ready);
+        saved->fail = false;
+        return CFR_STATUS_IO_ERROR;
+    }
+    return CFR_STATUS_SUCCESS;
+}
+
+static void test_score_diagonal_retry(void) {
+    for (size_t threads = 1; threads <= 2; ++threads) {
+        MusScoreTable table, expected;
+        ScoreRetrySave saved = {0};
+        const MusScoreTrainingOptions options = {
+            .iterations = 2, .evaluation_samples = 10, .seed = 7, .threads = threads,
+        };
+        CHECK(mus_score_table_init(&table, 3) == CFR_STATUS_SUCCESS);
+        CHECK(mus_score_train(&table, 4, &options, count_retry_score_cell,
+                              retry_score_diagonal, &saved) == CFR_STATUS_SUCCESS);
+        /* Unready metadata is not validated, but must survive a failed save. */
+        table.cells[1][2].training_seed = 123;
+        table.cells[2][1].value = 0.25;
+        const MusScoreCell top = table.cells[2][2];
+        saved.fail = true;
+        CHECK(mus_score_train(&table, 3, &options, count_retry_score_cell,
+                              retry_score_diagonal, &saved) == CFR_STATUS_IO_ERROR);
+        CHECK(saved.diagonals == 2);
+        CHECK(!table.cells[1][2].ready && !table.cells[2][1].ready);
+        CHECK(table.cells[1][2].training_seed == 123);
+        CHECK(table.cells[2][1].value == 0.25);
+        CHECK(table.cells[2][2].ready && table.cells[2][2].value == top.value);
+        CHECK(table.cells[2][2].training_seed == top.training_seed);
+        CHECK(!table.cells[0][2].ready && !table.cells[1][1].ready);
+        CHECK(mus_score_train(&table, 3, &options, count_retry_score_cell,
+                              retry_score_diagonal, &saved) == CFR_STATUS_SUCCESS);
+        CHECK(saved.diagonals == 3);
+        CHECK(saved.cells[2][2] == 1);
+        CHECK(saved.cells[1][2] == 2 && saved.cells[2][1] == 2);
+        CHECK(mus_score_train(&table, 3, &options, count_retry_score_cell,
+                              retry_score_diagonal, &saved) == CFR_STATUS_SUCCESS);
+        CHECK(saved.diagonals == 3);
+        CHECK(mus_score_train(&table, 0, &options, count_retry_score_cell,
+                              retry_score_diagonal, &saved) == CFR_STATUS_SUCCESS);
+        CHECK(mus_score_table_init(&expected, 3) == CFR_STATUS_SUCCESS);
+        CHECK(mus_score_train(&expected, 0, &options, NULL, NULL, NULL) ==
+              CFR_STATUS_SUCCESS);
+        FILE *left = tmpfile(), *right = tmpfile();
+        CHECK(left != NULL && right != NULL);
+        if (left != NULL && right != NULL) {
+            CHECK(mus_score_table_write(left, &table) == CFR_STATUS_SUCCESS);
+            CHECK(mus_score_table_write(right, &expected) == CFR_STATUS_SUCCESS);
+            CHECK(streams_equal(left, right));
+        }
+        if (left != NULL)
+            fclose(left);
+        if (right != NULL)
+            fclose(right);
+    }
+}
+
 static void test_score_training_and_persistence(void) {
     MusScoreTable table;
     ScoreTestSave saved = {0};
     const MusScoreTrainingOptions options = {.iterations = 2, .evaluation_samples = 50,
                                              .seed = 7};
     CHECK(mus_score_table_init(&table, 3) == CFR_STATUS_SUCCESS);
-    CHECK(mus_score_train(&table, 0, &options, fail_score_diagonal, NULL, NULL) ==
+    CHECK(mus_score_train(&table, 0, &options, fail_score_cell, NULL, NULL) ==
           CFR_STATUS_IO_ERROR);
     CHECK(table.cells[2][2].ready);
     CHECK(!table.cells[1][2].ready && !table.cells[2][1].ready);
@@ -3916,6 +3996,7 @@ int main(void) {
     test_score_utilities_and_order();
     test_score_keys_and_full_match();
     test_score_training_and_persistence();
+    test_score_diagonal_retry();
     test_score_extension();
     test_score_parallel_training();
     test_score_shared_strategy_training();
