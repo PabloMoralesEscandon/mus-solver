@@ -13,6 +13,12 @@ desarrollo de **json-c**. La biblioteca C del adaptador no depende de json-c;
 solo lo utiliza el ejecutable JSON. Las pruebas de CLI necesitan Python 3 y el
 comando `zstd`.
 
+El adaptador requiere una compilación con `MUS_GAME_MAX_MUSES=1`, el valor
+predeterminado. Su protocolo no admite dos muses. Con otro límite, la creación
+y apertura de la biblioteca devuelven `CFR_STATUS_INCOMPATIBLE_GAME`, y el CLI
+informa `unsupported_mus_limit` antes de cargar una estrategia. El núcleo del
+solver sigue admitiendo compilaciones con dos muses.
+
 ```sh
 git submodule update --init --recursive
 make

@@ -113,6 +113,10 @@ typedef struct {
 typedef struct MusAdapter MusAdapter;
 
 MusAdapterConfig mus_adapter_default_config(void);
+/* Adapter creation and loading require MUS_GAME_MAX_MUSES == 1.
+ * Other compiled limits return CFR_STATUS_INCOMPATIBLE_GAME without creating
+ * an adapter; the output pointer is unchanged. The core solver can still be
+ * built and used with two muses. */
 /* On success, the adapter owns the loaded checkpoint. No training occurs. */
 Status mus_adapter_load(const char *path, bool compressed,
                         const MusAdapterConfig *config, uint64_t seed,

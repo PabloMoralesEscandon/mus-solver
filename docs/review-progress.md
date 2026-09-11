@@ -49,7 +49,7 @@ rendimiento del bot desplegado son métricas diferentes.
 | J11 | Precisar el alcance del diagnóstico de repartos fijos | Pendiente |
 | J12 | Evaluar partidas con la política desplegada del bot | Pendiente |
 | J13 | Conservar disponibilidad de política en TXT | Pendiente |
-| J14 | Rechazar explícitamente el adaptador incompatible con dos muses | Pendiente |
+| J14 | Rechazar explícitamente el adaptador incompatible con dos muses | Completado |
 | J15 | Rechazar fases de azar/terminal en la clave rápida | Completado |
 | J16 | Gramática explícita para opciones enteras sin signo | Completado |
 | J17 | Bloqueo ligado al proceso y contrato de durabilidad | Pendiente |
@@ -200,3 +200,27 @@ En el diagnóstico del bot ampliado a 3.000 repartos: +5,35 % de tiempo total,
 del diagnóstico. Se registra el aumento observado, que no alcanza el umbral de
 regresión grave; no se atribuye una mejora o empeoramiento de política a estos
 tiempos. El diagnóstico no mide partidas completas.
+
+## J14: configuración de muses del adaptador
+
+El protocolo actual del adaptador exige un máximo de un mus. La creación y las
+aperturas rechazan explícitamente otro límite, sin cargar archivos ni publicar
+un objeto. El CLI devuelve `unsupported_mus_limit`. El límite por defecto no
+cambia y el núcleo del solver continúa compilando y funcionando con dos muses.
+
+La prueba de configuración se añade a `make test` y se ejecuta también en una
+compilación con dos muses. Comprueba creación, apertura binaria/comprimida y TXT,
+incluida la conservación del puntero de salida. Falló contra la implementación
+anterior en la creación del adaptador con dos muses.
+Pasan la batería completa, las pruebas de núcleo y rutas rápidas con dos muses,
+y la prueba de configuración en ambas compilaciones. El CLI rechaza aperturas
+TXT, binarias y comprimidas con dos muses, y mantiene disponible `--help`.
+
+Claude: **APPROVE**, tarea `task_df61da36b9f6`, dispatch `ctx_1163be5818ea`,
+mensaje `msg_9c9255063346`. Se refuerza la prueba con un puntero centinela no nulo,
+se documenta su conservación y se añade `-lm` al enlace de la prueba. El mensaje
+del CLI conserva una explicación legible junto al identificador del error.
+
+[Rendimiento](review-performance/J14.json): ambos ejecutables release de la
+configuración por defecto son idénticos byte a byte a J16. Esta modificación
+no cambia el algoritmo ni su coste en la configuración admitida.

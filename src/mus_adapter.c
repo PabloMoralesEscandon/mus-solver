@@ -143,6 +143,8 @@ Status mus_adapter_create(const InfoStore *store, const MusAdapterConfig *config
         !isfinite(c.score_factor_max) || c.score_factor_min <= 0 ||
         c.score_factor_min > 1 || c.score_factor_max < 1)
         return CFR_STATUS_INVALID_ARGUMENT;
+    if (MUS_GAME_MAX_MUSES != 1)
+        return CFR_STATUS_INCOMPATIBLE_GAME;
     MusAdapter *a = calloc(1, sizeof(*a));
     if (a == NULL)
         return CFR_STATUS_OUT_OF_MEMORY;
@@ -180,6 +182,8 @@ Status mus_adapter_load(const char *path, bool compressed,
                         MusAdapter **out) {
     if (path == NULL || out == NULL)
         return CFR_STATUS_INVALID_ARGUMENT;
+    if (MUS_GAME_MAX_MUSES != 1)
+        return CFR_STATUS_INCOMPATIBLE_GAME;
     FILE *stream = fopen(path, "rb");
     if (stream == NULL)
         return CFR_STATUS_IO_ERROR;

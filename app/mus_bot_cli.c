@@ -418,6 +418,10 @@ int main(int argc, char **argv) {
         fputs("error: checkpoint_required\n", stderr);
         return 2;
     }
+    if (MUS_GAME_MAX_MUSES != 1) {
+        fputs("error: unsupported_mus_limit (mus-bot requires one mus per hand)\n", stderr);
+        return 1;
+    }
     MusAdapter *adapter = NULL;
     Status status = text_strategy
                         ? mus_adapter_open_text(path, &config, seed, &adapter)
