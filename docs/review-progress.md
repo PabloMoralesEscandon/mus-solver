@@ -52,7 +52,7 @@ rendimiento del bot desplegado son métricas diferentes.
 | J14 | Rechazar explícitamente el adaptador incompatible con dos muses | Completado |
 | J15 | Rechazar fases de azar/terminal en la clave rápida | Completado |
 | J16 | Gramática explícita para opciones enteras sin signo | Completado |
-| J17 | Bloqueo ligado al proceso y contrato de durabilidad | Bloqueo completado; sincronización de archivos pendiente |
+| J17 | Bloqueo ligado al proceso y contrato de durabilidad | Bloqueo completado; sincronización retirada por rendimiento, a la espera del usuario |
 | J18 | Reducir el coste de codificación y generación de candidatos | Pendiente |
 | J19 | Distribución y memoria de trabajadores por diagonal | Pendiente |
 | J20 | Invalidar objetos al cambiar la configuración | Pendiente |
@@ -537,3 +537,79 @@ las pequeñas variaciones a una aceleración del código.
 Este bloque resuelve el bloqueo huérfano y la exclusión entre procesos.
 La sincronización de archivos/directorios ante pérdida de energía sigue
 pendiente; la recuperación de celdas no publicadas corresponde a J08.
+
+## J17: sincronización de checkpoints y tablas — candidato retirado
+
+**Estado:** no aplicado. Se conserva en [parche](review-performance/J17-sync-blocked.patch)
+tras confirmar el límite de rendimiento. La descripción siguiente corresponde
+al candidato probado, no al código vigente. J01 y el bloqueo de J17 permanecen
+aplicados.
+
+El CLI del candidato confirma los datos de cada temporal con `fflush` y `fsync`, cierra el
+archivo, publica su nombre con `rename` y sincroniza el directorio padre.
+`values.txt` se publica después de sus checkpoints. `extension.txt` utiliza
+el mismo protocolo bajo el bloqueo exclusivo. Al iniciar una escritura se
+sincroniza también el padre de la continuación, incluso si ya existe: así un
+reintento cubre una creación anterior cuya sincronización falló.
+
+Los errores anteriores al renombrado conservan el archivo publicado. Un error
+de sincronización posterior al renombrado devuelve error, pero puede dejar
+visible el nuevo archivo completo; no se promete deshacer esa publicación.
+El contrato abarca los checkpoints genéricos raw/zstd y las tablas. Excluye
+exportaciones TXT y metadatos informativos del bloqueo. Abrir y sincronizar
+los directorios requiere permisos de lectura sobre ellos.
+
+La batería completa, las pruebas de persistencia con ASan/UBSan y la ejecución
+de estas últimas sobre Btrfs pasan. Un ejecutable exclusivo de pruebas registra
+`fsync`/`rename` mediante wrappers de enlace; el binario de producción llama al
+sistema directamente. Se verifican orden, conservación del archivo anterior,
+fallos de checkpoint raw/zstd, tabla y manifiesto, temporal de manifiesto
+abandonado, creación fallida y reintento, rutas relativas y con espacios/barra
+final, y error posterior al renombrado con recarga del archivo nuevo. Estas
+pruebas no simulan un corte físico de energía.
+
+Claude aprobó la primera revisión, tarea `task_00bc6da58ad8`, dispatch
+`ctx_a6ee1542551d`, mensaje `msg_600e30aaeda4`. La revisión final aprueba el
+reintento y los casos adicionales, condicionada a las comprobaciones finales
+que ya han pasado: tarea `task_e14b8a955c0d`, dispatch `ctx_232559198829`,
+mensaje `msg_99a22b87ba83`. Se añadió la nota solicitada sobre permisos.
+
+[Rendimiento del candidato final](review-performance/J17-sync.json): tres
+pares alternados sobre Btrfs del workspace; `/tmp` es tmpfs y no sirve para
+medir este coste de disco. Se comparan ejecutables contra `1f1dec7`, CPU0,
+semilla 7, sin compilaciones ni pruebas propias simultáneas. Antes de cada
+proceso se confirman fuera del intervalo sus escrituras previas pendientes.
+Entrenar 500 iteraciones públicas y guardar 804.253.137 bytes raw pasa de
+9,4116 a 9,6240 s (+2,26 %); guardando 139.523.816 bytes comprimidos,
+10,4330 a 10,6923 s (+2,49 %). La tabla de 45 celdas, 1.000 iteraciones y
+10.000 muestras por celda pasa de 3,7072 a 3,7832 s (+2,05 %); su ampliación,
+de 3,9420 a 4,1067 s (+4,18 %). RSS entre −0,06 % y +0,12 %.
+Todos los checkpoints y valores coinciden exactamente, los manifiestos
+coinciden al normalizar el origen y ninguna ampliación modifica su fuente.
+Biblioteca y bot mantienen sus SHA-256. Estas cargas no activan el límite;
+se mide además por separado el caso de muchas celdas pequeñas.
+
+La [carga mínima](review-performance/J17-sync-small.json) sí confirma el límite.
+Cada tanda crea 100 tablas de 45 celdas, con una iteración y una muestra por
+celda; se agrupan ejecuciones para medir segundos de trabajo total. Tras los
+tres pares iniciales se ejecutan otros cinco pares alternados: medianas
+0,7479 → 11,8387 s (+1.482,84 %, 15,83 veces el tiempo). Equivale a unos
+2,46 ms adicionales por celda, incluyendo publicación de tabla y arranque.
+Los 46 archivos de cada una de las 1.600 tablas comparadas coinciden exactamente.
+La biblioteca de CFR/mus no cambia: es un coste de confirmación de escrituras,
+no más nodos ni un algoritmo distinto. La carga deliberadamente mínima acentúa
+esa proporción y no representa el coste de un entrenamiento largo.
+
+Se conserva el candidato, se retiran sus cambios de producción y pruebas
+y se espera la decisión del usuario antes de continuar. La excepción de
+rendimiento concedida para J01 no se extiende a este cambio. Posibles decisiones:
+aceptar la sincronización por defecto, ofrecerla como opción explícita o
+posponerla; ninguna de estas alternativas se ha aplicado automáticamente.
+
+Claude confirmó también las mediciones y la pausa: tarea `task_f4143d7e3031`,
+dispatch `ctx_37121eb23608`, mensaje `msg_ac468a5f4e3f`,
+[revisión](review-performance/J17-sync-performance-claude.md). Su reserva sobre
+un posible solapamiento confundía la creación del script con su ejecución:
+el último log regular es de 19:07:39,735 y el nuevo log mínimo se crea a las
+19:07:49,914. Las herramientas también confirman ese orden serial.
+[Informe de la pausa](../ASTRA_BLOQUEO_RENDIMIENTO_J17_2026-09-11.md).
