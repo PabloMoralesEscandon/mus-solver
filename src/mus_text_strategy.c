@@ -63,6 +63,22 @@ static Status row_key(const char *line, InfoSetKey *key) {
     return CFR_STATUS_SUCCESS;
 }
 
+static Status header_size(const char **cursor, const char *field,
+                           char separator, size_t *result) {
+    const size_t length = strlen(field);
+    if (strncmp(*cursor, field, length) ||
+        !isdigit((unsigned char)(*cursor)[length]))
+        return CFR_STATUS_FORMAT_ERROR;
+    errno = 0;
+    char *end;
+    const uintmax_t value = strtoumax(*cursor + length, &end, 10);
+    if (errno || value > SIZE_MAX || *end != separator)
+        return CFR_STATUS_FORMAT_ERROR;
+    *cursor = end + 1;
+    *result = (size_t)value;
+    return CFR_STATUS_SUCCESS;
+}
+
 Status mus_text_strategy_open_schema(const char *path, const char *expected_schema,
                                       size_t expected_iterations, MusTextStrategy **out) {
     if (!path || !expected_schema || !out)
@@ -80,6 +96,7 @@ Status mus_text_strategy_open_schema(const char *path, const char *expected_sche
         status = read_line(stream, line);
     if (status == CFR_STATUS_NOT_FOUND)
         status = CFR_STATUS_FORMAT_ERROR;
+    size_t information_sets = 0;
     const char *prefix = "mus-strategy version=1 schema=";
     if (status == CFR_STATUS_SUCCESS) {
         if (strncmp(line, prefix, strlen(prefix)))
@@ -93,27 +110,42 @@ Status mus_text_strategy_open_schema(const char *path, const char *expected_sche
                 *end = '\0';
                 if (strcmp(schema, expected_schema))
                     status = CFR_STATUS_INCOMPATIBLE_GAME;
-                if (status == CFR_STATUS_SUCCESS && expected_iterations != 0) {
-                    const char *field = "variant=mccfr-external training_iterations=";
-                    const char *tail = end + 1;
-                    if (strncmp(tail, field, strlen(field)) ||
-                        !isdigit((unsigned char)tail[strlen(field)])) {
-                        status = CFR_STATUS_FORMAT_ERROR;
-                    } else {
-                        errno = 0;
-                        uintmax_t iterations = strtoumax(tail + strlen(field), &end, 10);
-                        if (errno || *end != ' ')
-                            status = CFR_STATUS_FORMAT_ERROR;
-                        else if (iterations != expected_iterations)
-                            status = CFR_STATUS_INCOMPATIBLE_GAME;
+                const char *tail = end + 1;
+                const char *variants[] = {
+                    "variant=mccfr-external ", "variant=cfr ", "variant=cfr-plus ",
+                };
+                bool valid_variant = false;
+                for (size_t i = 0; i < sizeof(variants) / sizeof(variants[0]); ++i) {
+                    if (expected_iterations != 0 && i != 0)
+                        continue;
+                    const size_t length = strlen(variants[i]);
+                    if (strncmp(tail, variants[i], length) == 0) {
+                        tail += length;
+                        valid_variant = true;
+                        break;
                     }
                 }
+                if (status == CFR_STATUS_SUCCESS && !valid_variant)
+                    status = CFR_STATUS_FORMAT_ERROR;
+                size_t iterations = 0;
+                if (status == CFR_STATUS_SUCCESS)
+                    status = header_size(&tail, "training_iterations=", ' ', &iterations);
+                if (status == CFR_STATUS_SUCCESS)
+                    status = header_size(&tail, "information_sets=", '\n', &information_sets);
+                if (status == CFR_STATUS_SUCCESS && *tail != '\0')
+                    status = CFR_STATUS_FORMAT_ERROR;
+                if (status == CFR_STATUS_SUCCESS && expected_iterations != 0 &&
+                    iterations != expected_iterations)
+                    status = CFR_STATUS_INCOMPATIBLE_GAME;
             }
         }
     }
     off_t first_row = status == CFR_STATUS_SUCCESS ? ftello(stream) : -1;
     if (status == CFR_STATUS_SUCCESS && first_row < 0)
         status = CFR_STATUS_IO_ERROR;
+    if (status == CFR_STATUS_SUCCESS &&
+        (first_row == attributes.st_size) != (information_sets == 0))
+        status = CFR_STATUS_FORMAT_ERROR;
     if (status == CFR_STATUS_SUCCESS && first_row < attributes.st_size) {
         InfoSetKey first_key;
         status = read_line(stream, line);

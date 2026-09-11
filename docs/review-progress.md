@@ -39,7 +39,7 @@ rendimiento del bot desplegado son métricas diferentes.
 | J01 | Modelo genérico sin información oculta y compatibilidad histórica | Pendiente |
 | J02 | Recuento diferido en el simulador de dos/cuatro jugadores | Pendiente |
 | J03 | Reintento tras fallo al guardar una diagonal | Completado |
-| J04 | Rechazar TXT truncado a su cabecera | Pendiente |
+| J04 | Rechazar TXT truncado a su cabecera | Completado |
 | J05 | Excluir candidatos de precarga incompatibles con los dejes | Pendiente |
 | J06 | Usar operaciones de confianza en la evaluación exacta local | Pendiente |
 | J07 | Mezclar bits en la tabla de mejor respuesta | Pendiente |
@@ -85,3 +85,31 @@ Claude: **APPROVE**, mensaje `msg_56e843db31f9`. Se corrigieron los detalles
 de sangría, redacción del contrato e identificador del dispatch indicados por
 el revisor. La prueba adicional de ampliación con fallo queda como sugerencia
 opcional; la restauración no depende de la modalidad de entrenamiento.
+
+## J04: cabeceras TXT y pérdida de todas las filas
+
+Se comprueban variante, iteraciones, recuento de nodos, límites numéricos y final
+de cabecera para estrategias genéricas y por marcador. Un recuento positivo
+exige filas; un recuento cero exige que no las haya. La apertura conserva su
+coste independiente del número de filas. El truncamiento de un archivo no vacío
+por filas completas requiere un contrato adicional de integridad; queda
+documentado y se coordinará con la versión de TXT de J13.
+
+La prueba de cabecera truncada falló contra el lector anterior. `make -j4 test`
+pasa con la corrección, incluidas las pruebas genéricas e híbridas. Se admite un
+almacén explícitamente vacío y se conserva su respaldo por ausencia de datos.
+
+El SHA-256 del ejecutable `mus-solver` es idéntico al de J03:
+`62ad47f341a6d44f140d44492dd3a0bbe32742ef8843aab5c45966664ab615c4`.
+No cambia el entrenamiento. Se mide por separado la apertura de TXT.
+[Apertura](review-performance/J04.json): tres pares de 200.000 aperturas por
+ejecución. Genérica: 0,3027 → 0,2911 s (−3,82 %); celda: 0,2984 → 0,3021 s
+(+1,23 %). RSS sin aumento observable. Son archivos con caché caliente y procesos
+pequeños; no se infiere una mejora estable ni una medida de partidas completas.
+No se activa el límite de regresión.
+
+Revisión Orca: tarea `task_7b4ac7c8d699`, dispatch `ctx_a6eb86a6a5dc`.
+Claude: **APPROVE**, mensaje `msg_14473ef1c4fa`. Se añadieron los casos sugeridos
+de variante desconocida y texto sobrante, se dio nombre propio al fixture vacío
+y se documentó el contrato en la cabecera interna. Las pruebas de CLI del bot
+se repitieron tras estos ajustes.

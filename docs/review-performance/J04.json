@@ -1,0 +1,214 @@
+{
+  "item": "J04",
+  "parent_commit": "1bc7b632fc0f44861b1f4b6520df58c10b131d4d",
+  "training_binary_sha256": "62ad47f341a6d44f140d44492dd3a0bbe32742ef8843aab5c45966664ab615c4",
+  "training_binary_unchanged": true,
+  "opening_benchmark_source": "#define _POSIX_C_SOURCE 200809L\n#include <stdio.h>\n#include <stdlib.h>\n#include <time.h>\n#include <sys/resource.h>\n#include \"mus_text_strategy.h\"\nint main(int argc, char **argv) {\n    if (argc != 4) return 2;\n    const size_t iterations = (size_t)strtoull(argv[3], NULL, 10);\n    struct timespec start, end;\n    if (clock_gettime(CLOCK_MONOTONIC, &start) != 0) return 1;\n    for (size_t i = 0; i < 200000; ++i) {\n        MusTextStrategy *strategy = NULL;\n        Status status = mus_text_strategy_open_schema(argv[1], argv[2], iterations, &strategy);\n        if (status != CFR_STATUS_SUCCESS) return 1;\n        mus_text_strategy_close(strategy);\n    }\n    if (clock_gettime(CLOCK_MONOTONIC, &end) != 0) return 1;\n    struct rusage usage;\n    if (getrusage(RUSAGE_SELF, &usage) != 0) return 1;\n    double seconds = (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec) / 1e9;\n    printf(\"{\\\"opens\\\":200000,\\\"seconds\\\":%.9f,\\\"peak_rss_kib\\\":%ld}\\n\", seconds, usage.ru_maxrss);\n    return 0;\n}\n",
+  "build_command": "cc -std=c17 -O3 -flto -pthread -Iinclude -Isrc -IC-CFR/include open.c build/review-VARIANT/release/libmus_solver.a C-CFR/build/review-baseline/release/libcfr.a -lzstd -o VARIANT-open",
+  "fixture_command": "build/debug/mus_adapter_tests generic.cfr scores",
+  "runs": [
+    {
+      "opens": 200000,
+      "seconds": 0.370234065,
+      "peak_rss_kib": 16680,
+      "variant": "baseline",
+      "case": "generic",
+      "repeat": 1,
+      "command": [
+        "/tmp/mus-review-j04/baseline-open",
+        "/tmp/mus-review-j04/generic.cfr.txt",
+        "mus.heads-up-single-hand.ordago-with-mus/v9-muses-1",
+        "0"
+      ]
+    },
+    {
+      "opens": 200000,
+      "seconds": 0.29109801,
+      "peak_rss_kib": 16680,
+      "variant": "candidate",
+      "case": "generic",
+      "repeat": 1,
+      "command": [
+        "/tmp/mus-review-j04/candidate-open",
+        "/tmp/mus-review-j04/generic.cfr.txt",
+        "mus.heads-up-single-hand.ordago-with-mus/v9-muses-1",
+        "0"
+      ]
+    },
+    {
+      "opens": 200000,
+      "seconds": 0.304426367,
+      "peak_rss_kib": 16680,
+      "variant": "candidate",
+      "case": "generic",
+      "repeat": 2,
+      "command": [
+        "/tmp/mus-review-j04/candidate-open",
+        "/tmp/mus-review-j04/generic.cfr.txt",
+        "mus.heads-up-single-hand.ordago-with-mus/v9-muses-1",
+        "0"
+      ]
+    },
+    {
+      "opens": 200000,
+      "seconds": 0.302665411,
+      "peak_rss_kib": 16680,
+      "variant": "baseline",
+      "case": "generic",
+      "repeat": 2,
+      "command": [
+        "/tmp/mus-review-j04/baseline-open",
+        "/tmp/mus-review-j04/generic.cfr.txt",
+        "mus.heads-up-single-hand.ordago-with-mus/v9-muses-1",
+        "0"
+      ]
+    },
+    {
+      "opens": 200000,
+      "seconds": 0.284355168,
+      "peak_rss_kib": 16680,
+      "variant": "baseline",
+      "case": "generic",
+      "repeat": 3,
+      "command": [
+        "/tmp/mus-review-j04/baseline-open",
+        "/tmp/mus-review-j04/generic.cfr.txt",
+        "mus.heads-up-single-hand.ordago-with-mus/v9-muses-1",
+        "0"
+      ]
+    },
+    {
+      "opens": 200000,
+      "seconds": 0.290390544,
+      "peak_rss_kib": 16680,
+      "variant": "candidate",
+      "case": "generic",
+      "repeat": 3,
+      "command": [
+        "/tmp/mus-review-j04/candidate-open",
+        "/tmp/mus-review-j04/generic.cfr.txt",
+        "mus.heads-up-single-hand.ordago-with-mus/v9-muses-1",
+        "0"
+      ]
+    },
+    {
+      "opens": 200000,
+      "seconds": 0.298429533,
+      "peak_rss_kib": 16680,
+      "variant": "baseline",
+      "case": "score",
+      "repeat": 1,
+      "command": [
+        "/tmp/mus-review-j04/baseline-open",
+        "/tmp/mus-review-j04/scores/score-30-30.txt",
+        "mus.ordago-score/v4/base-mus.heads-up-single-hand.ordago-with-mus/v9-muses-1/target-40/score-30-30/mano/signed-one/V-2a8c5c5c00c2fa9f",
+        "50000000"
+      ]
+    },
+    {
+      "opens": 200000,
+      "seconds": 0.297354162,
+      "peak_rss_kib": 16680,
+      "variant": "candidate",
+      "case": "score",
+      "repeat": 1,
+      "command": [
+        "/tmp/mus-review-j04/candidate-open",
+        "/tmp/mus-review-j04/scores/score-30-30.txt",
+        "mus.ordago-score/v4/base-mus.heads-up-single-hand.ordago-with-mus/v9-muses-1/target-40/score-30-30/mano/signed-one/V-2a8c5c5c00c2fa9f",
+        "50000000"
+      ]
+    },
+    {
+      "opens": 200000,
+      "seconds": 0.302114841,
+      "peak_rss_kib": 16680,
+      "variant": "candidate",
+      "case": "score",
+      "repeat": 2,
+      "command": [
+        "/tmp/mus-review-j04/candidate-open",
+        "/tmp/mus-review-j04/scores/score-30-30.txt",
+        "mus.ordago-score/v4/base-mus.heads-up-single-hand.ordago-with-mus/v9-muses-1/target-40/score-30-30/mano/signed-one/V-2a8c5c5c00c2fa9f",
+        "50000000"
+      ]
+    },
+    {
+      "opens": 200000,
+      "seconds": 0.304330715,
+      "peak_rss_kib": 16680,
+      "variant": "baseline",
+      "case": "score",
+      "repeat": 2,
+      "command": [
+        "/tmp/mus-review-j04/baseline-open",
+        "/tmp/mus-review-j04/scores/score-30-30.txt",
+        "mus.ordago-score/v4/base-mus.heads-up-single-hand.ordago-with-mus/v9-muses-1/target-40/score-30-30/mano/signed-one/V-2a8c5c5c00c2fa9f",
+        "50000000"
+      ]
+    },
+    {
+      "opens": 200000,
+      "seconds": 0.298011694,
+      "peak_rss_kib": 16680,
+      "variant": "baseline",
+      "case": "score",
+      "repeat": 3,
+      "command": [
+        "/tmp/mus-review-j04/baseline-open",
+        "/tmp/mus-review-j04/scores/score-30-30.txt",
+        "mus.ordago-score/v4/base-mus.heads-up-single-hand.ordago-with-mus/v9-muses-1/target-40/score-30-30/mano/signed-one/V-2a8c5c5c00c2fa9f",
+        "50000000"
+      ]
+    },
+    {
+      "opens": 200000,
+      "seconds": 0.305312649,
+      "peak_rss_kib": 16680,
+      "variant": "candidate",
+      "case": "score",
+      "repeat": 3,
+      "command": [
+        "/tmp/mus-review-j04/candidate-open",
+        "/tmp/mus-review-j04/scores/score-30-30.txt",
+        "mus.ordago-score/v4/base-mus.heads-up-single-hand.ordago-with-mus/v9-muses-1/target-40/score-30-30/mano/signed-one/V-2a8c5c5c00c2fa9f",
+        "50000000"
+      ]
+    }
+  ],
+  "median": {
+    "generic": {
+      "baseline": {
+        "seconds": 0.302665411,
+        "peak_rss_kib": 16680
+      },
+      "candidate": {
+        "seconds": 0.29109801,
+        "peak_rss_kib": 16680
+      },
+      "candidate_over_baseline": {
+        "seconds": 0.9617815562016765,
+        "peak_rss_kib": 1.0
+      }
+    },
+    "score": {
+      "baseline": {
+        "seconds": 0.298429533,
+        "peak_rss_kib": 16680
+      },
+      "candidate": {
+        "seconds": 0.302114841,
+        "peak_rss_kib": 16680
+      },
+      "candidate_over_baseline": {
+        "seconds": 1.0123490056863775,
+        "peak_rss_kib": 1.0
+      }
+    }
+  },
+  "limitations": [
+    "Warm file cache. Repeated opening only; this does not measure policy quality or complete match latency.",
+    "Small-process RSS can include a launcher high-water floor; the measurements show no increase at this resolution."
+  ],
+  "decision": "No severe regression."
+}

@@ -178,6 +178,8 @@ with tempfile.TemporaryDirectory(prefix='mus-hybrid-') as directory:
     path = scores / 'score-30-30.txt'
     original = path.read_text()
     for replacement in [None, (scores / 'score-31-30.txt').read_text(),
+                        original.splitlines(keepends=True)[0],
+                        original.replace(' information_sets=', ' ', 1),
                         original.replace('ordago-score/v4/', 'ordago-score/v3/', 1),
                         original.replace('training_iterations=50000000', 'training_iterations=10000000', 1)]:
         if replacement is None:

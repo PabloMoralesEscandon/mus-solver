@@ -2,6 +2,7 @@
 import copy
 import json
 import pathlib
+import re
 import subprocess
 import sys
 import tempfile
@@ -87,10 +88,28 @@ with tempfile.TemporaryDirectory(prefix="mus-adapter-") as directory:
     assert all(json.loads(line)["diagnostic"]["method"] == "exact" for line in text_policies.stdout.splitlines())
     # Detect malformed headers, incomplete rows, and damaged queried probabilities.
     original_text = text_path.read_text()
-    for contents in ["garbage\n", original_text[:-1], original_text.replace("mus-strategy version=1", "mus-strategy version=2", 1)]:
+    header = original_text.splitlines(keepends=True)[0]
+    invalid_headers = [
+        header,  # Every row is missing despite a positive information-set count.
+        header.split(' variant=')[0] + '\n',
+        original_text.replace(' information_sets=', ' ', 1),
+        original_text.replace('training_iterations=', 'training_iterations=-', 1),
+        original_text.replace('information_sets=', 'information_sets=-', 1),
+        original_text.replace('variant=mccfr-external', 'variant=unknown', 1),
+        original_text.replace(header, header.rstrip('\n') + ' extra=1\n', 1),
+        re.sub(r'information_sets=\d+', 'information_sets=184467440737095516160', original_text, count=1),
+        re.sub(r'information_sets=\d+', 'information_sets=0', original_text, count=1),
+    ]
+    for contents in ["garbage\n", original_text[:-1], original_text.replace("mus-strategy version=1", "mus-strategy version=2", 1)] + invalid_headers:
         invalid_text = pathlib.Path(directory) / "invalid.txt"
         invalid_text.write_text(contents)
         assert subprocess.run([bot, "--strategy", str(invalid_text)], capture_output=True).returncode != 0
+    # An explicitly empty store is valid and uses the normal missing-data path.
+    empty_text = pathlib.Path(directory) / 'empty.txt'
+    empty_text.write_text(re.sub(r'information_sets=\d+', 'information_sets=0', header))
+    empty = subprocess.run([bot, '--strategy', str(empty_text)], input=json.dumps(base) + '\n',
+                           text=True, capture_output=True, check=True)
+    assert json.loads(empty.stdout)['diagnostic']['method'] == 'fallback'
     invalid_text.write_text(original_text.replace("schema=mus.", "schema=bad.", 1))
     failure = subprocess.run([bot, "--strategy", str(invalid_text)], text=True, capture_output=True)
     assert failure.returncode != 0 and "incompatible_checkpoint" in failure.stderr

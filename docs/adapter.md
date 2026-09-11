@@ -183,7 +183,13 @@ misma semilla producen las mismas acciones. Un error no avanza ese generador.
 
 `ok: false` contiene `error`, por ejemplo `invalid_json`, `invalid_observation`,
 `line_too_long` o `invalid_strategy_data`. Un dato corrupto no se presenta como
-una respuesta prudente. En el modo binario, los nodos sin masa acumulada de estrategia se tratan como
+una respuesta prudente. Al abrir un TXT se comprueba su cabecera completa y la
+coherencia entre un recuento de nodos cero o positivo y la presencia de filas.
+Esto rechaza archivos reducidos a su cabecera que declaraban nodos. La apertura
+no recorre todas las filas: no verifica todavía el recuento exacto de un archivo
+no vacío que haya perdido filas completas al final.
+
+En el modo binario, los nodos sin masa acumulada de estrategia se tratan como
 ausencia de datos. El exportador de texto escribe una distribución uniforme
 para esos nodos y no conserva su masa acumulada. El lector de texto utiliza las
 probabilidades publicadas: no puede distinguir ese caso de una distribución
