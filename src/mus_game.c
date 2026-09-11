@@ -4354,6 +4354,50 @@ Status mus_ordago_game_information_set_set_hand(
     return CFR_STATUS_SUCCESS;
 }
 
+/* Invert the observed abstraction, which need not retain the original hand.
+ * Decode once below to validate flags and fields ignored by the formula. */
+static int observed_ordago_hand_code(const MusOrdagoInformationSet *information) {
+    switch (information->hand_kind) {
+    case MUS_ORDAGO_HAND_EXACT:
+        return compact_hand_code(information->hand);
+    case MUS_ORDAGO_HAND_GRANDE:
+        if (information->king_count == MUS_GAME_HAND_SIZE)
+            return MUS_ORDAGO_GRANDE_HAND_RADIX - 1;
+        if (information->king_count >= MUS_GAME_HAND_SIZE ||
+            information->highest_non_king < MUS_CLASS_PITOS ||
+            information->highest_non_king >= MUS_CLASS_KINGS)
+            return -1;
+        return information->king_count * 7 + (int)information->highest_non_king;
+    case MUS_ORDAGO_HAND_CHICA:
+        if (information->pito_count == MUS_GAME_HAND_SIZE)
+            return MUS_ORDAGO_CHICA_HAND_RADIX - 1;
+        if (information->pito_count >= MUS_GAME_HAND_SIZE ||
+            information->lowest_non_pito <= MUS_CLASS_PITOS ||
+            information->lowest_non_pito > MUS_CLASS_KINGS)
+            return -1;
+        return information->pito_count * 7 + (int)information->lowest_non_pito - 1;
+    case MUS_ORDAGO_HAND_PARES: {
+        const int high = (int)information->pairs_value;
+        const int low = (int)information->second_pairs_value;
+        if (high < MUS_CLASS_PITOS || high > MUS_CLASS_KINGS)
+            return -1;
+        if (information->pairs_type == MUS_PAIRS_PAIR)
+            return high;
+        if (information->pairs_type == MUS_PAIRS_MEDIAS)
+            return 8 + high;
+        if (information->pairs_type == MUS_PAIRS_DUPLES &&
+            low >= MUS_CLASS_PITOS && low <= high)
+            return 16 + high * (high + 1) / 2 + low;
+        return -1;
+    }
+    case MUS_ORDAGO_HAND_JUEGO:
+        return game_key(information->game_value);
+    case MUS_ORDAGO_HAND_PUNTO:
+        return (int)information->point_value - 4;
+    }
+    return -1;
+}
+
 static Status encode_ordago_information_set(
     const MusOrdagoInformationSet *information, unsigned int target, bool public_encoding,
     InfoSetKey *result) {
@@ -4388,15 +4432,9 @@ static Status encode_ordago_information_set(
         decoded.phase != information->phase || decoded.player != information->player ||
         decoded.hand_kind != information->hand_kind)
         return CFR_STATUS_INVALID_ARGUMENT;
-    for (int code = 0; code < ordago_hand_radix(information->phase); ++code) {
-        MusOrdagoInformationSet candidate = decoded;
-        if (decode_ordago_hand(code, &candidate) &&
-            ordago_observed_hand_equal(information, &candidate)) {
-            hand_code = code;
-            break;
-        }
-    }
-    if (hand_code < 0)
+    hand_code = observed_ordago_hand_code(information);
+    if (!decode_ordago_hand(hand_code, &decoded) ||
+        !ordago_observed_hand_equal(information, &decoded))
         return CFR_STATUS_INVALID_ARGUMENT;
     key = hand_code;
     if (phase_is_mus_decision(information->phase) || phase_is_discard(information->phase)) {

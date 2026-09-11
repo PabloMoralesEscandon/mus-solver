@@ -756,24 +756,41 @@ static void nearest_candidates(const MusAdapter *a, const MusAdapterObservation 
                 insert_candidate(best, count, c);
             continue;
         }
-        int upper = o->previous_strength_count ? 40 : 0;
-        for (int prior = 0; prior <= upper; ++prior) {
-            for (int score = 0; score <= upper; ++score) {
-                if (active && score + prior + active >= 40)
-                    continue;
-                c.distance = difference(real->ordago ? 40 : real->total, t.total) +
-                             difference(real->covered, t.covered) +
-                             difference(o->prior_wager_total, prior) +
-                             difference(base->max_settled_score, score);
-                /* Encode only candidates which can enter the bounded shortlist. */
-                if (*count == MUS_ADAPTER_MAX_LOOKUPS &&
-                    c.distance > best[*count - 1].distance)
-                    continue;
-                c.information.prior_wager_total = (uint8_t)prior;
-                c.information.max_settled_score = (uint8_t)score;
-                if (encode_information(a, &c.information, &c.key) ==
-                    CFR_STATUS_SUCCESS)
-                    insert_candidate(best, count, c);
+        const int upper = o->previous_strength_count ? 40 : 0;
+        const int center_prior = o->prior_wager_total > upper
+            ? upper : (int)o->prior_wager_total;
+        const int center_score = base->max_settled_score > upper
+            ? upper : base->max_settled_score;
+        const int64_t minimum_distance =
+            difference(real->ordago ? 40 : real->total, t.total) +
+            difference(real->covered, t.covered) +
+            difference(o->prior_wager_total, center_prior) +
+            difference(base->max_settled_score, center_score);
+        /* Visit Manhattan rings around the projection onto the bounded grid.
+         * All points on a ring have the same distance. Finish ties before
+         * stopping, since mismatch, wager count and key also determine order. */
+        for (int radius = 0; radius <= 2 * upper; ++radius) {
+            c.distance = minimum_distance + radius;
+            if (*count == MUS_ADAPTER_MAX_LOOKUPS &&
+                c.distance > best[*count - 1].distance)
+                break;
+            const int first = center_prior > radius ? center_prior - radius : 0;
+            const int last = center_prior + radius < upper
+                ? center_prior + radius : upper;
+            for (int prior = first; prior <= last; ++prior) {
+                const int delta = radius - abs(prior - center_prior);
+                const int scores[2] = {center_score - delta, center_score + delta};
+                for (int side = 0; side < (delta == 0 ? 1 : 2); ++side) {
+                    const int score = scores[side];
+                    if (score < 0 || score > upper ||
+                        (active && score + prior + active >= 40))
+                        continue;
+                    c.information.prior_wager_total = (uint8_t)prior;
+                    c.information.max_settled_score = (uint8_t)score;
+                    if (encode_information(a, &c.information, &c.key) ==
+                        CFR_STATUS_SUCCESS)
+                        insert_candidate(best, count, c);
+                }
             }
         }
     }

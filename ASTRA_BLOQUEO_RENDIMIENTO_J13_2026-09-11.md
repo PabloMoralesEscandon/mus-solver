@@ -1,6 +1,7 @@
 # J13 retirado por el límite de rendimiento
 
 Fecha: 2026-09-11. Base: `f723699` (J12). **El cambio J13 no está aplicado.**
+Decisión posterior del usuario: «No se aplica. Siguiente». Se continúa con J18.
 Se conserva el [parche completo](docs/review-performance/J13-blocked.patch) y
 las [mediciones reproducibles](docs/review-performance/J13-blocked.json).
 
@@ -90,9 +91,10 @@ no modifica los binarios de entrenamiento o del bot anteriores. J01 mantiene
 la corrección cuyo coste ya aceptó el usuario. La sincronización de J17 sigue
 pendiente de su decisión anterior.
 
-Quedan J13, J18, J19, J20, J21, J22 y J23, además de la parte pendiente de J17.
-Se espera la decisión del usuario antes de restaurar J13 o continuar con los
-siguientes cambios. No se ha hecho commit del código candidato.
+Tras este bloqueo, el usuario decidió no aplicar J13 y continuar con los
+siguientes cambios, empezando por J18. El código candidato de J13 queda sin
+aplicar; no se ha hecho commit de él. El estado actualizado de los demás
+bloques está en [el registro de cambios](docs/review-progress.md).
 
 Claude verificó también este informe: tarea `task_186ec2467f47`, dispatch
 `ctx_5d9b7195b430`, mensaje `msg_14a555c99e52`. Se incorporaron sus dos

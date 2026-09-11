@@ -48,12 +48,12 @@ rendimiento del bot desplegado son métricas diferentes.
 | J10 | Incertidumbre y presupuesto de evaluación | Completado; integración terminal ensayada sin activar |
 | J11 | Precisar el alcance del diagnóstico de repartos fijos | Completado |
 | J12 | Evaluar partidas con la política desplegada del bot | Completado |
-| J13 | Conservar disponibilidad de política en TXT | Candidato retirado: coste alrededor del 20 % en partidas con TXT público; a la espera del usuario |
+| J13 | Conservar disponibilidad de política en TXT | No aplicado por decisión del usuario; se conserva el parche y la medición |
 | J14 | Rechazar explícitamente el adaptador incompatible con dos muses | Completado |
 | J15 | Rechazar fases de azar/terminal en la clave rápida | Completado |
 | J16 | Gramática explícita para opciones enteras sin signo | Completado |
 | J17 | Bloqueo ligado al proceso y contrato de durabilidad | Bloqueo completado; sincronización retirada por rendimiento, a la espera del usuario |
-| J18 | Reducir el coste de codificación y generación de candidatos | Pendiente |
+| J18 | Reducir el coste de codificación y generación de candidatos | Completado |
 | J19 | Distribución y memoria de trabajadores por diagonal | Pendiente |
 | J20 | Invalidar objetos al cambiar la configuración | Pendiente |
 | J21 | Evitar enlaces sin cambios conservando dependencias reales | Pendiente |
@@ -992,8 +992,8 @@ mostró pérdida. La explicación y los límites de la medición están en el
 [informe de bloqueo](../ASTRA_BLOQUEO_RENDIMIENTO_J13_2026-09-11.md), con
 [datos](review-performance/J13-blocked.json) y [parche](review-performance/J13-blocked.patch).
 El candidato se retiró y el parche pasa `git apply --check` contra `f723699`.
-Se conserva J12; queda pendiente la decisión del usuario sobre J13 antes de
-seguir aplicando cambios. La aprobación de la implementación es la tarea
+El usuario rechazó aplicar J13 y autorizó continuar con los siguientes bloques.
+Se conserva el comportamiento TXT de J12. La aprobación de la implementación es la tarea
 `task_28ef84a839e1`, dispatch `ctx_2f85833c6973`, mensaje `msg_37ab196ec5ac`.
 
 Claude verificó las medidas: tarea `task_186ec2467f47`, dispatch
@@ -1004,3 +1004,84 @@ razón de medianas da +20,03 %, y la mediana de razones por pareja, +19,32 %.
 Se conserva una pareja con tiempos anormalmente altos (2,4248 s y 1,8412 s).
 El candidato queda retirado por prudencia ante ese coste fronterizo; no se
 presenta el +21,29 % de la confirmación como una penalización exacta universal.
+
+
+## J18: codificación directa y vecinos por distancia
+
+El codificador obtiene el código de la mano a partir de los campos observados,
+sin probar sucesivamente todas las manos. Conserva una decodificación y la
+comparación de campos para validar la entrada, además de la validación final
+de la clave. Los resúmenes no requieren conservar las cartas originales; se
+mantienen los campos ignorados y los errores anteriores.
+
+La búsqueda histórica recorre los pares de acumulado/tanteo por distancia
+creciente dentro de cada plantilla. Termina una distancia completa antes de
+parar, para conservar todos los desempates de la lista de hasta 64 candidatos.
+Las variantes pública y con marcador siguen fijando los pagos y contratos
+pendientes. No cambia el presupuesto de lecturas, las decisiones, los esquemas
+ni el código de C-CFR. No se ha aplicado J13.
+
+Pasan la batería completa, núcleo/CLI de uno y dos muses, la guarda del bot con
+dos muses y ASan/UBSan en las rutas modificadas. Una prueba compara los 64
+candidatos contra la enumeración exhaustiva en 1.350 casos de los tres formatos
+con órdago, cinco lances, empates, límites y apuestas grandes. Las 330 manos y
+sus resúmenes conservan las claves, incluidos campos inactivos con valores
+obsoletos. Una comparación adicional de **1.113.900 llamadas** entre padre y
+candidato conserva estado devuelto y clave, incluidas entradas inválidas.
+El código y el resultado de ese ensayo se conservan con las medidas.
+
+[Rendimiento reproducible](review-performance/J18.json): tres parejas alternadas,
+CPU0, semilla 7, mismos datos y compilación sin LTO en ambos casos. Los
+checkpoints, valores de continuación y
+resultados completos de partidas coinciden entre padre y candidato.
+
+| Carga | Padre | J18 | Cambio de tiempo |
+|---|---:|---:|---:|
+| Entrenamiento público, 500 iteraciones y guardado | 9,6052 s | 9,8536 s | +2,59 % |
+| Tabla desde 35:35, 1.000 iteraciones y 10.000 muestras/celda | 3,7336 s | 3,7344 s | +0,02 % |
+| 1.000 partidas, TXT histórico frente a `three` | 1,0266 s | 0,9280 s | −9,60 % |
+| 10.000 partidas, TXT público frente a `three` | 1,4050 s | 1,2873 s | −8,37 % |
+
+Las partidas usan las políticas congeladas de 500 iteraciones de J12; no se
+atribuye fuerza competitiva ni convergencia a esos ejemplos. El tiempo incluye
+carga y salida; el tiempo interno de juego baja un 9,61 % y un 8,42 %.
+El RSS mediano cambia +0,002 % en entrenamiento, +0,17 % en tabla, +4,13 % en
+partidas históricas y +1,29 % en públicas. Ninguna carga activa el límite.
+La pequeña variación de entrenamiento no demuestra una alteración del coste
+por nodo; esta optimización actúa en codificadores externos y búsqueda del bot.
+
+Además se miden **76 casos sintéticos**: consultas exactas, interpoladas y sin
+datos en cada lance, más exactas/ausentes en mus y descarte, con estrategias
+históricas/públicas en memoria y TXT. Cada carga se calibra con el padre y se
+fija para ambos. Las variaciones medianas por caso van de −91,92 % a +12,42 %;
+se conservan todas. Empeoran 26 de las 76, con un máximo de +12,42 % en
+una consulta exacta de punto con TXT histórico. Son políticas pequeñas, cuatro
+reyes (cuatro pitos en punto), y no representan la mezcla de una partida ni
+el coste de cargar un checkpoint grande.
+
+El perfil instrumentado separa generación, codificación y consulta/validación
+de política; esta última incluye la validación de acciones y probabilidades,
+no solo E/S. Sirve para atribuir trabajo, no para calcular aceleraciones: los
+relojes añaden coste. En los casos históricos ausentes de chica, pares, juego
+y punto se pasa de 149 a 67 codificaciones por decisión, manteniendo 64
+lecturas. Por ejemplo, en pares con almacén en memoria, la consulta completa
+sin instrumentar baja un 91,92 %; con TXT, un 89,90 %. El efecto menor en
+partidas refleja su mezcla de consultas y otros costes.
+
+Se estudió también indexar plantillas. El perfil permitió reducir generación
+y codificación sin añadir ese índice; no se incorpora una optimización extra
+sin medirla. La búsqueda pública/con marcador ya evita el recorrido de
+acumulados y tanteos. La equivalencia de esta última está cubierta por las
+pruebas; no se presentan las consultas genéricas como mediciones aisladas de
+cada celda híbrida.
+
+Claude aprobó la implementación: tarea `task_0bb2fdb88071`, dispatch
+`ctx_c00dc37077cd`, mensaje `msg_bcb0be5a7daa`;
+[revisión](review-performance/J18-claude.md). Se documentó el oráculo anterior
+y se añadieron casos inválidos explícitos para los tres codificadores.
+
+Claude verificó las cifras finales: tarea `task_02edb655881f`, dispatch
+`ctx_46ba406d166b`, mensaje `msg_1797a4c03a18`;
+[revisión de medidas](review-performance/J18-claude-final.md). Aprobó sin bloqueos.
+Se incorporaron sus precisiones sobre las 26 consultas que empeoran y el
+resultado del codificador padre, idéntico al candidato.

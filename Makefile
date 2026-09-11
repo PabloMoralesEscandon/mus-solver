@@ -109,7 +109,8 @@ debug: $(DEBUG_BINARY) $(TEST_BINARY) $(DEBUG_DIR)/mus-bot $(DEBUG_DIR)/mus_adap
 
 test: $(TEST_BINARY) $(DEBUG_BINARY) $(DEBUG_DIR)/mus-bot $(DEBUG_DIR)/mus_adapter_tests \
 	$(DEBUG_DIR)/mus_hotpaths_tests $(DEBUG_DIR)/mus_adapter_configuration_tests \
-	$(DEBUG_DIR)/mus_ordago_public_tests $(DEBUG_DIR)/mus-match-eval $(DEBUG_DIR)/mus_match_tests
+	$(DEBUG_DIR)/mus_ordago_public_tests $(DEBUG_DIR)/mus-match-eval $(DEBUG_DIR)/mus_match_tests \
+	$(DEBUG_DIR)/mus_adapter_candidates_tests
 	./$(TEST_BINARY)
 	./$(DEBUG_DIR)/mus_hotpaths_tests
 	./$(DEBUG_DIR)/mus_ordago_public_tests
@@ -121,6 +122,7 @@ test: $(TEST_BINARY) $(DEBUG_BINARY) $(DEBUG_DIR)/mus-bot $(DEBUG_DIR)/mus_adapt
 	./$(DEBUG_DIR)/mus_match_tests
 	python3 tests/test_match_evaluation.py ./$(DEBUG_BINARY) ./$(DEBUG_DIR)/mus-match-eval
 	./$(DEBUG_DIR)/mus_adapter_tests
+	./$(DEBUG_DIR)/mus_adapter_candidates_tests
 	./$(DEBUG_DIR)/mus_adapter_configuration_tests
 	python3 tests/test_adapter_cli.py ./$(DEBUG_DIR)/mus-bot ./$(DEBUG_DIR)/mus_adapter_tests
 	python3 tests/test_hybrid_adapter_cli.py ./$(DEBUG_DIR)/mus-bot ./$(DEBUG_DIR)/mus_adapter_tests
@@ -211,6 +213,11 @@ $(DEBUG_DIR)/mus_adapter_tests: $(DEBUG_DIR)/tests/test_mus_adapter.o $(DEBUG_LI
 	$(CC) $(LDFLAGS) $(THREAD_FLAGS) $< $(DEBUG_LIBRARY) $(DEBUG_CFR_LIBRARY) $(LDLIBS) -lm -o $@
 
 -include $(DEBUG_DIR)/tests/test_mus_adapter.d
+
+$(DEBUG_DIR)/mus_adapter_candidates_tests: $(DEBUG_DIR)/tests/test_adapter_candidates.o $(DEBUG_LIBRARY) cfr-debug
+	$(CC) $(LDFLAGS) $(THREAD_FLAGS) $< $(DEBUG_LIBRARY) $(DEBUG_CFR_LIBRARY) $(LDLIBS) -o $@
+
+-include $(DEBUG_DIR)/tests/test_adapter_candidates.d
 
 $(DEBUG_DIR)/mus_adapter_configuration_tests: $(DEBUG_DIR)/tests/test_adapter_configuration.o \
 		$(DEBUG_LIBRARY) cfr-debug

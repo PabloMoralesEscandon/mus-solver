@@ -165,6 +165,26 @@ static void test_encoder(void) {
                         OK(mus_ordago_game_information_set_decode(key, &decoded));
                         OK(mus_ordago_game_information_set_encode(&decoded, &second));
                         CHECK(key == second);
+                        /* Summary encoders use the observed fields, even when
+                         * the original cards or inactive fields are stale. */
+                        MusOrdagoInformationSet stale = info;
+                        if (stale.hand_kind != MUS_ORDAGO_HAND_EXACT)
+                            memset(stale.hand, 255, sizeof(stale.hand));
+                        if (!stale.has_highest_non_king)
+                            stale.highest_non_king = (MusCardClass)999;
+                        if (!stale.has_lowest_non_pito)
+                            stale.lowest_non_pito = (MusCardClass)-999;
+                        if (!stale.has_second_pairs_value)
+                            stale.second_pairs_value = (MusCardClass)999;
+                        OK(mus_ordago_game_information_set_encode(&stale, &second));
+                        CHECK(key == second);
+                        OK(mus_ordago_public_game_information_set_encode(&info, &key));
+                        OK(mus_ordago_public_game_information_set_encode(&stale, &second));
+                        CHECK(key == second);
+                        info.score_enabled = stale.score_enabled = true;
+                        OK(mus_score_game_information_set_encode(&info, 40, &key));
+                        OK(mus_score_game_information_set_encode(&stale, 40, &second));
+                        CHECK(key == second);
                     }
                 }
     CHECK(hands == 330);
@@ -181,6 +201,40 @@ static void test_encoder(void) {
     bad.king_count = 5;
     CHECK(mus_ordago_game_information_set_encode(&bad, &key) ==
           CFR_STATUS_INVALID_ARGUMENT);
+    const MusGamePhase invalid_phases[] = {MUS_PHASE_GRANDE, MUS_PHASE_CHICA,
+        MUS_PHASE_PARES, MUS_PHASE_PUNTO, MUS_PHASE_PUNTO, MUS_PHASE_JUEGO,
+        MUS_PHASE_MUS_PLAYER_0};
+    for (size_t i = 0; i < sizeof(invalid_phases) / sizeof(invalid_phases[0]); ++i) {
+        bad = info_base(invalid_phases[i], CFR_PLAYER_0);
+        switch (i) {
+        case 0:
+            bad.king_count = 3;
+            bad.has_highest_non_king = true;
+            bad.highest_non_king = MUS_CLASS_KINGS;
+            break;
+        case 1:
+            bad.pito_count = 3;
+            bad.has_lowest_non_pito = true;
+            bad.lowest_non_pito = MUS_CLASS_PITOS;
+            break;
+        case 2:
+            bad.pairs_value = MUS_CLASS_PITOS;
+            bad.second_pairs_value = MUS_CLASS_KINGS;
+            break;
+        case 3: bad.point_value = 3; break;
+        case 4: bad.point_value = 31; break;
+        case 5: bad.game_value = 38; break;
+        case 6: memset(bad.hand, 255, sizeof(bad.hand)); break;
+        }
+        key = 42;
+        CHECK(mus_ordago_game_information_set_encode(&bad, &key) == CFR_STATUS_INVALID_ARGUMENT);
+        CHECK(key == 42);
+        CHECK(mus_ordago_public_game_information_set_encode(&bad, &key) == CFR_STATUS_INVALID_ARGUMENT);
+        CHECK(key == 42);
+        bad.score_enabled = true;
+        CHECK(mus_score_game_information_set_encode(&bad, 40, &key) == CFR_STATUS_INVALID_ARGUMENT);
+        CHECK(key == 42);
+    }
 }
 
 static void test_lookup_and_translation(void) {
