@@ -37,7 +37,7 @@ rendimiento del bot desplegado son métricas diferentes.
 | Bloque | Trabajo | Estado |
 |---|---|---|
 | J01 | Modelo genérico sin información oculta y compatibilidad histórica | Pendiente |
-| J02 | Recuento diferido en el simulador de dos/cuatro jugadores | Pendiente |
+| J02 | Recuento diferido en el simulador de dos/cuatro jugadores | Completado |
 | J03 | Reintento tras fallo al guardar una diagonal | Completado |
 | J04 | Rechazar TXT truncado a su cabecera | Completado |
 | J05 | Excluir candidatos de precarga incompatibles con los dejes | Completado |
@@ -224,3 +224,36 @@ del CLI conserva una explicación legible junto al identificador del error.
 [Rendimiento](review-performance/J14.json): ambos ejecutables release de la
 configuración por defecto son idénticos byte a byte a J16. Esta modificación
 no cambia el algoritmo ni su coste en la configuración admitida.
+
+## J02: recuento diferido en el simulador
+
+Se negocian los cuatro lances antes de cobrar los contratos y tantos intrínsecos.
+Los dejes se siguen pagando al cerrar su negociación. Un deje decisivo o un
+órdago querido resuelve la partida antes de los pendientes. Las estrategias
+solo observan el marcador público; el recuento posterior conserva el orden
+habitual de los lances. La implementación no modifica los comparadores de
+manos ni las funciones aisladas de puntuación.
+
+La prueba nueva fija repartos físicos al cortar mus y calcula los resultados
+esperados a mano. Cubre dos/cuatro jugadores, juego/punto, contratos queridos,
+lances en paso, órdago y deje decisivos en chica desde 39:39, intrínsecos de
+pares/juego/punto rechazados, y el marcador observado por cada callback.
+Antes del arreglo fallaban 139 comprobaciones; después pasan las 659.
+Pasan la batería optimizada del simulador y la batería completa del solver.
+También pasa la batería del simulador con AddressSanitizer y UndefinedBehaviorSanitizer.
+
+[Rendimiento](review-performance/J02.json): tres pares alternos en ocho cargas
+con dos/cuatro jugadores, política pasiva/con envites y rondas/partidas completas.
+Cada ejecución recorre dos millones de rondas o 200.000 partidas desde 0:0.
+Las medianas de tiempo varían entre −2,34 % y +6,60 %; RSS entre −1,29 % y +1,30 %.
+No se activa el límite de regresión. Coinciden los recuentos de rondas y los
+resultados de todas las rondas aisladas y partidas pasivas. Cambian los resultados
+de partidas con envites: los dejes decisivos preceden ahora a los pagos pendientes.
+Esto no mide fuerza de juego. `mus_sim.c` no se enlaza en el solver, por lo que
+no cambia el entrenamiento CFR. Fuente reproducible: `tests/benchmark_simulator.c`.
+Claude: **APPROVE**, tarea `task_79e0b4eb4570`, dispatch `ctx_5192988d40ac`,
+mensaje `msg_485667c4912c`. Se añade su caso sugerido: el apostador con medias
+cobra sus intrínsecos cuando el rival con duples rechaza. La prueba final pasa
+740 comprobaciones, tanto optimizada como con sanitizers. Se documenta también
+que los intrínsecos de lances rechazados pertenecen al equipo apostador.
+El commit del submódulo precede a la actualización del gitlink raíz: `c83774156560461ac4888573be3877cad982d478`.
