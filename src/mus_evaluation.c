@@ -31,7 +31,12 @@ typedef struct {
 } BestResponseStore;
 
 static uint64_t hash_key(InfoSetKey key) {
-    return (uint64_t)key * UINT64_C(11400714819323198485);
+    /* Hand information lives in the high bits of these structured keys.
+     * Mix it into the low bits used by the power-of-two table mask. */
+    uint64_t hash = (uint64_t)key;
+    hash = (hash ^ (hash >> 30)) * UINT64_C(0xbf58476d1ce4e5b9);
+    hash = (hash ^ (hash >> 27)) * UINT64_C(0x94d049bb133111eb);
+    return hash ^ (hash >> 31);
 }
 
 static Status best_store_init(BestResponseStore *store) {

@@ -42,7 +42,7 @@ rendimiento del bot desplegado son métricas diferentes.
 | J04 | Rechazar TXT truncado a su cabecera | Completado |
 | J05 | Excluir candidatos de precarga incompatibles con los dejes | Completado |
 | J06 | Usar operaciones de confianza en la evaluación exacta local | Completado |
-| J07 | Mezclar bits en la tabla de mejor respuesta | Pendiente |
+| J07 | Mezclar bits en la tabla de mejor respuesta | Completado |
 | J08 | Reutilizar celdas terminadas de una diagonal interrumpida | Pendiente |
 | J09 | Región opcional de continuaciones cerrada por incrementos y giro | Pendiente |
 | J10 | Incertidumbre y presupuesto de evaluación | Pendiente |
@@ -302,3 +302,35 @@ En entrenamiento genérico: +10,44 % / −0,55 % / −0,12 % de tiempo para
 single-bet / raises-to-eight / ordago, con contadores iguales y RSS prácticamente
 igual. La tabla score pasa de 3,7458 a 3,7477 s (+0,05 %) y mantiene todos sus
 archivos idénticos. No se activa el límite de regresión.
+
+## J07: dispersión de la tabla de mejor respuesta
+
+La función interna mezcla los bits altos y bajos antes de aplicar la máscara
+de capacidad. Se conserva la clave original en cada entrada y no se modifica
+la serialización de estrategias. La misma función se usa en búsquedas y al
+crecer la tabla. Este cambio se mide frente a J06, de forma separada.
+
+Antes del cambio, las 330 manos reales al abrir grande usaban una única posición
+inicial, con 54.615 sondeos de inserción y media 165,5, en ambos formatos.
+Después: 279 posiciones iniciales y 429 sondeos en single-bet; 286 posiciones y
+403 sondeos en raises-to-eight. Se usa el inicializador explícito de cada formato.
+Pasa la batería completa y coinciden exactamente las ocho métricas de evaluación
+en todas las comparaciones.
+
+Claude: **APPROVE**, tarea `task_8511b2de7ee9`, dispatch `ctx_b4a9bc1b0192`,
+mensaje `msg_4522afde531f`. La prueba de dispersión cubre las claves iniciales;
+la aceptación de rendimiento utiliza el evaluador completo.
+
+[Rendimiento](review-performance/J07.json): tras observar variaciones entre tandas,
+se confirma con tres pares por carga fijando la afinidad al núcleo lógico 0.
+Medianas: +0,93 % en el subproblema single-bet, −14,34 % en el subproblema
+raises-to-eight y −1,02 % en la raíz completa single-bet. El mayor aumento de
+RSS es +0,27 %. No hay regresión grave. La dispersión mejora mucho, pero no se
+observa una aceleración general de single-bet.
+
+Limitación importante de la comparación acumulada: el mismo binario de J06,
+verificado mediante SHA256, pasó de una mediana de 68,159 s en su tanda anterior
+a unos 18 s al reutilizarlo aquí. Es una variación entre ejecuciones ajena al
+cambio de hash; no se multiplican los cocientes de J06 y J07 ni se atribuye esa
+variación a una optimización. Se conservan las dos tandas de J07, con y sin
+afinidad fijada, y se registrará la afinidad en las siguientes comparaciones.
