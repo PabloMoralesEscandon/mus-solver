@@ -54,7 +54,7 @@ rendimiento del bot desplegado son métricas diferentes.
 | J16 | Gramática explícita para opciones enteras sin signo | Completado |
 | J17 | Bloqueo ligado al proceso y contrato de durabilidad | Bloqueo completado; sincronización retirada por rendimiento, a la espera del usuario |
 | J18 | Reducir el coste de codificación y generación de candidatos | Completado |
-| J19 | Distribución y memoria de trabajadores por diagonal | Pendiente |
+| J19 | Distribución y memoria de trabajadores por diagonal | Candidato retirado: límite de RSS confirmado; a la espera del usuario |
 | J20 | Invalidar objetos al cambiar la configuración | Pendiente |
 | J21 | Evitar enlaces sin cambios conservando dependencias reales | Pendiente |
 | J22 | Dependencias, portabilidad y separación del simulador | Pendiente |
@@ -1085,3 +1085,36 @@ Claude verificó las cifras finales: tarea `task_02edb655881f`, dispatch
 [revisión de medidas](review-performance/J18-claude-final.md). Aprobó sin bloqueos.
 Se incorporaron sus precisiones sobre las 26 consultas que empeoran y el
 resultado del codificador padre, idéntico al candidato.
+
+
+## J19: candidato retirado por memoria
+
+El candidato reutiliza cada espacio de trabajador después de guardar su celda,
+manteniendo orden de callbacks, un máximo de N tablas vivas y publicación de
+la diagonal completa. La primera celda permanece en el llamador; los reemplazos
+pueden entrenarse mientras se guarda otra. No modifica C-CFR. Pasan núcleo,
+coordinador, recuperación, dos muses, ASan/UBSan y TSan en las rutas modificadas.
+Claude revisó la implementación y pidió proteger los mensajes compuestos de
+consola y explicitar la concurrencia de callbacks; ambas correcciones están en
+el parche retirado y la prueba de salida pasó con los sanitizadores.
+
+En tres pares, las 120 celdas desde 32:32 con cuatro trabajadores tardan
+14,0327 → 10,1897 s (−27,39 %), con RSS de 263,35 → 322,52 MiB (+22,47 %).
+Los checkpoints y valores son idénticos. El control serial da +4,95 % de tiempo
+y +0,15 % de RSS. Las tablas pequeñas activaron el límite de memoria: en cinco
+pares adicionales de lotes de 100 tablas, el pico del lote pasa de 6,11 a
+8,64 MiB (**+41,52 %, +2,54 MiB**), mientras el tiempo baja un 16,10 %.
+El pico del lote es el máximo de sus procesos consecutivos; la mediana de
+los 500 procesos individuales por versión sube un 15,41 %. Se explicita esta
+diferencia para no presentar el +41,52 % como el aumento típico de cada tabla.
+
+J19 queda retirado, sin commit de implementación, a la espera del usuario.
+J18 continúa aplicado y J13 descartado. El [informe de bloqueo](../ASTRA_BLOQUEO_RENDIMIENTO_J19_2026-09-12.md)
+conserva el [parche](review-performance/J19-blocked.patch), las
+[mediciones](review-performance/J19-blocked.json), sus límites y la revisión.
+
+Claude verificó el parche corregido y el límite: tarea `task_d0649b43c015`,
+dispatch `ctx_9e48de53ea50`, mensaje `msg_98714cae4f5a`;
+[revisión final](review-performance/J19-claude-gate.md). Aprobó la retirada.
+El informe muestra también la dispersión de memoria en la carga normal:
+una ejecución del candidato alcanzó 353,7 MiB, aunque su mediana fue 322,52 MiB.

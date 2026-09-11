@@ -1,0 +1,463 @@
+diff --git a/Makefile b/Makefile
+index 4c99b78..df9aa01 100644
+--- a/Makefile
++++ b/Makefile
+@@ -110,7 +110,7 @@ debug: $(DEBUG_BINARY) $(TEST_BINARY) $(DEBUG_DIR)/mus-bot $(DEBUG_DIR)/mus_adap
+ test: $(TEST_BINARY) $(DEBUG_BINARY) $(DEBUG_DIR)/mus-bot $(DEBUG_DIR)/mus_adapter_tests \
+ 	$(DEBUG_DIR)/mus_hotpaths_tests $(DEBUG_DIR)/mus_adapter_configuration_tests \
+ 	$(DEBUG_DIR)/mus_ordago_public_tests $(DEBUG_DIR)/mus-match-eval $(DEBUG_DIR)/mus_match_tests \
+-	$(DEBUG_DIR)/mus_adapter_candidates_tests
++	$(DEBUG_DIR)/mus_adapter_candidates_tests $(DEBUG_DIR)/mus_score_scheduler_tests
+ 	./$(TEST_BINARY)
+ 	./$(DEBUG_DIR)/mus_hotpaths_tests
+ 	./$(DEBUG_DIR)/mus_ordago_public_tests
+@@ -119,10 +119,12 @@ test: $(TEST_BINARY) $(DEBUG_BINARY) $(DEBUG_DIR)/mus-bot $(DEBUG_DIR)/mus_adapt
+ 	python3 tests/test_score_recovery.py ./$(DEBUG_BINARY)
+ 	python3 tests/test_score_regions.py ./$(DEBUG_BINARY) ./$(DEBUG_DIR)/mus-bot
+ 	python3 tests/test_score_statistics.py ./$(DEBUG_BINARY)
++	python3 tests/test_score_scheduler_cli.py ./$(DEBUG_BINARY)
+ 	./$(DEBUG_DIR)/mus_match_tests
+ 	python3 tests/test_match_evaluation.py ./$(DEBUG_BINARY) ./$(DEBUG_DIR)/mus-match-eval
+ 	./$(DEBUG_DIR)/mus_adapter_tests
+ 	./$(DEBUG_DIR)/mus_adapter_candidates_tests
++	./$(DEBUG_DIR)/mus_score_scheduler_tests
+ 	./$(DEBUG_DIR)/mus_adapter_configuration_tests
+ 	python3 tests/test_adapter_cli.py ./$(DEBUG_DIR)/mus-bot ./$(DEBUG_DIR)/mus_adapter_tests
+ 	python3 tests/test_hybrid_adapter_cli.py ./$(DEBUG_DIR)/mus-bot ./$(DEBUG_DIR)/mus_adapter_tests
+@@ -219,6 +221,11 @@ $(DEBUG_DIR)/mus_adapter_candidates_tests: $(DEBUG_DIR)/tests/test_adapter_candi
+ 
+ -include $(DEBUG_DIR)/tests/test_adapter_candidates.d
+ 
++$(DEBUG_DIR)/mus_score_scheduler_tests: $(DEBUG_DIR)/tests/test_score_scheduler.o $(DEBUG_LIBRARY) cfr-debug
++	$(CC) $(LDFLAGS) $(THREAD_FLAGS) $< $(DEBUG_LIBRARY) $(DEBUG_CFR_LIBRARY) $(LDLIBS) -o $@
++
++-include $(DEBUG_DIR)/tests/test_score_scheduler.d
++
+ $(DEBUG_DIR)/mus_adapter_configuration_tests: $(DEBUG_DIR)/tests/test_adapter_configuration.o \
+ 		$(DEBUG_LIBRARY) cfr-debug
+ 	$(CC) $(LDFLAGS) $(THREAD_FLAGS) $< $(DEBUG_LIBRARY) \
+diff --git a/app/mus_solver_cli.c b/app/mus_solver_cli.c
+index e0949cd..3d1fa5e 100644
+--- a/app/mus_solver_cli.c
++++ b/app/mus_solver_cli.c
+@@ -727,6 +727,9 @@ static Status save_score_cell(const MusScoreGame *game, const Trainer *trainer,
+     free(path);
+     if (status == CFR_STATUS_SUCCESS && persistence->preload_stats != NULL)
+         status = report_score_preload(game, persistence->preload_stats);
++    /* Other cells can report progress while this completed cell is saved.
++     * Keep the prefix and statistics together as one output record. */
++    flockfile(stdout);
+     if (status == CFR_STATUS_SUCCESS &&
+         printf("score-cell score=%u:%u target=%u iterations=%zu "
+                "evaluation_samples=%zu value=%.17g win_probability=%.17g",
+@@ -736,6 +739,7 @@ static Status save_score_cell(const MusScoreGame *game, const Trainer *trainer,
+         status = CFR_STATUS_IO_ERROR;
+     if (status == CFR_STATUS_SUCCESS && !print_score_statistics(cell->evaluation_samples,
+         cell->variance_known, cell->sample_variance, options)) status = CFR_STATUS_IO_ERROR;
++    funlockfile(stdout);
+     (void)fflush(stdout);
+     return status;
+ }
+diff --git a/docs/performance.md b/docs/performance.md
+index 8cbedaf..28330f6 100644
+--- a/docs/performance.md
++++ b/docs/performance.md
+@@ -84,14 +84,19 @@ igualdad de las estadísticas guardadas.
+ 
+ `--threads N` aplica paralelismo entre celdas de una misma diagonal. Cada celda
+ conserva su propio almacén y semilla. Las llamadas para guardar estrategias
+-ocurren en el hilo del llamador y en orden de marcador. Solo se publican los
+-valores cuando termina la diagonal. La reanudación de un checkpoint individual
++ocurren en el hilo del llamador y en orden de marcador. Tras guardar una celda,
++su espacio puede usarse para otra de la misma diagonal, mientras las restantes
++siguen trabajando. El límite N incluye resultados terminados pendientes de
++guardado. Solo se publican los valores cuando termina la diagonal. La reanudación de un checkpoint individual
+ admite `--threads N` para compartir su única estrategia.
+ 
+ En el coordinador, `--threads-per-cell M` comparte el almacén CFR de cada celda
+ entre hasta M hilos. `--threads 1 --threads-per-cell 8` entrena una estrategia
+ cada vez con hasta ocho hilos. `--threads 2 --threads-per-cell 4` puede entrenar
+-dos estrategias con hasta ocho hilos en total. Las iteraciones se reparten y
++dos estrategias con hasta ocho hilos de entrenamiento. El llamador también
++puede comprimir y guardar una celda terminada mientras se entrenan otras.
++Durante ese guardado quedan como máximo N−1 celdas entrenándose, porque la
++celda guardada sigue ocupando uno de los N espacios. Las iteraciones se reparten y
+ los contadores se agregan antes de guardar. Este modo conserva la abstracción,
+ pero el orden concurrente de las actualizaciones no es reproducible bit a bit.
+ Las comparaciones de igualdad de los benchmarks anteriores usan un hilo por
+diff --git a/include/mus_solver/mus_score.h b/include/mus_solver/mus_score.h
+index 87c1704..af79dfc 100644
+--- a/include/mus_solver/mus_score.h
++++ b/include/mus_solver/mus_score.h
+@@ -131,9 +131,10 @@ typedef struct {
+     const MusScorePreloadOptions *preload;
+     /* Optional output for the most recent cell, available in save_cell. */
+     MusScorePreloadStats *preload_stats;
+-    /* Maximum concurrent cells in one diagonal. Zero and one run serially.
+-     * Each worker owns one CFR store. Save callbacks run on the caller in
+-     * score order, before the complete diagonal is published. */
++    /* Maximum live cells in one diagonal, including results awaiting save.
++     * Zero and one run serially. Each worker owns one CFR store. Save
++     * callbacks run on the caller in score order and can overlap training
++     * of other cells. The complete diagonal is published after all saves. */
+     size_t threads;
+     /* Threads that share each cell's strategy store. Zero and one use the
+      * sequential traversal. Iterations are divided among these threads.
+@@ -248,6 +249,8 @@ Status mus_score_evaluate(const MusScoreGame *game, const InfoStore *store,
+  * Earlier completed diagonals remain ready. A retry can recover completed
+  * cells through recover_cell, and trains the other cells again. Both save
+  * callbacks must support replacement of prior output.
++ * save_cell can overlap other cells' progress, recover_cell and extension
++ * load_cell callbacks. Synchronize any state shared by these callbacks.
+  * Callbacks must not retain pointers to temporary games, trainers, or cells. */
+ Status mus_score_train(MusScoreTable *table, unsigned int minimum_sum,
+                        const MusScoreTrainingOptions *options,
+diff --git a/src/mus_score.c b/src/mus_score.c
+index d78fb63..9ab1335 100644
+--- a/src/mus_score.c
++++ b/src/mus_score.c
+@@ -555,6 +555,21 @@ static void *train_score_cell(void *raw_worker) {
+     return NULL;
+ }
+ 
++static void start_score_cell(ScoreTrainingWorker *worker,
++                             const MusScoreTable *table,
++                             const MusScoreTrainingOptions *options,
++                             unsigned int a, unsigned int b, bool parallel,
++                             pthread_t *thread, bool *started) {
++    worker->table = table;
++    worker->options = options;
++    worker->a = a;
++    worker->b = b;
++    *started = parallel && pthread_create(thread, NULL, train_score_cell, worker) == 0;
++    /* Thread creation failure retains the serial fallback. */
++    if (!*started)
++        (void)train_score_cell(worker);
++}
++
+ Status mus_score_train(MusScoreTable *table, unsigned int minimum_sum,
+                        const MusScoreTrainingOptions *options,
+                        MusScoreSaveCell save_cell,
+@@ -605,48 +620,51 @@ Status mus_score_train(MusScoreTable *table, unsigned int minimum_sum,
+                 continue;
+             scores[count++] = (unsigned int)a;
+         }
+-        for (size_t offset = 0; offset < count; offset += worker_count) {
+-            const size_t remaining = count - offset;
+-            const size_t active = remaining < worker_count ? remaining : worker_count;
+-            pthread_t threads[MUS_ORDAGO_WAGER - 1];
+-            size_t created = 0;
+-            for (size_t i = 0; i < active; i += 1) {
+-                workers[i].table = table;
+-                workers[i].options = options;
+-                workers[i].a = scores[offset + i];
+-                workers[i].b = (unsigned int)sum - workers[i].a;
++        const size_t active = count < worker_count ? count : worker_count;
++        pthread_t threads[MUS_ORDAGO_WAGER];
++        bool started[MUS_ORDAGO_WAGER] = {false};
++        for (size_t i = 1; i < active; ++i)
++            start_score_cell(&workers[i], table, options, scores[i],
++                (unsigned int)sum - scores[i], true, &threads[i], &started[i]);
++        /* The caller performs the first cell while its peers start. A save
++         * cannot precede this cell, so another initial thread buys no overlap. */
++        if (active != 0)
++            start_score_cell(&workers[0], table, options, scores[0],
++                (unsigned int)sum - scores[0], false, &threads[0], &started[0]);
++        for (size_t offset = 0; offset < count; ++offset) {
++            const size_t slot = offset % worker_count;
++            ScoreTrainingWorker *worker = &workers[slot];
++            if (started[slot]) {
++                (void)pthread_join(threads[slot], NULL);
++                started[slot] = false;
+             }
+-            for (size_t i = 1; i < active; i += 1) {
+-                if (pthread_create(&threads[created], NULL, train_score_cell,
+-                                    &workers[i]) != 0)
+-                    break;
+-                created += 1;
+-            }
+-            (void)train_score_cell(&workers[0]);
+-            /* If a thread cannot start, the caller completes its cells. */
+-            for (size_t i = created + 1; i < active; i += 1)
+-                (void)train_score_cell(&workers[i]);
+-            for (size_t i = 0; i < created; i += 1)
+-                (void)pthread_join(threads[i], NULL);
+-
+-            /* Callbacks run on the caller, in the same order as serial
+-             * training. Keep each store alive until its callback returns. */
+-            for (size_t i = 0; i < active; i += 1) {
+-                ScoreTrainingWorker *worker = &workers[i];
+-                if (status == CFR_STATUS_SUCCESS) {
+-                    if (options->preload_stats != NULL)
+-                        *options->preload_stats = worker->preload_stats;
+-                    status = worker->status;
+-                    if (status == CFR_STATUS_SUCCESS && !worker->recovered && save_cell != NULL)
+-                        status = save_cell(&worker->game, &worker->trainer,
+-                                            &worker->cell, context);
+-                    if (status == CFR_STATUS_SUCCESS)
+-                        batch[worker->a] = worker->cell;
++            /* Consume in score order, then reuse just this slot. Other cells
++             * can train while the caller saves a completed policy. At most
++             * worker_count stores, including finished results, remain live. */
++            if (options->preload_stats != NULL)
++                *options->preload_stats = worker->preload_stats;
++            status = worker->status;
++            if (status == CFR_STATUS_SUCCESS && !worker->recovered && save_cell != NULL)
++                status = save_cell(&worker->game, &worker->trainer,
++                                    &worker->cell, context);
++            if (status == CFR_STATUS_SUCCESS)
++                batch[worker->a] = worker->cell;
++            (void)cfr_info_store_destroy(&worker->store);
++            if (status != CFR_STATUS_SUCCESS) {
++                /* Do not assign more cells after a failure. Join every worker
++                 * before freeing its store or returning to the caller. */
++                for (size_t i = 0; i < active; ++i) {
++                    if (started[i])
++                        (void)pthread_join(threads[i], NULL);
++                    (void)cfr_info_store_destroy(&workers[i].store);
+                 }
+-                (void)cfr_info_store_destroy(&worker->store);
+-            }
+-            if (status != CFR_STATUS_SUCCESS)
+                 goto done;
++            }
++            const size_t next = offset + worker_count;
++            if (next < count)
++                start_score_cell(worker, table, options, scores[next],
++                    (unsigned int)sum - scores[next], active > 1,
++                    &threads[slot], &started[slot]);
+         }
+         if (count == 0)
+             continue;
+diff --git a/tests/test_score_scheduler.c b/tests/test_score_scheduler.c
+new file mode 100644
+index 0000000..f984420
+--- /dev/null
++++ b/tests/test_score_scheduler.c
+@@ -0,0 +1,172 @@
++#define _POSIX_C_SOURCE 200809L
++#include <errno.h>
++#include <pthread.h>
++#include <stdint.h>
++#include <stdio.h>
++#include <time.h>
++
++/* Inject creation failures without changing the production API. */
++static int fail_after = -1, creation_calls;
++static int create_test_thread(pthread_t *thread, const pthread_attr_t *attributes,
++                              void *(*entry)(void *), void *context) {
++    if (fail_after >= 0 && creation_calls++ >= fail_after)
++        return EAGAIN;
++    return pthread_create(thread, attributes, entry, context);
++}
++#define pthread_create create_test_thread
++#include "../src/mus_score.c"
++#undef pthread_create
++#include "cfr/checkpoint.h"
++
++static int failures;
++#define CHECK(x) do { if (!(x)) { fprintf(stderr, "%s:%d: %s\n", __FILE__, __LINE__, #x); ++failures; } } while (0)
++
++typedef struct {
++    pthread_mutex_t mutex;
++    pthread_cond_t condition;
++    bool entered[5];
++    size_t active, peak, starts;
++    bool overlap;
++} Schedule;
++
++static Status record_start(const MusScoreGame *game, MusScoreCell *cell, void *raw) {
++    Schedule *schedule = raw;
++    const unsigned int a = game->initial_scores[0], b = game->initial_scores[1];
++    pthread_mutex_lock(&schedule->mutex);
++    schedule->entered[a] = true;
++    ++schedule->active;
++    ++schedule->starts;
++    if (schedule->active > schedule->peak) schedule->peak = schedule->active;
++    pthread_cond_broadcast(&schedule->condition);
++    Status status = CFR_STATUS_NOT_FOUND;
++    if (schedule->overlap) {
++        struct timespec deadline;
++        clock_gettime(CLOCK_REALTIME, &deadline);
++        deadline.tv_sec += 5;
++        /* Cell 0 waits until cell 1 starts. Cell 1 then waits for cell 2.
++         * A barrier across the first pair would prevent cell 2 from starting. */
++        const unsigned int dependency = a == 0 ? 1 : 2;
++        while (a < 2 && !schedule->entered[dependency]) {
++            if (pthread_cond_timedwait(&schedule->condition, &schedule->mutex,
++                                       &deadline) != 0) {
++                status = CFR_STATUS_IO_ERROR;
++                break;
++            }
++        }
++        if (status != CFR_STATUS_IO_ERROR) {
++            *cell = (MusScoreCell){.ready = true, .value = (double)a / 5,
++                .iterations = 2, .evaluation_samples = 10,
++                .training_seed = 7 + (uint64_t)a * MUS_ORDAGO_WAGER + b};
++            status = CFR_STATUS_SUCCESS;
++        }
++    }
++    --schedule->active;
++    pthread_mutex_unlock(&schedule->mutex);
++    return status;
++}
++
++static void initialize_diagonal(MusScoreTable *table) {
++    CHECK(mus_score_table_init(table, 5) == CFR_STATUS_SUCCESS);
++    for (unsigned int a = 0; a < 5; ++a)
++        for (unsigned int b = 0; b < 5; ++b)
++            if (a + b > 4)
++                table->cells[a][b] = (MusScoreCell){.ready = true,
++                    .value = ((double)a - b) / 5, .iterations = 2,
++                    .evaluation_samples = 10, .training_seed = 7};
++}
++
++static Status fail_second_save(const MusScoreGame *game, const Trainer *trainer,
++                               const MusScoreCell *cell, void *context) {
++    (void)trainer; (void)cell;
++    size_t *calls = context;
++    CHECK(game->initial_scores[0] == *calls);
++    return ++*calls == 2 ? CFR_STATUS_IO_ERROR : CFR_STATUS_SUCCESS;
++}
++
++static void test_overlap_and_failure(void) {
++    MusScoreTable table;
++    Schedule schedule = {.mutex = PTHREAD_MUTEX_INITIALIZER,
++        .condition = PTHREAD_COND_INITIALIZER, .overlap = true};
++    MusScoreTrainingOptions options = {.iterations = 2, .evaluation_samples = 10,
++        .seed = 7, .threads = 2, .recover_cell = record_start,
++        .recovery_context = &schedule};
++    initialize_diagonal(&table);
++    CHECK(mus_score_train(&table, 4, &options, NULL, NULL, NULL) == CFR_STATUS_SUCCESS);
++    CHECK(schedule.starts == 5 && schedule.peak == 2 && schedule.active == 0);
++    for (unsigned int a = 0; a < 5; ++a)
++        CHECK(table.cells[a][4-a].ready);
++    schedule.overlap = false;
++    schedule.starts = schedule.peak = 0;
++    initialize_diagonal(&table);
++    size_t saves = 0;
++    CHECK(mus_score_train(&table, 4, &options, fail_second_save, NULL, &saves) == CFR_STATUS_IO_ERROR);
++    /* Only the initial pair and the replacement for cell 0 may start.
++     * Every started worker must have returned before the API returns. */
++    CHECK(saves == 2 && schedule.starts == 3 && schedule.active == 0);
++    for (unsigned int a = 0; a < 5; ++a)
++        CHECK(!table.cells[a][4-a].ready);
++    pthread_cond_destroy(&schedule.condition);
++    pthread_mutex_destroy(&schedule.mutex);
++}
++
++typedef struct {
++    uint64_t hashes[3][3];
++    bool compare;
++    size_t saves;
++    pthread_t caller;
++} Saved;
++
++static Status save_hash(const MusScoreGame *game, const Trainer *trainer,
++                         const MusScoreCell *cell, void *context) {
++    (void)cell;
++    Saved *saved = context;
++    CHECK(pthread_equal(pthread_self(), saved->caller));
++    FILE *file = tmpfile();
++    if (!file) return CFR_STATUS_IO_ERROR;
++    Status status = cfr_checkpoint_write(file, trainer);
++    if (fseek(file, 0, SEEK_SET) != 0) status = CFR_STATUS_IO_ERROR;
++    uint64_t hash = UINT64_C(14695981039346656037);
++    int byte;
++    while ((byte = fgetc(file)) != EOF)
++        hash = (hash ^ (unsigned int)byte) * UINT64_C(1099511628211);
++    if (ferror(file)) status = CFR_STATUS_IO_ERROR;
++    if (fclose(file) != 0) status = CFR_STATUS_IO_ERROR;
++    unsigned int a = game->initial_scores[0], b = game->initial_scores[1];
++    if (saved->compare) CHECK(saved->hashes[a][b] == hash);
++    else saved->hashes[a][b] = hash;
++    ++saved->saves;
++    return status;
++}
++
++static void test_creation_fallback(void) {
++    MusScoreTable reference, actual;
++    MusScoreTrainingOptions options = {.iterations = 2, .evaluation_samples = 10, .seed = 7};
++    Saved saved = {.caller = pthread_self()};
++    CHECK(mus_score_table_init(&reference, 3) == CFR_STATUS_SUCCESS);
++    CHECK(mus_score_train(&reference, 0, &options, save_hash, NULL, &saved) == CFR_STATUS_SUCCESS);
++    CHECK(saved.saves == 9);
++    saved.compare = true;
++    options.threads = 3;
++    for (int failure = 0; failure < 3; ++failure) {
++        fail_after = failure;
++        creation_calls = 0;
++        saved.saves = 0;
++        CHECK(mus_score_table_init(&actual, 3) == CFR_STATUS_SUCCESS);
++        CHECK(mus_score_train(&actual, 0, &options, save_hash, NULL, &saved) == CFR_STATUS_SUCCESS);
++        CHECK(saved.saves == 9 && creation_calls > failure);
++        for (unsigned int a = 0; a < 3; ++a)
++            for (unsigned int b = 0; b < 3; ++b) {
++                CHECK(actual.cells[a][b].ready);
++                CHECK(actual.cells[a][b].value == reference.cells[a][b].value);
++                CHECK(actual.cells[a][b].sample_variance == reference.cells[a][b].sample_variance);
++            }
++    }
++    fail_after = -1;
++}
++
++int main(void) {
++    test_overlap_and_failure();
++    test_creation_fallback();
++    if (!failures) puts("Score scheduler checks passed.");
++    return failures ? 1 : 0;
++}
+diff --git a/tests/test_score_scheduler_cli.py b/tests/test_score_scheduler_cli.py
+new file mode 100644
+index 0000000..82c5a5c
+--- /dev/null
++++ b/tests/test_score_scheduler_cli.py
+@@ -0,0 +1,48 @@
++"""Keep complete output records while saves overlap worker reports."""
++import re
++import subprocess
++import sys
++import tempfile
++from pathlib import Path
++
++binary = str(Path(sys.argv[1]).resolve())
++number = r"(?:unknown|[-+0-9.e]+)"
++statistics = (rf" uncertainty=local-sampling sample_variance={number}"
++              rf" standard_error={number} win_probability_se={number}")
++adaptive = (r" sampling=adaptive min_samples=2 max_samples=20 target_se=0.5"
++            r" stop=(?:estimated-target|sample-limit)")
++cell = re.compile(r"score-cell score=\d+:\d+ target=40 iterations=\d+"
++                  rf" evaluation_samples=\d+ value={number} win_probability={number}"
++                  + statistics + adaptive)
++report = re.compile(r"score-report score=\d+:\d+ iterations=\d+ information_sets=\d+"
++                    r" imported_nodes=\d+ imported_later_nodes=\d+ missing_source_nodes=\d+"
++                    r" existing_nodes=\d+ added_iterations=\d+")
++summary = re.compile(rf"score-table score=35:35 target=40 value={number} win_probability={number}"
++                     + statistics)
++extension = re.compile(r"score-extend score=\d+:\d+ initial_iterations=40 added_iterations=40"
++                       r" source_schema=\S+ continuation=updated-by-diagonal")
++
++
++def run(destination, source=None):
++    command = [binary, '--format', 'ordago-score', '--score', '35:35',
++               '--iterations', '40', '--evaluation-samples', '20',
++               '--evaluation-min-samples', '2', '--evaluation-target-se', '0.5',
++               '--threads', '4', '--report-every', '1', '--continuation', str(destination)]
++    command += ['--extend-continuation', str(source)] if source else ['--seed', '7']
++    result = subprocess.run(command, capture_output=True, text=True, timeout=60)
++    assert result.returncode == 0, result.stderr
++    lines = result.stdout.splitlines()
++    for line in lines:
++        assert any(pattern.fullmatch(line) for pattern in (cell, report, summary, extension)), line
++    assert sum(bool(cell.fullmatch(line)) for line in lines) == 45
++    assert sum(bool(report.fullmatch(line)) for line in lines) == 45 * 40
++    assert sum(bool(summary.fullmatch(line)) for line in lines) == 1
++    assert sum(bool(extension.fullmatch(line)) for line in lines) == (45 if source else 0)
++
++
++with tempfile.TemporaryDirectory(prefix='mus-score-scheduler-') as temporary:
++    root = Path(temporary)
++    for repeat in range(3):
++        run(root / str(repeat))
++    run(root / 'extended', root / '0')
++print('Concurrent score output checks passed.')
