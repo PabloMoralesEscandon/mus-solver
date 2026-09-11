@@ -2,7 +2,7 @@
 
 Solver en C17 de mus para dos jugadores. Entrena estrategias mediante
 external-sampling MCCFR y guarda checkpoints reanudables. Los formatos
-históricos resuelven una mano aislada; `ordago-score` incorpora el marcador de
+históricos y `ordago-public` resuelven una mano aislada; `ordago-score` incorpora el marcador de
 la partida mediante una tabla de continuación. Las métricas disponibles
 dependen del formato.
 
@@ -12,8 +12,8 @@ dependen del formato.
 - Se usa la baraja española de 40 cartas, con ochos reyes y ocho ases según las
   equivalencias del mus: tres = rey y dos = as.
 - Se juegan en orden grande, chica, pares y juego o punto.
-- Los formatos históricos no tienen fase de mus ni descartes. El formato
-  `ordago` y su nueva variante `ordago-score` sí los incorporan.
+- `single-bet` y `raises-to-eight` no tienen fase de mus ni descartes.
+  `ordago`, `ordago-public` y `ordago-score` sí los incorporan.
 - El formato `single-bet` conserva la primera versión: en cada lance se puede
   pasar o envidar 2 y, ante el envite, solo se puede querer o no querer.
 - El formato `raises-to-eight` añade respuestas y subidas en todos los lances.
@@ -74,7 +74,7 @@ dependen del formato.
   menos los del jugador 1; la utilidad contraria es su opuesto.
 - `ordago-score` parte de las reglas y abstracciones actuales de `ordago`, añade
   el marcador inicial y optimiza una utilidad de partida en `[-1, 1]`. Se
-  selecciona como una cuarta opción; `single-bet` sigue siendo el valor
+  selecciona como una opción explícita; `single-bet` sigue siendo el valor
   predeterminado.
 
 Al no querer el envite inicial se concede una piedra. Si se rechaza una subida
@@ -106,6 +106,39 @@ esquema `v9` no son comparables con los del esquema `v7`.
 Los palos no afectan a ninguna decisión. El reparto agrupa las cartas en ocho
 clases de valor, pero conserva exactamente sus multiplicidades y el muestreo
 sin reemplazo. Hay 330 composiciones de mano y 104.820 repartos conjuntos.
+
+## Mano aislada con información pública: `ordago-public`
+
+`--format ordago-public` conserva las acciones y abstracciones de `ordago`,
+pero calcula claves y límites de envite con los pagos públicos y los envites
+aceptados pendientes. Los resultados de las cartas ocultas se resuelven al
+contar al final. Los dejes se cobran durante la negociación; los tantos
+intrínsecos de pares/juego/punto quedan pendientes, también si se rechaza el
+lance. No hay marcador inicial ni tabla de continuación.
+
+Al terminar una mano ordinaria se cuentan todos los lances en orden y se limita
+cada total a 40. Alcanzar 40 durante ese recuento no impide sumar el resto:
+un resultado 40:1 da utilidad +39 a mano y −39 a postre. Un órdago querido
+termina de inmediato y sustituye todos los pagos anteriores por 40:0 o 0:40.
+Este contrato es distinto de la utilidad de partida de `ordago-score`.
+
+El esquema nuevo exige reentrenar. `ordago` mantiene su esquema histórico v9,
+sus lectores y su comportamiento, incluida la dependencia de resultados
+ocultos descrita en la revisión J01. No se reinterpretan esos checkpoints.
+Las tablas `ordago-score/v4` conservan su identidad y su contabilidad pública.
+En este primer bloque se admite entrenar, reanudar, exportar y ejecutar el
+diagnóstico `bounded-final-lances` de `ordago-public`. Ese diagnóstico fija las
+dos manos; no mide la explotabilidad desde la raíz. La conexión de esta nueva
+política con el adaptador y la precarga se realiza en un bloque posterior;
+los lectores actuales de esas rutas rechazan su esquema.
+
+```sh
+./build/release/mus-solver --format ordago-public --iterations 10000 --seed 7 \
+    --save-compressed public.cfr.zst --export-strategy public.txt
+./build/release/mus-solver --format ordago-public \
+    --load-compressed public.cfr.zst --iterations 10000 \
+    --save-compressed public-20k.cfr.zst
+```
 
 ## Compilar y probar
 
@@ -689,9 +722,11 @@ de esquema son independientes e incompatibles entre sí:
 
 - `single-bet`: `mus.heads-up-single-hand/v1`;
 - `raises-to-eight`: `mus.heads-up-single-hand.raises-to-eight/v1`;
-- `ordago`: `mus.heads-up-single-hand.ordago-with-mus/v9-muses-1` por defecto.
+- `ordago`: `mus.heads-up-single-hand.ordago-with-mus/v9-muses-1` por defecto;
+- `ordago-public`: `mus.heads-up-single-hand.ordago-public/v1-muses-1` por defecto.
 
-La compilación con dos muses usa el sufijo `v9-muses-2`, por lo que sus
+La compilación con dos muses usa `v9-muses-2` para `ordago` y
+`v1-muses-2` para `ordago-public`, por lo que sus
 checkpoints no se mezclan con los del límite predeterminado.
 
 Al cargar un checkpoint de `raises-to-eight` hay que volver a indicar

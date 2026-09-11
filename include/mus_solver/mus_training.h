@@ -8,7 +8,8 @@
  *
  * trainer must be initialized with a canonical descriptor returned by
  * mus_game_descriptor, mus_single_bet_game_descriptor,
- * mus_raises_to_eight_game_descriptor, or mus_ordago_game_descriptor, or with
+ * mus_raises_to_eight_game_descriptor, mus_ordago_game_descriptor, or
+ * mus_ordago_public_game_descriptor, or with
  * a game accepted by mus_score_game_matches. Its state must be a valid
  * MusGameState. The helper checks the descriptor before copying the state.
  * The caller retains ownership of trainer, game, state, and store. The game

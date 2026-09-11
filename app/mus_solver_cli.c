@@ -33,6 +33,7 @@ typedef enum {
     CLI_FORMAT_SINGLE_BET,
     CLI_FORMAT_RAISES_TO_EIGHT,
     CLI_FORMAT_ORDAGO,
+    CLI_FORMAT_ORDAGO_PUBLIC,
     CLI_FORMAT_ORDAGO_SCORE
 } CliFormat;
 
@@ -102,7 +103,7 @@ static bool print_usage(FILE *stream, const char *program) {
                "  --seed N               Semilla de un entrenamiento nuevo (0 por "
                "defecto).\n"
                "  --format FORMAT        single-bet (por defecto) o "
-               "raises-to-eight, ordago u ordago-score.\n"
+               "raises-to-eight, ordago, ordago-public u ordago-score.\n"
                "  --reserve-information-sets N\n"
                "                          Sustituye la reserva automatica de "
                "ordago.\n"
@@ -258,6 +259,8 @@ static bool parse_options(int argc, char *argv[], CliOptions *options) {
                 options->format = CLI_FORMAT_RAISES_TO_EIGHT;
             } else if (strcmp(value, "ordago-score") == 0) {
                 options->format = CLI_FORMAT_ORDAGO_SCORE;
+            } else if (strcmp(value, "ordago-public") == 0) {
+                options->format = CLI_FORMAT_ORDAGO_PUBLIC;
             } else if (strcmp(value, "ordago") == 0) {
                 options->format = CLI_FORMAT_ORDAGO;
             } else {
@@ -432,7 +435,8 @@ static const char *status_name(Status status) {
 
 static size_t automatic_information_set_reservation(
     const CliOptions *options) {
-    if (options->format != CLI_FORMAT_ORDAGO ||
+    if ((options->format != CLI_FORMAT_ORDAGO &&
+         options->format != CLI_FORMAT_ORDAGO_PUBLIC) ||
         !options->iterations_set || options->load_path != NULL) {
         return 0;
     }
@@ -521,6 +525,8 @@ static Status export_strategy(const char *path, const Trainer *trainer,
         status = mus_score_strategy_write_text(stream, trainer);
     } else if (format == CLI_FORMAT_RAISES_TO_EIGHT) {
         status = mus_raises_to_eight_strategy_write_text(stream, trainer);
+    } else if (format == CLI_FORMAT_ORDAGO_PUBLIC) {
+        status = mus_ordago_public_strategy_write_text(stream, trainer);
     } else if (format == CLI_FORMAT_ORDAGO) {
         status = mus_ordago_strategy_write_text(stream, trainer);
     } else {
@@ -564,7 +570,8 @@ static bool print_evaluation(size_t iterations, CliFormat format,
                "best_response_value_player_1=%.17g "
                "improvement_player_0=%.17g improvement_player_1=%.17g "
                "nash_conv=%.17g exploitability=%.17g\n",
-               format == CLI_FORMAT_ORDAGO ? "bounded-final-lances"
+               (format == CLI_FORMAT_ORDAGO || format == CLI_FORMAT_ORDAGO_PUBLIC)
+                   ? "bounded-final-lances"
                                             : "root",
                iterations, metrics->profile_value_player_0,
                metrics->profile_value_player_1,
@@ -1308,6 +1315,8 @@ static int run(const CliOptions *options) {
 
     if (options->format == CLI_FORMAT_RAISES_TO_EIGHT) {
         game = mus_raises_to_eight_game_descriptor();
+    } else if (options->format == CLI_FORMAT_ORDAGO_PUBLIC) {
+        game = mus_ordago_public_game_descriptor();
     } else if (options->format == CLI_FORMAT_ORDAGO) {
         game = mus_ordago_game_descriptor();
     } else {
@@ -1320,6 +1329,8 @@ static int run(const CliOptions *options) {
     }
     if (options->format == CLI_FORMAT_RAISES_TO_EIGHT) {
         status = mus_raises_to_eight_game_state_init(state);
+    } else if (options->format == CLI_FORMAT_ORDAGO_PUBLIC) {
+        status = mus_ordago_public_game_state_init(state);
     } else if (options->format == CLI_FORMAT_ORDAGO) {
         status = mus_ordago_game_state_init(state);
     } else {
@@ -1401,6 +1412,8 @@ static int run(const CliOptions *options) {
         if (options->format == CLI_FORMAT_RAISES_TO_EIGHT) {
             status = mus_raises_to_eight_evaluation_metrics(&store,
                                                              &metrics);
+        } else if (options->format == CLI_FORMAT_ORDAGO_PUBLIC) {
+            status = mus_ordago_public_evaluation_metrics(&store, &metrics);
         } else if (options->format == CLI_FORMAT_ORDAGO) {
             status = mus_ordago_evaluation_metrics(&store, &metrics);
         } else {

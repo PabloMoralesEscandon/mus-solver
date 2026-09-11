@@ -12,6 +12,7 @@ typedef struct {
     FILE *stream;
     bool raises_to_eight;
     bool ordago;
+    bool public_generic;
     unsigned int score_target;
     uint8_t initial_scores[2];
 } StrategyWriter;
@@ -180,7 +181,9 @@ static Status write_ordago_node(const InfoNode *node,
     status = writer->score_target != 0
                  ? mus_score_game_information_set_decode(node->key, writer->score_target,
                                                           &information)
-                 : mus_ordago_game_information_set_decode(node->key, &information);
+                 : writer->public_generic
+                     ? mus_ordago_public_game_information_set_decode(node->key, &information)
+                     : mus_ordago_game_information_set_decode(node->key, &information);
     if (status != CFR_STATUS_SUCCESS)
         return status;
     status = mus_ordago_game_information_set_legal_actions(
@@ -213,6 +216,10 @@ static Status write_ordago_node(const InfoNode *node,
                     a, b, writer->score_target) < 0)
             return CFR_STATUS_IO_ERROR;
     }
+    if (writer->public_generic &&
+        fprintf(writer->stream, "pagados:%u-%u cartas=",
+                information.scores[0], information.scores[1]) < 0)
+        return CFR_STATUS_IO_ERROR;
     if (write_ordago_hand(writer->stream, &information) !=
         CFR_STATUS_SUCCESS)
         return CFR_STATUS_IO_ERROR;
@@ -279,7 +286,9 @@ static Status write_ordago_node(const InfoNode *node,
         return fputc('\n', writer->stream) == EOF ? CFR_STATUS_IO_ERROR
                                                    : CFR_STATUS_SUCCESS;
     }
-    if (fprintf(writer->stream, " tantos_maximos=%u acumulado_previo=%u",
+    if (fprintf(writer->stream, writer->public_generic
+                    ? " maximo_pagado=%u envites_pendientes=%u"
+                    : " tantos_maximos=%u acumulado_previo=%u",
                 information.max_settled_score,
                 information.prior_wager_total) < 0)
         return CFR_STATUS_IO_ERROR;
@@ -456,6 +465,7 @@ static Status write_strategy(FILE *stream, const Trainer *trainer,
         .stream = stream,
         .raises_to_eight = raises_to_eight,
         .ordago = ordago,
+        .public_generic = expected_game == mus_ordago_public_game_descriptor(),
     };
     InfoStoreStats stats;
     Status status;
@@ -502,6 +512,11 @@ Status mus_raises_to_eight_strategy_write_text(FILE *stream,
 
 Status mus_ordago_strategy_write_text(FILE *stream, const Trainer *trainer) {
     return write_strategy(stream, trainer, mus_ordago_game_descriptor(),
+                          false, true);
+}
+
+Status mus_ordago_public_strategy_write_text(FILE *stream, const Trainer *trainer) {
+    return write_strategy(stream, trainer, mus_ordago_public_game_descriptor(),
                           false, true);
 }
 

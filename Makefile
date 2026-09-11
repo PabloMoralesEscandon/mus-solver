@@ -80,12 +80,15 @@ lto:
 		all
 
 debug: $(DEBUG_BINARY) $(TEST_BINARY) $(DEBUG_DIR)/mus-bot $(DEBUG_DIR)/mus_adapter_tests \
-	$(DEBUG_DIR)/mus_hotpaths_tests $(DEBUG_DIR)/mus_adapter_configuration_tests
+	$(DEBUG_DIR)/mus_hotpaths_tests $(DEBUG_DIR)/mus_adapter_configuration_tests \
+	$(DEBUG_DIR)/mus_ordago_public_tests
 
 test: $(TEST_BINARY) $(DEBUG_BINARY) $(DEBUG_DIR)/mus-bot $(DEBUG_DIR)/mus_adapter_tests \
-	$(DEBUG_DIR)/mus_hotpaths_tests $(DEBUG_DIR)/mus_adapter_configuration_tests
+	$(DEBUG_DIR)/mus_hotpaths_tests $(DEBUG_DIR)/mus_adapter_configuration_tests \
+	$(DEBUG_DIR)/mus_ordago_public_tests
 	./$(TEST_BINARY)
 	./$(DEBUG_DIR)/mus_hotpaths_tests
+	./$(DEBUG_DIR)/mus_ordago_public_tests
 	./tests/test_cli.sh ./$(DEBUG_BINARY)
 	./$(DEBUG_DIR)/mus_adapter_tests
 	./$(DEBUG_DIR)/mus_adapter_configuration_tests
@@ -191,3 +194,10 @@ $(RELEASE_DIR)/benchmark-evaluation: $(RELEASE_DIR)/tests/benchmark_evaluation.o
 		$(RELEASE_LIBRARY) $(RELEASE_CFR_LIBRARY) $(LDLIBS) -lm -o $@
 
 -include $(RELEASE_DIR)/tests/benchmark_evaluation.d
+
+$(DEBUG_DIR)/mus_ordago_public_tests: $(DEBUG_DIR)/tests/test_ordago_public.o \
+        $(DEBUG_LIBRARY) cfr-debug
+	$(CC) $(LDFLAGS) $(THREAD_FLAGS) $< $(DEBUG_LIBRARY) \
+		$(DEBUG_CFR_LIBRARY) $(LDLIBS) -lm -o $@
+
+-include $(DEBUG_DIR)/tests/test_ordago_public.d

@@ -26,9 +26,13 @@
 #if MUS_GAME_MAX_MUSES == 1
 #define MUS_ORDAGO_STRATEGY_SCHEMA_ID                                   \
     "mus.heads-up-single-hand.ordago-with-mus/v9-muses-1"
+#define MUS_ORDAGO_PUBLIC_STRATEGY_SCHEMA_ID \
+    "mus.heads-up-single-hand.ordago-public/v1-muses-1"
 #else
 #define MUS_ORDAGO_STRATEGY_SCHEMA_ID                                   \
     "mus.heads-up-single-hand.ordago-with-mus/v9-muses-2"
+#define MUS_ORDAGO_PUBLIC_STRATEGY_SCHEMA_ID \
+    "mus.heads-up-single-hand.ordago-public/v1-muses-2"
 #endif
 
 #define MUS_SINGLE_BET_WAGER 2
@@ -138,8 +142,15 @@ typedef enum {
 
 typedef struct MusScoreTable MusScoreTable;
 
+typedef enum {
+    MUS_ACCOUNTING_HISTORICAL,
+    MUS_ACCOUNTING_PUBLIC_DEFERRED
+} MusAccountingMode;
+
 typedef struct {
-    /* Zero target selects the historical single-hand formats. */
+    /* MusAccountingMode. Immutable during a hand, including betting undo. */
+    uint8_t accounting_mode;
+    /* A nonzero target selects match termination and continuation utility. */
     uint8_t score_target;
     uint8_t initial_scores[MUS_GAME_PLAYER_COUNT];
     uint8_t phase;
@@ -163,14 +174,14 @@ typedef struct {
     uint8_t previous_wager;
     /* Numeric wager actions already used by each player in this lance. */
     uint8_t used_wager_action_masks[MUS_GAME_PLAYER_COUNT];
-    /* Prior numeric total, capped at ordago. Score games include only
+    /* Prior numeric total, capped at ordago. Public-deferred games include only
      * accepted pending wagers; historical formats also include rejected stakes. */
     uint8_t prior_wager_total;
-    /* Collected points. Score games add deferred points only at final counting. */
+    /* Collected points. Public-deferred games add pending points at final count. */
     uint8_t settled_scores[MUS_GAME_PLAYER_COUNT];
-    /* Score games: public dejes and covered wagers collected immediately. */
+    /* Public-deferred games: dejes and covered wagers collected immediately. */
     uint8_t paid_scores[MUS_GAME_PLAYER_COUNT];
-    /* Score games: unresolved final payments, described by outcomes/wagers.
+    /* Public-deferred games: final payments described by outcomes/wagers.
      * No winner or intrinsic card value is stored for a pending lance. */
     uint8_t pending_lances;
     bool current_wager_is_ordago;
@@ -260,6 +271,7 @@ typedef MusInformationSet MusRaisesToEightInformationSet;
 
 typedef MusGameModel MusOrdagoGameModel;
 typedef MusGameState MusOrdagoGameState;
+typedef MusGameState MusOrdagoPublicGameState;
 
 typedef struct {
     Player player;
@@ -343,6 +355,20 @@ Status mus_ordago_game_information_set_decode(
     InfoSetKey key, MusOrdagoInformationSet *information_set);
 /* Encodes an observation without access to the other player's cards. */
 Status mus_ordago_game_information_set_encode(
+    const MusOrdagoInformationSet *information_set, InfoSetKey *key);
+/* Public-deferred isolated-hand model. Keys use public paid points and
+ * accepted pending wagers. Ordinary count-up continues through all lances,
+ * capping each player's points at 40; utility is their difference. An accepted
+ * ordago ends the hand at (40, 0) or (0, 40), replacing earlier payments.
+ * These APIs and their schema are distinct from historical ordago v9. */
+Status mus_ordago_public_game_state_init(MusOrdagoPublicGameState *state);
+const Game *mus_ordago_public_game_descriptor(void);
+Status mus_ordago_public_game_information_set_decode(
+    InfoSetKey key, MusOrdagoInformationSet *information_set);
+/* Paid scores range from 0 to 40. An uncovered ordago rejection can reach
+ * 40 before the final lance; ordinary payments do not end this isolated hand.
+ * score_enabled remains false: this is not a match-score cell. */
+Status mus_ordago_public_game_information_set_encode(
     const MusOrdagoInformationSet *information_set, InfoSetKey *key);
 /* Sets the phase-specific abstraction from four cards owned by the player. */
 Status mus_ordago_game_information_set_set_hand(

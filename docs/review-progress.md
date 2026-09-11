@@ -36,7 +36,7 @@ rendimiento del bot desplegado son métricas diferentes.
 
 | Bloque | Trabajo | Estado |
 |---|---|---|
-| J01 | Modelo genérico sin información oculta y compatibilidad histórica | Pendiente |
+| J01 | Modelo genérico sin información oculta y compatibilidad histórica | Núcleo/CLI completado con coste aceptado; adaptador/precarga pendientes |
 | J02 | Recuento diferido en el simulador de dos/cuatro jugadores | Completado |
 | J03 | Reintento tras fallo al guardar una diagonal | Completado |
 | J04 | Rechazar TXT truncado a su cabecera | Completado |
@@ -334,3 +334,55 @@ a unos 18 s al reutilizarlo aquí. Es una variación entre ejecuciones ajena al
 cambio de hash; no se multiplican los cocientes de J06 y J07 ni se atribuye esa
 variación a una optimización. Se conservan las dos tandas de J07, con y sin
 afinidad fijada, y se registrará la afinidad en las siguientes comparaciones.
+
+## J01: bloqueo y aceptación del coste
+
+El candidato de núcleo/CLI `ordago-public` pasó la batería completa, las pruebas
+con uno/dos muses y el núcleo con ASan/UBSan. Se retiró inicialmente del código
+al confirmar el límite de rendimiento indicado por el usuario. Después de
+consultar el alcance y las cifras, el usuario aceptó expresamente ese coste:
+«si es un error serio habrá que aplicarlo. Deja el cambio». Se recupera J01.
+El adaptador y la precarga del esquema nuevo siguen pendientes, junto con los
+otros bloques aún no aplicados.
+
+En cinco pares adicionales con semilla 7, 500 iteraciones, un hilo y afinidad
+CPU0, el tiempo de proceso pasa de 1,6681 a 4,9279 s (+195,42 %), y el RSS de
+596.724 a 1.342.896 KiB (+125,04 %). El nuevo modelo visita 42.630.116 nodos y
+crea 11.018.683 infosets, frente a 20.174.542 y 3.492.885 en el histórico.
+La semántica del modelo cambia; igualar iteraciones no iguala calidad de política.
+Se supera el límite aunque el cambio corrija un defecto de información.
+
+[Mediciones completas](review-performance/J01.json),
+[parche retirado](review-performance/J01-blocked.patch) e
+[informe del bloqueo](../ASTRA_BLOQUEO_RENDIMIENTO_J01_2026-09-11.md).
+El parche se comprobó antes de retirarlo y después contra HEAD `83c0a28`.
+La revisión de implementación de Claude corresponde a `task_664c5e0eef1e`,
+`ctx_37db6f8f21b1`: **APPROVE para núcleo/CLI**, mensaje `msg_77f6aee17f98`.
+El [informe de Claude](review-performance/J01-claude-review.md) y sus mejoras
+no bloqueantes quedaron conservados durante la pausa. Tras aceptar el coste,
+se mueve el mensaje de éxito al final del CLI, se añaden subidas y rechazos de
+órdagos a los grupos de invariancia y se rechazan estados que continúan tras
+aceptar un órdago. La regresión de validación falló antes de añadir la guarda.
+También se fijan resúmenes de claves, menús y utilidades de 256 recorridos por
+formato histórico, calculados con el código de `83c0a28` y uno/dos muses.
+
+La aceptación cubre el coste medido del nuevo modelo frente a v9. Los siguientes
+cambios conservan el límite original: esta excepción no autoriza regresiones
+adicionales. La revisión final de Claude es **APPROVE**, tarea `task_70823959bab2`, dispatch
+`ctx_278271202084`, mensaje `msg_a35a82f8cf47`.
+[Informe final](review-performance/J01-final-claude-review.md).
+
+La batería completa, los resúmenes históricos, las pruebas con dos muses y
+ASan/UBSan pasan. Las comparaciones entre manos ocultas alcanzan 75.900 con un
+mus y 141.358 con dos. Los checkpoints históricos conservan sus bytes y el
+checkpoint público coincide con el candidato aceptado. En seis ejecuciones
+v4, sus 45 checkpoints y `values.txt` también coinciden byte a byte.
+
+Medición final, tres pares por carga con CPU0: single-bet +3,33 %, raises +2,50 %,
+ordago histórico +2,09 % y score +1,48 % frente al padre. El formato público,
+comparado con el candidato cuyo coste se aceptó, varía +4,56 % en tiempo y
++0,04 % en RSS, con nodos e infosets idénticos. No se activa otra regresión grave.
+No se atribuye esa variación pequeña a la guarda de validación, que no se ejecuta
+en cada nodo de entrenamiento. Se conserva la limitación entre tandas descrita
+en J07. Las cifras finales y los comandos que generaron las referencias de los
+resúmenes están en `reintegration` del JSON de J01.

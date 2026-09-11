@@ -42,7 +42,8 @@ static void test_information_key_phases(void) {
     CHECK(mus_score_table_init(&table, 40) == CFR_STATUS_SUCCESS);
     CHECK(mus_score_game_init(&score, &table, 0, 0) == CFR_STATUS_SUCCESS);
     const Game *games[] = {mus_single_bet_game_descriptor(),
-        mus_raises_to_eight_game_descriptor(), mus_ordago_game_descriptor(), &score.game};
+        mus_raises_to_eight_game_descriptor(), mus_ordago_game_descriptor(),
+        mus_ordago_public_game_descriptor(), &score.game};
     for (size_t format = 0; format < sizeof(games) / sizeof(games[0]); ++format) {
         const Game *game = games[format];
         bool seen[MUS_PHASE_REDRAW_PLAYER_1 + 1] = {false};
@@ -52,6 +53,7 @@ static void test_information_key_phases(void) {
             if (format == 0) status = mus_single_bet_game_state_init(&state);
             else if (format == 1) status = mus_raises_to_eight_game_state_init(&state);
             else if (format == 2) status = mus_ordago_game_state_init(&state);
+            else if (format == 3) status = mus_ordago_public_game_state_init(&state);
             else status = mus_score_game_state_init(&state, &score);
             CHECK(status == CFR_STATUS_SUCCESS);
             size_t steps = 0;
@@ -202,7 +204,74 @@ static void test_score_accounting_paths(unsigned int target) {
     }
 }
 
+static uint64_t digest_value(uint64_t hash, uint64_t value) {
+    for (int byte = 0; byte < 8; ++byte) {
+        hash = (hash ^ (value & UINT64_C(255))) * UINT64_C(1099511628211);
+        value >>= 8;
+    }
+    return hash;
+}
+
+/* Explicit byte order avoids compiler padding and host-endian dependencies. */
+static uint64_t legacy_playout_digest(unsigned int format) {
+    const Game *game = format == 0 ? mus_single_bet_game_descriptor()
+                       : format == 1 ? mus_raises_to_eight_game_descriptor()
+                                     : mus_ordago_game_descriptor();
+    uint64_t hash = UINT64_C(14695981039346656037);
+    uint32_t random = 7;
+    for (unsigned int sample = 0; sample < 256; ++sample) {
+        MusGameState state;
+        CHECK((format == 0 ? mus_single_bet_game_state_init(&state)
+               : format == 1 ? mus_raises_to_eight_game_state_init(&state)
+                             : mus_ordago_game_state_init(&state)) == CFR_STATUS_SUCCESS);
+        size_t steps = 0;
+        while (state.model.phase != MUS_PHASE_TERMINAL) {
+            CHECK(++steps < 150);
+            Actor actor;
+            CHECK(cfr_game_current_actor(game, as_game(&state), &actor) == CFR_STATUS_SUCCESS);
+            Action actions[MUS_GAME_MAX_LEGAL_ACTIONS];
+            size_t count;
+            CHECK(cfr_game_legal_actions(game, as_game(&state), actions,
+                  MUS_GAME_MAX_LEGAL_ACTIONS, &count) == CFR_STATUS_SUCCESS);
+            hash = digest_value(hash, state.model.phase);
+            hash = digest_value(hash, count);
+            for (size_t i = 0; i < count; ++i) hash = digest_value(hash, (uint64_t)actions[i]);
+            if (actor.kind == CFR_ACTOR_PLAYER) {
+                InfoSetKey key;
+                CHECK(cfr_game_information_set_key(game, as_game(&state), &key) == CFR_STATUS_SUCCESS);
+                hash = digest_value(hash, (uint64_t)key);
+            }
+            random = random * UINT32_C(1664525) + UINT32_C(1013904223);
+            size_t choices = count;
+            if ((sample & 1U) != 0 && count > 1 && actions[count - 1] == MUS_ACTION_ORDAGO)
+                --choices;
+            CHECK(cfr_game_apply_action(game, as_game(&state), actions[random % choices]) == CFR_STATUS_SUCCESS);
+        }
+        Utility value;
+        CHECK(cfr_game_terminal_utility(game, as_game(&state), CFR_PLAYER_0, &value) == CFR_STATUS_SUCCESS);
+        CHECK(value >= -40 && value <= 40);
+        hash = digest_value(hash, (uint64_t)(value + 40));
+    }
+    return hash;
+}
+
+
+static void test_legacy_playout_digests(void) {
+    /* References from mus_game.c and mus_game.h at 83c0a28, for both limits. */
+    const uint64_t expected[] = {UINT64_C(0x27bf6926c90b799b),
+        UINT64_C(0x8fd5109be387f39a),
+#if MUS_GAME_MAX_MUSES == 1
+        UINT64_C(0x04572433352ddfdd)
+#else
+        UINT64_C(0x2b46283cdb285ff6)
+#endif
+    };
+    for (unsigned int format = 0; format < 3; ++format)
+        CHECK(legacy_playout_digest(format) == expected[format]);
+}
+
 int main(void) {
+    test_legacy_playout_digests();
     test_information_key_phases();
     test_all_discard_hands();
     test_score_accounting_paths(3);

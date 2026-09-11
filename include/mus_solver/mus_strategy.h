@@ -19,4 +19,7 @@ Status mus_raises_to_eight_strategy_write_text(FILE *stream,
 /* Writer for the format with mus, flexible wagers, and ordago. */
 Status mus_ordago_strategy_write_text(FILE *stream, const Trainer *trainer);
 
+/* Writer for the public-deferred isolated-hand format. */
+Status mus_ordago_public_strategy_write_text(FILE *stream, const Trainer *trainer);
+
 #endif

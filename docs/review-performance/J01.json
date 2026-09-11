@@ -1,0 +1,2598 @@
+{
+  "item": "J01",
+  "status": "core_cli_complete_with_user_accepted_cost",
+  "parent_commit": "83c0a2829a4a5ea10a1dcf58443a6204751e8ca6",
+  "method": "Three paired runs per workload, alternating order, CPU affinity fixed to logical CPU0, seed7, one thread. Five additional paired runs confirm the model regression. No own build/test/benchmark ran concurrently. Time covers the whole training process without checkpoint export. Training counters and time from stdout are also retained.",
+  "comparison_scope": "Historical ordago versus the new public isolated-hand model at500 iterations. The new information model changes the game tree; equal iteration counts do not establish equal policy quality. The semantic correction remains subject to the user performance gate.",
+  "gate": {
+    "initial_time_percent": 20,
+    "initial_peak_rss_percent": 25,
+    "confirmation_additional_pairs": 5,
+    "confirmed": true
+  },
+  "retained_patch": "J01-blocked.patch",
+  "patch_sha256": "6d5e79911faae67eee4705a43f991fc744240e9c6dbe58475d43fe416b60562c",
+  "review": {
+    "design_task": "task_01b746042ef5",
+    "implementation_task": "task_664c5e0eef1e",
+    "dispatch": "ctx_37db6f8f21b1",
+    "status": "APPROVE for core/CLI only; performance gate still blocks integration",
+    "message": "msg_77f6aee17f98",
+    "report": "J01-claude-review.md",
+    "nonblocking_findings_held_until_user_decision": [
+      "Move CLI success message after the public tests.",
+      "Extend observation invariance groups to a raise and an ordago rejection.",
+      "Reject crafted nonterminal public states with accepted ordago outcomes.",
+      "Consider fixed-seed legacy key/menu digests across phases.",
+      "Clarify that retained strength fields derive from public betting actions."
+    ]
+  },
+  "decision": "Integrate the reviewed core/CLI with the user-accepted model cost. All final checks pass. The final candidate adds no severe regression relative to its comparison baselines. Adapter and preload remain separate steps under the original thresholds.",
+  "runs": [
+    {
+      "group": "single-bet",
+      "stage": "initial",
+      "variant": "before",
+      "format": "single-bet",
+      "repeat": 1,
+      "affinity_cpus": [
+        0
+      ],
+      "wall_seconds": 0.8274504609998985,
+      "peak_rss_kib": 20108,
+      "command": [
+        "build/review-j07/release/mus-solver",
+        "--format",
+        "single-bet",
+        "--iterations",
+        "100000",
+        "--seed",
+        "7",
+        "--threads",
+        "1"
+      ],
+      "stdout": "report iterations=100000 threads=1 information_sets=165694 traversals=200000 visited_nodes=11223357 seconds=0.825861\n",
+      "iterations": 100000,
+      "threads": 1,
+      "information_sets": 165694,
+      "traversals": 200000,
+      "visited_nodes": 11223357,
+      "training_seconds": 0.825861
+    },
+    {
+      "group": "single-bet",
+      "stage": "initial",
+      "variant": "after",
+      "format": "single-bet",
+      "repeat": 1,
+      "affinity_cpus": [
+        0
+      ],
+      "wall_seconds": 0.7887095630012482,
+      "peak_rss_kib": 20504,
+      "command": [
+        "build/review-j01/release/mus-solver",
+        "--format",
+        "single-bet",
+        "--iterations",
+        "100000",
+        "--seed",
+        "7",
+        "--threads",
+        "1"
+      ],
+      "stdout": "report iterations=100000 threads=1 information_sets=165694 traversals=200000 visited_nodes=11223357 seconds=0.787608\n",
+      "iterations": 100000,
+      "threads": 1,
+      "information_sets": 165694,
+      "traversals": 200000,
+      "visited_nodes": 11223357,
+      "training_seconds": 0.787608
+    },
+    {
+      "group": "single-bet",
+      "stage": "initial",
+      "variant": "after",
+      "format": "single-bet",
+      "repeat": 2,
+      "affinity_cpus": [
+        0
+      ],
+      "wall_seconds": 0.7814120420007384,
+      "peak_rss_kib": 20504,
+      "command": [
+        "build/review-j01/release/mus-solver",
+        "--format",
+        "single-bet",
+        "--iterations",
+        "100000",
+        "--seed",
+        "7",
+        "--threads",
+        "1"
+      ],
+      "stdout": "report iterations=100000 threads=1 information_sets=165694 traversals=200000 visited_nodes=11223357 seconds=0.780235\n",
+      "iterations": 100000,
+      "threads": 1,
+      "information_sets": 165694,
+      "traversals": 200000,
+      "visited_nodes": 11223357,
+      "training_seconds": 0.780235
+    },
+    {
+      "group": "single-bet",
+      "stage": "initial",
+      "variant": "before",
+      "format": "single-bet",
+      "repeat": 2,
+      "affinity_cpus": [
+        0
+      ],
+      "wall_seconds": 0.7301616309996461,
+      "peak_rss_kib": 20504,
+      "command": [
+        "build/review-j07/release/mus-solver",
+        "--format",
+        "single-bet",
+        "--iterations",
+        "100000",
+        "--seed",
+        "7",
+        "--threads",
+        "1"
+      ],
+      "stdout": "report iterations=100000 threads=1 information_sets=165694 traversals=200000 visited_nodes=11223357 seconds=0.729041\n",
+      "iterations": 100000,
+      "threads": 1,
+      "information_sets": 165694,
+      "traversals": 200000,
+      "visited_nodes": 11223357,
+      "training_seconds": 0.729041
+    },
+    {
+      "group": "single-bet",
+      "stage": "initial",
+      "variant": "before",
+      "format": "single-bet",
+      "repeat": 3,
+      "affinity_cpus": [
+        0
+      ],
+      "wall_seconds": 0.7388329569985217,
+      "peak_rss_kib": 20504,
+      "command": [
+        "build/review-j07/release/mus-solver",
+        "--format",
+        "single-bet",
+        "--iterations",
+        "100000",
+        "--seed",
+        "7",
+        "--threads",
+        "1"
+      ],
+      "stdout": "report iterations=100000 threads=1 information_sets=165694 traversals=200000 visited_nodes=11223357 seconds=0.737767\n",
+      "iterations": 100000,
+      "threads": 1,
+      "information_sets": 165694,
+      "traversals": 200000,
+      "visited_nodes": 11223357,
+      "training_seconds": 0.737767
+    },
+    {
+      "group": "single-bet",
+      "stage": "initial",
+      "variant": "after",
+      "format": "single-bet",
+      "repeat": 3,
+      "affinity_cpus": [
+        0
+      ],
+      "wall_seconds": 0.7429211159997067,
+      "peak_rss_kib": 20504,
+      "command": [
+        "build/review-j01/release/mus-solver",
+        "--format",
+        "single-bet",
+        "--iterations",
+        "100000",
+        "--seed",
+        "7",
+        "--threads",
+        "1"
+      ],
+      "stdout": "report iterations=100000 threads=1 information_sets=165694 traversals=200000 visited_nodes=11223357 seconds=0.741790\n",
+      "iterations": 100000,
+      "threads": 1,
+      "information_sets": 165694,
+      "traversals": 200000,
+      "visited_nodes": 11223357,
+      "training_seconds": 0.74179
+    },
+    {
+      "group": "raises-to-eight",
+      "stage": "initial",
+      "variant": "before",
+      "format": "raises-to-eight",
+      "repeat": 1,
+      "affinity_cpus": [
+        0
+      ],
+      "wall_seconds": 1.1753626450008596,
+      "peak_rss_kib": 138352,
+      "command": [
+        "build/review-j07/release/mus-solver",
+        "--format",
+        "raises-to-eight",
+        "--iterations",
+        "30000",
+        "--seed",
+        "7",
+        "--threads",
+        "1"
+      ],
+      "stdout": "report iterations=30000 threads=1 information_sets=1313500 traversals=60000 visited_nodes=9494753 seconds=1.172321\n",
+      "iterations": 30000,
+      "threads": 1,
+      "information_sets": 1313500,
+      "traversals": 60000,
+      "visited_nodes": 9494753,
+      "training_seconds": 1.172321
+    },
+    {
+      "group": "raises-to-eight",
+      "stage": "initial",
+      "variant": "after",
+      "format": "raises-to-eight",
+      "repeat": 1,
+      "affinity_cpus": [
+        0
+      ],
+      "wall_seconds": 1.196459053999206,
+      "peak_rss_kib": 138340,
+      "command": [
+        "build/review-j01/release/mus-solver",
+        "--format",
+        "raises-to-eight",
+        "--iterations",
+        "30000",
+        "--seed",
+        "7",
+        "--threads",
+        "1"
+      ],
+      "stdout": "report iterations=30000 threads=1 information_sets=1313500 traversals=60000 visited_nodes=9494753 seconds=1.193394\n",
+      "iterations": 30000,
+      "threads": 1,
+      "information_sets": 1313500,
+      "traversals": 60000,
+      "visited_nodes": 9494753,
+      "training_seconds": 1.193394
+    },
+    {
+      "group": "raises-to-eight",
+      "stage": "initial",
+      "variant": "after",
+      "format": "raises-to-eight",
+      "repeat": 2,
+      "affinity_cpus": [
+        0
+      ],
+      "wall_seconds": 1.1886394480006857,
+      "peak_rss_kib": 138356,
+      "command": [
+        "build/review-j01/release/mus-solver",
+        "--format",
+        "raises-to-eight",
+        "--iterations",
+        "30000",
+        "--seed",
+        "7",
+        "--threads",
+        "1"
+      ],
+      "stdout": "report iterations=30000 threads=1 information_sets=1313500 traversals=60000 visited_nodes=9494753 seconds=1.185554\n",
+      "iterations": 30000,
+      "threads": 1,
+      "information_sets": 1313500,
+      "traversals": 60000,
+      "visited_nodes": 9494753,
+      "training_seconds": 1.185554
+    },
+    {
+      "group": "raises-to-eight",
+      "stage": "initial",
+      "variant": "before",
+      "format": "raises-to-eight",
+      "repeat": 2,
+      "affinity_cpus": [
+        0
+      ],
+      "wall_seconds": 1.170441973999914,
+      "peak_rss_kib": 138288,
+      "command": [
+        "build/review-j07/release/mus-solver",
+        "--format",
+        "raises-to-eight",
+        "--iterations",
+        "30000",
+        "--seed",
+        "7",
+        "--threads",
+        "1"
+      ],
+      "stdout": "report iterations=30000 threads=1 information_sets=1313500 traversals=60000 visited_nodes=9494753 seconds=1.167434\n",
+      "iterations": 30000,
+      "threads": 1,
+      "information_sets": 1313500,
+      "traversals": 60000,
+      "visited_nodes": 9494753,
+      "training_seconds": 1.167434
+    },
+    {
+      "group": "raises-to-eight",
+      "stage": "initial",
+      "variant": "before",
+      "format": "raises-to-eight",
+      "repeat": 3,
+      "affinity_cpus": [
+        0
+      ],
+      "wall_seconds": 1.1544301680005447,
+      "peak_rss_kib": 138352,
+      "command": [
+        "build/review-j07/release/mus-solver",
+        "--format",
+        "raises-to-eight",
+        "--iterations",
+        "30000",
+        "--seed",
+        "7",
+        "--threads",
+        "1"
+      ],
+      "stdout": "report iterations=30000 threads=1 information_sets=1313500 traversals=60000 visited_nodes=9494753 seconds=1.151271\n",
+      "iterations": 30000,
+      "threads": 1,
+      "information_sets": 1313500,
+      "traversals": 60000,
+      "visited_nodes": 9494753,
+      "training_seconds": 1.151271
+    },
+    {
+      "group": "raises-to-eight",
+      "stage": "initial",
+      "variant": "after",
+      "format": "raises-to-eight",
+      "repeat": 3,
+      "affinity_cpus": [
+        0
+      ],
+      "wall_seconds": 1.1997285890010971,
+      "peak_rss_kib": 138348,
+      "command": [
+        "build/review-j01/release/mus-solver",
+        "--format",
+        "raises-to-eight",
+        "--iterations",
+        "30000",
+        "--seed",
+        "7",
+        "--threads",
+        "1"
+      ],
+      "stdout": "report iterations=30000 threads=1 information_sets=1313500 traversals=60000 visited_nodes=9494753 seconds=1.196600\n",
+      "iterations": 30000,
+      "threads": 1,
+      "information_sets": 1313500,
+      "traversals": 60000,
+      "visited_nodes": 9494753,
+      "training_seconds": 1.1966
+    },
+    {
+      "group": "ordago-legacy",
+      "stage": "initial",
+      "variant": "before",
+      "format": "ordago",
+      "repeat": 1,
+      "affinity_cpus": [
+        0
+      ],
+      "wall_seconds": 1.6890859289997024,
+      "peak_rss_kib": 596600,
+      "command": [
+        "build/review-j07/release/mus-solver",
+        "--format",
+        "ordago",
+        "--iterations",
+        "500",
+        "--seed",
+        "7",
+        "--threads",
+        "1"
+      ],
+      "stdout": "report iterations=500 threads=1 information_sets=3492885 traversals=1000 visited_nodes=20174542 seconds=1.668240\n",
+      "iterations": 500,
+      "threads": 1,
+      "information_sets": 3492885,
+      "traversals": 1000,
+      "visited_nodes": 20174542,
+      "training_seconds": 1.66824
+    },
+    {
+      "group": "ordago-legacy",
+      "stage": "initial",
+      "variant": "after",
+      "format": "ordago",
+      "repeat": 1,
+      "affinity_cpus": [
+        0
+      ],
+      "wall_seconds": 1.6878913119999197,
+      "peak_rss_kib": 596684,
+      "command": [
+        "build/review-j01/release/mus-solver",
+        "--format",
+        "ordago",
+        "--iterations",
+        "500",
+        "--seed",
+        "7",
+        "--threads",
+        "1"
+      ],
+      "stdout": "report iterations=500 threads=1 information_sets=3492885 traversals=1000 visited_nodes=20174542 seconds=1.669553\n",
+      "iterations": 500,
+      "threads": 1,
+      "information_sets": 3492885,
+      "traversals": 1000,
+      "visited_nodes": 20174542,
+      "training_seconds": 1.669553
+    },
+    {
+      "group": "ordago-legacy",
+      "stage": "initial",
+      "variant": "after",
+      "format": "ordago",
+      "repeat": 2,
+      "affinity_cpus": [
+        0
+      ],
+      "wall_seconds": 1.662341163999372,
+      "peak_rss_kib": 597212,
+      "command": [
+        "build/review-j01/release/mus-solver",
+        "--format",
+        "ordago",
+        "--iterations",
+        "500",
+        "--seed",
+        "7",
+        "--threads",
+        "1"
+      ],
+      "stdout": "report iterations=500 threads=1 information_sets=3492885 traversals=1000 visited_nodes=20174542 seconds=1.643909\n",
+      "iterations": 500,
+      "threads": 1,
+      "information_sets": 3492885,
+      "traversals": 1000,
+      "visited_nodes": 20174542,
+      "training_seconds": 1.643909
+    },
+    {
+      "group": "ordago-legacy",
+      "stage": "initial",
+      "variant": "before",
+      "format": "ordago",
+      "repeat": 2,
+      "affinity_cpus": [
+        0
+      ],
+      "wall_seconds": 1.6793878250009584,
+      "peak_rss_kib": 597088,
+      "command": [
+        "build/review-j07/release/mus-solver",
+        "--format",
+        "ordago",
+        "--iterations",
+        "500",
+        "--seed",
+        "7",
+        "--threads",
+        "1"
+      ],
+      "stdout": "report iterations=500 threads=1 information_sets=3492885 traversals=1000 visited_nodes=20174542 seconds=1.660517\n",
+      "iterations": 500,
+      "threads": 1,
+      "information_sets": 3492885,
+      "traversals": 1000,
+      "visited_nodes": 20174542,
+      "training_seconds": 1.660517
+    },
+    {
+      "group": "ordago-legacy",
+      "stage": "initial",
+      "variant": "before",
+      "format": "ordago",
+      "repeat": 3,
+      "affinity_cpus": [
+        0
+      ],
+      "wall_seconds": 1.6647794190012064,
+      "peak_rss_kib": 596680,
+      "command": [
+        "build/review-j07/release/mus-solver",
+        "--format",
+        "ordago",
+        "--iterations",
+        "500",
+        "--seed",
+        "7",
+        "--threads",
+        "1"
+      ],
+      "stdout": "report iterations=500 threads=1 information_sets=3492885 traversals=1000 visited_nodes=20174542 seconds=1.645442\n",
+      "iterations": 500,
+      "threads": 1,
+      "information_sets": 3492885,
+      "traversals": 1000,
+      "visited_nodes": 20174542,
+      "training_seconds": 1.645442
+    },
+    {
+      "group": "ordago-legacy",
+      "stage": "initial",
+      "variant": "after",
+      "format": "ordago",
+      "repeat": 3,
+      "affinity_cpus": [
+        0
+      ],
+      "wall_seconds": 1.6732855529990047,
+      "peak_rss_kib": 598236,
+      "command": [
+        "build/review-j01/release/mus-solver",
+        "--format",
+        "ordago",
+        "--iterations",
+        "500",
+        "--seed",
+        "7",
+        "--threads",
+        "1"
+      ],
+      "stdout": "report iterations=500 threads=1 information_sets=3492885 traversals=1000 visited_nodes=20174542 seconds=1.654598\n",
+      "iterations": 500,
+      "threads": 1,
+      "information_sets": 3492885,
+      "traversals": 1000,
+      "visited_nodes": 20174542,
+      "training_seconds": 1.654598
+    },
+    {
+      "group": "ordago-public-model",
+      "stage": "initial",
+      "variant": "before",
+      "format": "ordago",
+      "repeat": 1,
+      "affinity_cpus": [
+        0
+      ],
+      "wall_seconds": 1.6651599580000038,
+      "peak_rss_kib": 598256,
+      "command": [
+        "build/review-j07/release/mus-solver",
+        "--format",
+        "ordago",
+        "--iterations",
+        "500",
+        "--seed",
+        "7",
+        "--threads",
+        "1"
+      ],
+      "stdout": "report iterations=500 threads=1 information_sets=3492885 traversals=1000 visited_nodes=20174542 seconds=1.645985\n",
+      "iterations": 500,
+      "threads": 1,
+      "information_sets": 3492885,
+      "traversals": 1000,
+      "visited_nodes": 20174542,
+      "training_seconds": 1.645985
+    },
+    {
+      "group": "ordago-public-model",
+      "stage": "initial",
+      "variant": "after",
+      "format": "ordago-public",
+      "repeat": 1,
+      "affinity_cpus": [
+        0
+      ],
+      "wall_seconds": 4.971077756999875,
+      "peak_rss_kib": 1341340,
+      "command": [
+        "build/review-j01/release/mus-solver",
+        "--format",
+        "ordago-public",
+        "--iterations",
+        "500",
+        "--seed",
+        "7",
+        "--threads",
+        "1"
+      ],
+      "stdout": "report iterations=500 threads=1 information_sets=11018683 traversals=1000 visited_nodes=42630116 seconds=4.933466\n",
+      "iterations": 500,
+      "threads": 1,
+      "information_sets": 11018683,
+      "traversals": 1000,
+      "visited_nodes": 42630116,
+      "training_seconds": 4.933466
+    },
+    {
+      "group": "ordago-public-model",
+      "stage": "initial",
+      "variant": "after",
+      "format": "ordago-public",
+      "repeat": 2,
+      "affinity_cpus": [
+        0
+      ],
+      "wall_seconds": 4.9406818309998926,
+      "peak_rss_kib": 1345236,
+      "command": [
+        "build/review-j01/release/mus-solver",
+        "--format",
+        "ordago-public",
+        "--iterations",
+        "500",
+        "--seed",
+        "7",
+        "--threads",
+        "1"
+      ],
+      "stdout": "report iterations=500 threads=1 information_sets=11018683 traversals=1000 visited_nodes=42630116 seconds=4.902427\n",
+      "iterations": 500,
+      "threads": 1,
+      "information_sets": 11018683,
+      "traversals": 1000,
+      "visited_nodes": 42630116,
+      "training_seconds": 4.902427
+    },
+    {
+      "group": "ordago-public-model",
+      "stage": "initial",
+      "variant": "before",
+      "format": "ordago",
+      "repeat": 2,
+      "affinity_cpus": [
+        0
+      ],
+      "wall_seconds": 1.6839821949997713,
+      "peak_rss_kib": 598104,
+      "command": [
+        "build/review-j07/release/mus-solver",
+        "--format",
+        "ordago",
+        "--iterations",
+        "500",
+        "--seed",
+        "7",
+        "--threads",
+        "1"
+      ],
+      "stdout": "report iterations=500 threads=1 information_sets=3492885 traversals=1000 visited_nodes=20174542 seconds=1.661692\n",
+      "iterations": 500,
+      "threads": 1,
+      "information_sets": 3492885,
+      "traversals": 1000,
+      "visited_nodes": 20174542,
+      "training_seconds": 1.661692
+    },
+    {
+      "group": "ordago-public-model",
+      "stage": "initial",
+      "variant": "before",
+      "format": "ordago",
+      "repeat": 3,
+      "affinity_cpus": [
+        0
+      ],
+      "wall_seconds": 1.6800602690000233,
+      "peak_rss_kib": 596964,
+      "command": [
+        "build/review-j07/release/mus-solver",
+        "--format",
+        "ordago",
+        "--iterations",
+        "500",
+        "--seed",
+        "7",
+        "--threads",
+        "1"
+      ],
+      "stdout": "report iterations=500 threads=1 information_sets=3492885 traversals=1000 visited_nodes=20174542 seconds=1.659169\n",
+      "iterations": 500,
+      "threads": 1,
+      "information_sets": 3492885,
+      "traversals": 1000,
+      "visited_nodes": 20174542,
+      "training_seconds": 1.659169
+    },
+    {
+      "group": "ordago-public-model",
+      "stage": "initial",
+      "variant": "after",
+      "format": "ordago-public",
+      "repeat": 3,
+      "affinity_cpus": [
+        0
+      ],
+      "wall_seconds": 4.948899713001083,
+      "peak_rss_kib": 1343244,
+      "command": [
+        "build/review-j01/release/mus-solver",
+        "--format",
+        "ordago-public",
+        "--iterations",
+        "500",
+        "--seed",
+        "7",
+        "--threads",
+        "1"
+      ],
+      "stdout": "report iterations=500 threads=1 information_sets=11018683 traversals=1000 visited_nodes=42630116 seconds=4.912707\n",
+      "iterations": 500,
+      "threads": 1,
+      "information_sets": 11018683,
+      "traversals": 1000,
+      "visited_nodes": 42630116,
+      "training_seconds": 4.912707
+    },
+    {
+      "group": "ordago-public-model",
+      "stage": "confirmation",
+      "variant": "after",
+      "format": "ordago-public",
+      "repeat": 1,
+      "affinity_cpus": [
+        0
+      ],
+      "wall_seconds": 4.98336621299859,
+      "peak_rss_kib": 1343360,
+      "command": [
+        "build/review-j01/release/mus-solver",
+        "--format",
+        "ordago-public",
+        "--iterations",
+        "500",
+        "--seed",
+        "7",
+        "--threads",
+        "1"
+      ],
+      "stdout": "report iterations=500 threads=1 information_sets=11018683 traversals=1000 visited_nodes=42630116 seconds=4.945969\n",
+      "iterations": 500,
+      "threads": 1,
+      "information_sets": 11018683,
+      "traversals": 1000,
+      "visited_nodes": 42630116,
+      "training_seconds": 4.945969
+    },
+    {
+      "group": "ordago-public-model",
+      "stage": "confirmation",
+      "variant": "before",
+      "format": "ordago",
+      "repeat": 1,
+      "affinity_cpus": [
+        0
+      ],
+      "wall_seconds": 1.6843131919995358,
+      "peak_rss_kib": 596632,
+      "command": [
+        "build/review-j07/release/mus-solver",
+        "--format",
+        "ordago",
+        "--iterations",
+        "500",
+        "--seed",
+        "7",
+        "--threads",
+        "1"
+      ],
+      "stdout": "report iterations=500 threads=1 information_sets=3492885 traversals=1000 visited_nodes=20174542 seconds=1.662050\n",
+      "iterations": 500,
+      "threads": 1,
+      "information_sets": 3492885,
+      "traversals": 1000,
+      "visited_nodes": 20174542,
+      "training_seconds": 1.66205
+    },
+    {
+      "group": "ordago-public-model",
+      "stage": "confirmation",
+      "variant": "before",
+      "format": "ordago",
+      "repeat": 2,
+      "affinity_cpus": [
+        0
+      ],
+      "wall_seconds": 1.6700689329991292,
+      "peak_rss_kib": 596716,
+      "command": [
+        "build/review-j07/release/mus-solver",
+        "--format",
+        "ordago",
+        "--iterations",
+        "500",
+        "--seed",
+        "7",
+        "--threads",
+        "1"
+      ],
+      "stdout": "report iterations=500 threads=1 information_sets=3492885 traversals=1000 visited_nodes=20174542 seconds=1.649181\n",
+      "iterations": 500,
+      "threads": 1,
+      "information_sets": 3492885,
+      "traversals": 1000,
+      "visited_nodes": 20174542,
+      "training_seconds": 1.649181
+    },
+    {
+      "group": "ordago-public-model",
+      "stage": "confirmation",
+      "variant": "after",
+      "format": "ordago-public",
+      "repeat": 2,
+      "affinity_cpus": [
+        0
+      ],
+      "wall_seconds": 4.946648839000773,
+      "peak_rss_kib": 1342236,
+      "command": [
+        "build/review-j01/release/mus-solver",
+        "--format",
+        "ordago-public",
+        "--iterations",
+        "500",
+        "--seed",
+        "7",
+        "--threads",
+        "1"
+      ],
+      "stdout": "report iterations=500 threads=1 information_sets=11018683 traversals=1000 visited_nodes=42630116 seconds=4.912525\n",
+      "iterations": 500,
+      "threads": 1,
+      "information_sets": 11018683,
+      "traversals": 1000,
+      "visited_nodes": 42630116,
+      "training_seconds": 4.912525
+    },
+    {
+      "group": "ordago-public-model",
+      "stage": "confirmation",
+      "variant": "after",
+      "format": "ordago-public",
+      "repeat": 3,
+      "affinity_cpus": [
+        0
+      ],
+      "wall_seconds": 4.918266145999951,
+      "peak_rss_kib": 1343936,
+      "command": [
+        "build/review-j01/release/mus-solver",
+        "--format",
+        "ordago-public",
+        "--iterations",
+        "500",
+        "--seed",
+        "7",
+        "--threads",
+        "1"
+      ],
+      "stdout": "report iterations=500 threads=1 information_sets=11018683 traversals=1000 visited_nodes=42630116 seconds=4.883959\n",
+      "iterations": 500,
+      "threads": 1,
+      "information_sets": 11018683,
+      "traversals": 1000,
+      "visited_nodes": 42630116,
+      "training_seconds": 4.883959
+    },
+    {
+      "group": "ordago-public-model",
+      "stage": "confirmation",
+      "variant": "before",
+      "format": "ordago",
+      "repeat": 3,
+      "affinity_cpus": [
+        0
+      ],
+      "wall_seconds": 1.6644917840003473,
+      "peak_rss_kib": 598216,
+      "command": [
+        "build/review-j07/release/mus-solver",
+        "--format",
+        "ordago",
+        "--iterations",
+        "500",
+        "--seed",
+        "7",
+        "--threads",
+        "1"
+      ],
+      "stdout": "report iterations=500 threads=1 information_sets=3492885 traversals=1000 visited_nodes=20174542 seconds=1.642104\n",
+      "iterations": 500,
+      "threads": 1,
+      "information_sets": 3492885,
+      "traversals": 1000,
+      "visited_nodes": 20174542,
+      "training_seconds": 1.642104
+    },
+    {
+      "group": "ordago-public-model",
+      "stage": "confirmation",
+      "variant": "before",
+      "format": "ordago",
+      "repeat": 4,
+      "affinity_cpus": [
+        0
+      ],
+      "wall_seconds": 1.6658759580004698,
+      "peak_rss_kib": 598256,
+      "command": [
+        "build/review-j07/release/mus-solver",
+        "--format",
+        "ordago",
+        "--iterations",
+        "500",
+        "--seed",
+        "7",
+        "--threads",
+        "1"
+      ],
+      "stdout": "report iterations=500 threads=1 information_sets=3492885 traversals=1000 visited_nodes=20174542 seconds=1.643598\n",
+      "iterations": 500,
+      "threads": 1,
+      "information_sets": 3492885,
+      "traversals": 1000,
+      "visited_nodes": 20174542,
+      "training_seconds": 1.643598
+    },
+    {
+      "group": "ordago-public-model",
+      "stage": "confirmation",
+      "variant": "after",
+      "format": "ordago-public",
+      "repeat": 4,
+      "affinity_cpus": [
+        0
+      ],
+      "wall_seconds": 4.9279426019984385,
+      "peak_rss_kib": 1342372,
+      "command": [
+        "build/review-j01/release/mus-solver",
+        "--format",
+        "ordago-public",
+        "--iterations",
+        "500",
+        "--seed",
+        "7",
+        "--threads",
+        "1"
+      ],
+      "stdout": "report iterations=500 threads=1 information_sets=11018683 traversals=1000 visited_nodes=42630116 seconds=4.893359\n",
+      "iterations": 500,
+      "threads": 1,
+      "information_sets": 11018683,
+      "traversals": 1000,
+      "visited_nodes": 42630116,
+      "training_seconds": 4.893359
+    },
+    {
+      "group": "ordago-public-model",
+      "stage": "confirmation",
+      "variant": "after",
+      "format": "ordago-public",
+      "repeat": 5,
+      "affinity_cpus": [
+        0
+      ],
+      "wall_seconds": 4.916637375999926,
+      "peak_rss_kib": 1342896,
+      "command": [
+        "build/review-j01/release/mus-solver",
+        "--format",
+        "ordago-public",
+        "--iterations",
+        "500",
+        "--seed",
+        "7",
+        "--threads",
+        "1"
+      ],
+      "stdout": "report iterations=500 threads=1 information_sets=11018683 traversals=1000 visited_nodes=42630116 seconds=4.880844\n",
+      "iterations": 500,
+      "threads": 1,
+      "information_sets": 11018683,
+      "traversals": 1000,
+      "visited_nodes": 42630116,
+      "training_seconds": 4.880844
+    },
+    {
+      "group": "ordago-public-model",
+      "stage": "confirmation",
+      "variant": "before",
+      "format": "ordago",
+      "repeat": 5,
+      "affinity_cpus": [
+        0
+      ],
+      "wall_seconds": 1.6680953310005862,
+      "peak_rss_kib": 596724,
+      "command": [
+        "build/review-j07/release/mus-solver",
+        "--format",
+        "ordago",
+        "--iterations",
+        "500",
+        "--seed",
+        "7",
+        "--threads",
+        "1"
+      ],
+      "stdout": "report iterations=500 threads=1 information_sets=3492885 traversals=1000 visited_nodes=20174542 seconds=1.645970\n",
+      "iterations": 500,
+      "threads": 1,
+      "information_sets": 3492885,
+      "traversals": 1000,
+      "visited_nodes": 20174542,
+      "training_seconds": 1.64597
+    }
+  ],
+  "summary": [
+    {
+      "group": "single-bet",
+      "stage": "initial",
+      "wall_seconds": {
+        "before": 0.7388329569985217,
+        "after": 0.7814120420007384,
+        "change_percent": 5.7630191775949635
+      },
+      "training_seconds": {
+        "before": 0.737767,
+        "after": 0.780235,
+        "change_percent": 5.756288909642215
+      },
+      "peak_rss_kib": {
+        "before": 20504,
+        "after": 20504,
+        "change_percent": 0.0
+      },
+      "visited_nodes": {
+        "before": 11223357,
+        "after": 11223357,
+        "change_percent": 0.0
+      },
+      "information_sets": {
+        "before": 165694,
+        "after": 165694,
+        "change_percent": 0.0
+      }
+    },
+    {
+      "group": "raises-to-eight",
+      "stage": "initial",
+      "wall_seconds": {
+        "before": 1.170441973999914,
+        "after": 1.196459053999206,
+        "change_percent": 2.222842360171029
+      },
+      "training_seconds": {
+        "before": 1.167434,
+        "after": 1.193394,
+        "change_percent": 2.223680310835552
+      },
+      "peak_rss_kib": {
+        "before": 138352,
+        "after": 138348,
+        "change_percent": -0.002891176130448425
+      },
+      "visited_nodes": {
+        "before": 9494753,
+        "after": 9494753,
+        "change_percent": 0.0
+      },
+      "information_sets": {
+        "before": 1313500,
+        "after": 1313500,
+        "change_percent": 0.0
+      }
+    },
+    {
+      "group": "ordago-legacy",
+      "stage": "initial",
+      "wall_seconds": {
+        "before": 1.6793878250009584,
+        "after": 1.6732855529990047,
+        "change_percent": -0.3633628820639001
+      },
+      "training_seconds": {
+        "before": 1.660517,
+        "after": 1.654598,
+        "change_percent": -0.35645524857619293
+      },
+      "peak_rss_kib": {
+        "before": 596680,
+        "after": 597212,
+        "change_percent": 0.08916001877052881
+      },
+      "visited_nodes": {
+        "before": 20174542,
+        "after": 20174542,
+        "change_percent": 0.0
+      },
+      "information_sets": {
+        "before": 3492885,
+        "after": 3492885,
+        "change_percent": 0.0
+      }
+    },
+    {
+      "group": "ordago-public-model",
+      "stage": "initial",
+      "wall_seconds": {
+        "before": 1.6800602690000233,
+        "after": 4.948899713001083,
+        "change_percent": 194.56679646062236
+      },
+      "training_seconds": {
+        "before": 1.659169,
+        "after": 4.912707,
+        "change_percent": 196.09443040461824
+      },
+      "peak_rss_kib": {
+        "before": 598104,
+        "after": 1343244,
+        "change_percent": 124.58368444283936
+      },
+      "visited_nodes": {
+        "before": 20174542,
+        "after": 42630116,
+        "change_percent": 111.3064871559414
+      },
+      "information_sets": {
+        "before": 3492885,
+        "after": 11018683,
+        "change_percent": 215.46080102837624
+      }
+    },
+    {
+      "group": "ordago-public-model",
+      "stage": "confirmation",
+      "wall_seconds": {
+        "before": 1.6680953310005862,
+        "after": 4.9279426019984385,
+        "change_percent": 195.42331966377927
+      },
+      "training_seconds": {
+        "before": 1.64597,
+        "after": 4.893359,
+        "change_percent": 197.29332855398337
+      },
+      "peak_rss_kib": {
+        "before": 596724,
+        "after": 1342896,
+        "change_percent": 125.0447443038993
+      },
+      "visited_nodes": {
+        "before": 20174542,
+        "after": 42630116,
+        "change_percent": 111.3064871559414
+      },
+      "information_sets": {
+        "before": 3492885,
+        "after": 11018683,
+        "change_percent": 215.46080102837624
+      }
+    }
+  ],
+  "binary_sha256": {
+    "before": "7531d0c1dbbefae296dbf6b57a947becf2576ba480108b0c58b94028f8383877",
+    "after": "542fc93a1c6a3853ac302c1146ad12313263c11dc98ad51d471276d5da0ba432"
+  },
+  "branch_counterexample": {
+    "scope": "Read-only diagnosis after user challenged the branch explanation. Same fixed deal and public history, using the preserved candidate library for both descriptors. Exhaustive enumeration from pares to terminal, independent of policy learning and RNG. This is not an MCCFR benchmark or a full root tree count.",
+    "own_hand": "two aces and two kings",
+    "rival0": "two fours and two sevens",
+    "rival1": "one ace and three kings",
+    "history": "no mus; grande +10 accepted; chica +10 accepted",
+    "results": [
+      {
+        "format": "legacy",
+        "rival": 0,
+        "key": 511864500,
+        "settled": [
+          20,
+          0
+        ],
+        "paid": [
+          0,
+          0
+        ],
+        "prior": 20,
+        "menu": [
+          "pass",
+          "ordago"
+        ],
+        "subtree_node_occurrences": 33,
+        "decision_occurrences": 16,
+        "terminals": 17
+      },
+      {
+        "format": "legacy",
+        "rival": 1,
+        "key": 511854660,
+        "settled": [
+          10,
+          10
+        ],
+        "paid": [
+          0,
+          0
+        ],
+        "prior": 20,
+        "menu": [
+          "pass",
+          "+2",
+          "+4",
+          "+7",
+          "ordago"
+        ],
+        "subtree_node_occurrences": 93,
+        "decision_occurrences": 32,
+        "terminals": 61
+      },
+      {
+        "format": "public",
+        "rival": 0,
+        "key": 20985617940,
+        "settled": [
+          0,
+          0
+        ],
+        "paid": [
+          0,
+          0
+        ],
+        "prior": 20,
+        "menu": [
+          "pass",
+          "+2",
+          "+4",
+          "+7",
+          "+10",
+          "ordago"
+        ],
+        "subtree_node_occurrences": 12489,
+        "decision_occurrences": 4304,
+        "terminals": 8185
+      },
+      {
+        "format": "public",
+        "rival": 1,
+        "key": 20985617940,
+        "settled": [
+          0,
+          0
+        ],
+        "paid": [
+          0,
+          0
+        ],
+        "prior": 20,
+        "menu": [
+          "pass",
+          "+2",
+          "+4",
+          "+7",
+          "+10",
+          "ordago"
+        ],
+        "subtree_node_occurrences": 213,
+        "decision_occurrences": 72,
+        "terminals": 141
+      }
+    ],
+    "explanation": "The legacy numeric budget adds the hidden settled maximum to the accepted prior, so the same accepted stakes are counted in both terms in rival0. Public budget uses paid points and accepted pending stakes once. The keys merge across hidden rival hands at the opening of pares, while the action menu expands. The public key also stores both players paid points instead of only a maximum, introducing additional distinctions between public histories. External-sampling MCCFR shares strategy data by infoset but does not collapse all concrete game histories into one traversal.",
+    "limitation": "This proves a concrete source of branch expansion. It does not apportion the aggregate runtime or store-size increase across action menus, changed public key distinctions, and changed sampled training histories.",
+    "probe_source": "#include <inttypes.h>\n#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include \"mus_solver/mus_game.h\"\n#define CHECK(c) do { if (!(c)) { fprintf(stderr,\"line %d: %s\\n\",__LINE__,#c); exit(1); } } while(0)\nstatic uint64_t visited, terminal, decisions;\nstatic GameState *gs(MusGameState *s) { return mus_game_state_as_game_state(s); }\nstatic void apply(const Game *g, MusGameState *s, Action a) {CHECK(cfr_game_apply_action(g,gs(s),a)==CFR_STATUS_SUCCESS);}\nstatic void count_tree(const Game *g, MusGameState *s) {\n CHECK(++visited < 10000000);\n if(s->model.phase==MUS_PHASE_TERMINAL) {++terminal;return;}\n ++decisions;\n Action a[MUS_GAME_MAX_LEGAL_ACTIONS];size_t n=0;\n CHECK(g->trusted_operations->legal_actions(g->context,gs(s),a,MUS_GAME_MAX_LEGAL_ACTIONS,&n)==CFR_STATUS_SUCCESS);\n for(size_t i=0;i<n;i++) {\n  CHECK(g->trusted_operations->apply_action(g->context,gs(s),a[i])==CFR_STATUS_SUCCESS);\n  count_tree(g,s);\n  CHECK(g->trusted_operations->undo_action(g->context,gs(s))==CFR_STATUS_SUCCESS);\n }\n}\nstatic const char *name(Action a) {\n switch(a){case MUS_ACTION_PASS:return \"pasar\";case MUS_ACTION_BET_TWO:return \"+2\";case MUS_ACTION_BET_FOUR:return \"+4\";case MUS_ACTION_BET_SEVEN:return \"+7\";case MUS_ACTION_BET_TEN:return \"+10\";case MUS_ACTION_ORDAGO:return \"ordago\";default:return \"unexpected\";}\n}\nint main(void) {\n const uint8_t own[8]={2,0,0,0,0,0,0,2};\n const uint8_t rivals[2][8]={{0,2,0,0,2,0,0,0},{1,0,0,0,0,0,0,3}};\n for(int f=0;f<2;f++)for(int r=0;r<2;r++) {\n  MusGameState *s=malloc(sizeof(*s));CHECK(s);\n  const Game *g=f?mus_ordago_public_game_descriptor():mus_ordago_game_descriptor();\n  CHECK((f?mus_ordago_public_game_state_init(s):mus_ordago_game_state_init(s))==CFR_STATUS_SUCCESS);\n  for(int p=0;p<2;p++)for(int c=0;c<7;c++)apply(g,s,p?rivals[r][c]:own[c]);\n  apply(g,s,MUS_ACTION_NO_MUS);\n  for(int lance=0;lance<2;lance++){apply(g,s,MUS_ACTION_BET_TEN);apply(g,s,MUS_ACTION_ACCEPT);}\n  CHECK(s->model.phase==MUS_PHASE_PARES);\n  Action a[MUS_GAME_MAX_LEGAL_ACTIONS];size_t n=0;InfoSetKey key;\n  CHECK(cfr_game_legal_actions(g,gs(s),a,MUS_GAME_MAX_LEGAL_ACTIONS,&n)==CFR_STATUS_SUCCESS);\n  CHECK(cfr_game_information_set_key(g,gs(s),&key)==CFR_STATUS_SUCCESS);\n  printf(\"format=%s rival=%d key=%\" PRId64 \" settled=%u:%u paid=%u:%u prior=%u menu=\",f?\"public\":\"legacy\",r,key,s->model.settled_scores[0],s->model.settled_scores[1],s->model.paid_scores[0],s->model.paid_scores[1],s->model.prior_wager_total);\n  for(size_t i=0;i<n;i++)printf(\"%s%s\",i?\",\":\"\",name(a[i]));\n  visited=terminal=decisions=0;count_tree(g,s);\n  printf(\" subtree_nodes=%\" PRIu64 \" decision_occurrences=%\" PRIu64 \" terminals=%\" PRIu64 \"\\n\",visited,decisions,terminal);\n  free(s);\n }\n}\n",
+    "probe_stdout": "format=legacy rival=0 key=511864500 settled=20:0 paid=0:0 prior=20 menu=pasar,ordago subtree_nodes=33 decision_occurrences=16 terminals=17\nformat=legacy rival=1 key=511854660 settled=10:10 paid=0:0 prior=20 menu=pasar,+2,+4,+7,ordago subtree_nodes=93 decision_occurrences=32 terminals=61\nformat=public rival=0 key=20985617940 settled=0:0 paid=0:0 prior=20 menu=pasar,+2,+4,+7,+10,ordago subtree_nodes=12489 decision_occurrences=4304 terminals=8185\nformat=public rival=1 key=20985617940 settled=0:0 paid=0:0 prior=20 menu=pasar,+2,+4,+7,+10,ordago subtree_nodes=213 decision_occurrences=72 terminals=141\n"
+  },
+  "user_acceptance": {
+    "instruction": "Joder es que es una barabaridad, pero claro si es un error serio habrá que aplicarlo. Deja el cambio",
+    "scope": "Accept the measured historical-ordago to ordago-public model cost. Keep the independent performance gate for additional regressions and later changes."
+  },
+  "initial_validation": {
+    "full_default_suite": "passed",
+    "core_hotpaths_public_with_two_muses": "passed",
+    "core_hotpaths_public_asan_ubsan": "passed",
+    "hidden_hand_comparisons_one_mus": 47720,
+    "hidden_hand_comparisons_two_muses": 89824,
+    "public_private_children_and_undo_paths": 1000,
+    "legacy_and_v4_complete_checkpoint_byte_comparison": "not performed for this candidate; work paused at confirmed gate",
+    "regression_notes": [
+      "Both audit hidden-hand reproductions; legacy golden keys retained.",
+      "Ordinary counting40:1 gives utility39. Accepted ordago discards earlier payments.",
+      "Accepted27+12 then an uncovered ordago rejection gives public budget40 before final lance.",
+      "Rejected covered stakes17+22 then an uncovered rejection reach paid40 before final lance; public codec allows40, score codec does not.",
+      "Public raw/compressed save/load/resume/export and bounded diagnostic; reject legacy/new checkpoints in both directions; parallel train/resume."
+    ]
+  },
+  "reintegration": {
+    "method": "Three paired runs, alternating order, CPU0, seed7 and one thread. No own concurrent builds or tests. Public format compared with the accepted candidate; historical formats and score compared with HEAD83c0a28.",
+    "binary_sha256": {
+      "parent": "7531d0c1dbbefae296dbf6b57a947becf2576ba480108b0c58b94028f8383877",
+      "accepted": "542fc93a1c6a3853ac302c1146ad12313263c11dc98ad51d471276d5da0ba432",
+      "final": "32ccb53f7dca4c74ca8e94f55192455d045d8d0bc7e3356db96da847d7bff594"
+    },
+    "runs": [
+      {
+        "group": "single-bet",
+        "version": "parent",
+        "repeat": 1,
+        "command": [
+          "build/review-j07/release/mus-solver",
+          "--format",
+          "single-bet",
+          "--iterations",
+          "100000",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "wall_seconds": 0.9567654140009836,
+        "peak_rss_kib": 21484,
+        "stdout": "report iterations=100000 threads=1 information_sets=165694 traversals=200000 visited_nodes=11223357 seconds=0.955375\n",
+        "iterations": 100000,
+        "threads": 1,
+        "information_sets": 165694,
+        "traversals": 200000,
+        "visited_nodes": 11223357,
+        "training_seconds": 0.955375
+      },
+      {
+        "group": "single-bet",
+        "version": "final",
+        "repeat": 1,
+        "command": [
+          "build/review-j01-final/release/mus-solver",
+          "--format",
+          "single-bet",
+          "--iterations",
+          "100000",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "wall_seconds": 1.03042854999876,
+        "peak_rss_kib": 21484,
+        "stdout": "report iterations=100000 threads=1 information_sets=165694 traversals=200000 visited_nodes=11223357 seconds=1.029303\n",
+        "iterations": 100000,
+        "threads": 1,
+        "information_sets": 165694,
+        "traversals": 200000,
+        "visited_nodes": 11223357,
+        "training_seconds": 1.029303
+      },
+      {
+        "group": "single-bet",
+        "version": "final",
+        "repeat": 2,
+        "command": [
+          "build/review-j01-final/release/mus-solver",
+          "--format",
+          "single-bet",
+          "--iterations",
+          "100000",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "wall_seconds": 0.9359519940007885,
+        "peak_rss_kib": 21484,
+        "stdout": "report iterations=100000 threads=1 information_sets=165694 traversals=200000 visited_nodes=11223357 seconds=0.934829\n",
+        "iterations": 100000,
+        "threads": 1,
+        "information_sets": 165694,
+        "traversals": 200000,
+        "visited_nodes": 11223357,
+        "training_seconds": 0.934829
+      },
+      {
+        "group": "single-bet",
+        "version": "parent",
+        "repeat": 2,
+        "command": [
+          "build/review-j07/release/mus-solver",
+          "--format",
+          "single-bet",
+          "--iterations",
+          "100000",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "wall_seconds": 0.9266666750008881,
+        "peak_rss_kib": 21484,
+        "stdout": "report iterations=100000 threads=1 information_sets=165694 traversals=200000 visited_nodes=11223357 seconds=0.925478\n",
+        "iterations": 100000,
+        "threads": 1,
+        "information_sets": 165694,
+        "traversals": 200000,
+        "visited_nodes": 11223357,
+        "training_seconds": 0.925478
+      },
+      {
+        "group": "single-bet",
+        "version": "parent",
+        "repeat": 3,
+        "command": [
+          "build/review-j07/release/mus-solver",
+          "--format",
+          "single-bet",
+          "--iterations",
+          "100000",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "wall_seconds": 0.9355991949996678,
+        "peak_rss_kib": 21484,
+        "stdout": "report iterations=100000 threads=1 information_sets=165694 traversals=200000 visited_nodes=11223357 seconds=0.934267\n",
+        "iterations": 100000,
+        "threads": 1,
+        "information_sets": 165694,
+        "traversals": 200000,
+        "visited_nodes": 11223357,
+        "training_seconds": 0.934267
+      },
+      {
+        "group": "single-bet",
+        "version": "final",
+        "repeat": 3,
+        "command": [
+          "build/review-j01-final/release/mus-solver",
+          "--format",
+          "single-bet",
+          "--iterations",
+          "100000",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "wall_seconds": 0.966734549998364,
+        "peak_rss_kib": 21484,
+        "stdout": "report iterations=100000 threads=1 information_sets=165694 traversals=200000 visited_nodes=11223357 seconds=0.965349\n",
+        "iterations": 100000,
+        "threads": 1,
+        "information_sets": 165694,
+        "traversals": 200000,
+        "visited_nodes": 11223357,
+        "training_seconds": 0.965349
+      },
+      {
+        "group": "raises-to-eight",
+        "version": "parent",
+        "repeat": 1,
+        "command": [
+          "build/review-j07/release/mus-solver",
+          "--format",
+          "raises-to-eight",
+          "--iterations",
+          "30000",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "wall_seconds": 1.404179530996771,
+        "peak_rss_kib": 138292,
+        "stdout": "report iterations=30000 threads=1 information_sets=1313500 traversals=60000 visited_nodes=9494753 seconds=1.400895\n",
+        "iterations": 30000,
+        "threads": 1,
+        "information_sets": 1313500,
+        "traversals": 60000,
+        "visited_nodes": 9494753,
+        "training_seconds": 1.400895
+      },
+      {
+        "group": "raises-to-eight",
+        "version": "final",
+        "repeat": 1,
+        "command": [
+          "build/review-j01-final/release/mus-solver",
+          "--format",
+          "raises-to-eight",
+          "--iterations",
+          "30000",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "wall_seconds": 1.43875996800125,
+        "peak_rss_kib": 138364,
+        "stdout": "report iterations=30000 threads=1 information_sets=1313500 traversals=60000 visited_nodes=9494753 seconds=1.435529\n",
+        "iterations": 30000,
+        "threads": 1,
+        "information_sets": 1313500,
+        "traversals": 60000,
+        "visited_nodes": 9494753,
+        "training_seconds": 1.435529
+      },
+      {
+        "group": "raises-to-eight",
+        "version": "final",
+        "repeat": 2,
+        "command": [
+          "build/review-j01-final/release/mus-solver",
+          "--format",
+          "raises-to-eight",
+          "--iterations",
+          "30000",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "wall_seconds": 1.403921787001309,
+        "peak_rss_kib": 138308,
+        "stdout": "report iterations=30000 threads=1 information_sets=1313500 traversals=60000 visited_nodes=9494753 seconds=1.400735\n",
+        "iterations": 30000,
+        "threads": 1,
+        "information_sets": 1313500,
+        "traversals": 60000,
+        "visited_nodes": 9494753,
+        "training_seconds": 1.400735
+      },
+      {
+        "group": "raises-to-eight",
+        "version": "parent",
+        "repeat": 2,
+        "command": [
+          "build/review-j07/release/mus-solver",
+          "--format",
+          "raises-to-eight",
+          "--iterations",
+          "30000",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "wall_seconds": 1.3696157630001835,
+        "peak_rss_kib": 138368,
+        "stdout": "report iterations=30000 threads=1 information_sets=1313500 traversals=60000 visited_nodes=9494753 seconds=1.366377\n",
+        "iterations": 30000,
+        "threads": 1,
+        "information_sets": 1313500,
+        "traversals": 60000,
+        "visited_nodes": 9494753,
+        "training_seconds": 1.366377
+      },
+      {
+        "group": "raises-to-eight",
+        "version": "parent",
+        "repeat": 3,
+        "command": [
+          "build/review-j07/release/mus-solver",
+          "--format",
+          "raises-to-eight",
+          "--iterations",
+          "30000",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "wall_seconds": 1.346349415001896,
+        "peak_rss_kib": 138328,
+        "stdout": "report iterations=30000 threads=1 information_sets=1313500 traversals=60000 visited_nodes=9494753 seconds=1.342999\n",
+        "iterations": 30000,
+        "threads": 1,
+        "information_sets": 1313500,
+        "traversals": 60000,
+        "visited_nodes": 9494753,
+        "training_seconds": 1.342999
+      },
+      {
+        "group": "raises-to-eight",
+        "version": "final",
+        "repeat": 3,
+        "command": [
+          "build/review-j01-final/release/mus-solver",
+          "--format",
+          "raises-to-eight",
+          "--iterations",
+          "30000",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "wall_seconds": 1.332583731997147,
+        "peak_rss_kib": 138272,
+        "stdout": "report iterations=30000 threads=1 information_sets=1313500 traversals=60000 visited_nodes=9494753 seconds=1.329212\n",
+        "iterations": 30000,
+        "threads": 1,
+        "information_sets": 1313500,
+        "traversals": 60000,
+        "visited_nodes": 9494753,
+        "training_seconds": 1.329212
+      },
+      {
+        "group": "ordago",
+        "version": "parent",
+        "repeat": 1,
+        "command": [
+          "build/review-j07/release/mus-solver",
+          "--format",
+          "ordago",
+          "--iterations",
+          "500",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "wall_seconds": 1.839309104001586,
+        "peak_rss_kib": 596676,
+        "stdout": "report iterations=500 threads=1 information_sets=3492885 traversals=1000 visited_nodes=20174542 seconds=1.818291\n",
+        "iterations": 500,
+        "threads": 1,
+        "information_sets": 3492885,
+        "traversals": 1000,
+        "visited_nodes": 20174542,
+        "training_seconds": 1.818291
+      },
+      {
+        "group": "ordago",
+        "version": "final",
+        "repeat": 1,
+        "command": [
+          "build/review-j01-final/release/mus-solver",
+          "--format",
+          "ordago",
+          "--iterations",
+          "500",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "wall_seconds": 1.753105420000793,
+        "peak_rss_kib": 597160,
+        "stdout": "report iterations=500 threads=1 information_sets=3492885 traversals=1000 visited_nodes=20174542 seconds=1.732411\n",
+        "iterations": 500,
+        "threads": 1,
+        "information_sets": 3492885,
+        "traversals": 1000,
+        "visited_nodes": 20174542,
+        "training_seconds": 1.732411
+      },
+      {
+        "group": "ordago",
+        "version": "final",
+        "repeat": 2,
+        "command": [
+          "build/review-j01-final/release/mus-solver",
+          "--format",
+          "ordago",
+          "--iterations",
+          "500",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "wall_seconds": 1.7988491869982681,
+        "peak_rss_kib": 596996,
+        "stdout": "report iterations=500 threads=1 information_sets=3492885 traversals=1000 visited_nodes=20174542 seconds=1.778205\n",
+        "iterations": 500,
+        "threads": 1,
+        "information_sets": 3492885,
+        "traversals": 1000,
+        "visited_nodes": 20174542,
+        "training_seconds": 1.778205
+      },
+      {
+        "group": "ordago",
+        "version": "parent",
+        "repeat": 2,
+        "command": [
+          "build/review-j07/release/mus-solver",
+          "--format",
+          "ordago",
+          "--iterations",
+          "500",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "wall_seconds": 1.732577875998686,
+        "peak_rss_kib": 598156,
+        "stdout": "report iterations=500 threads=1 information_sets=3492885 traversals=1000 visited_nodes=20174542 seconds=1.712684\n",
+        "iterations": 500,
+        "threads": 1,
+        "information_sets": 3492885,
+        "traversals": 1000,
+        "visited_nodes": 20174542,
+        "training_seconds": 1.712684
+      },
+      {
+        "group": "ordago",
+        "version": "parent",
+        "repeat": 3,
+        "command": [
+          "build/review-j07/release/mus-solver",
+          "--format",
+          "ordago",
+          "--iterations",
+          "500",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "wall_seconds": 1.7587617150020378,
+        "peak_rss_kib": 596664,
+        "stdout": "report iterations=500 threads=1 information_sets=3492885 traversals=1000 visited_nodes=20174542 seconds=1.738783\n",
+        "iterations": 500,
+        "threads": 1,
+        "information_sets": 3492885,
+        "traversals": 1000,
+        "visited_nodes": 20174542,
+        "training_seconds": 1.738783
+      },
+      {
+        "group": "ordago",
+        "version": "final",
+        "repeat": 3,
+        "command": [
+          "build/review-j01-final/release/mus-solver",
+          "--format",
+          "ordago",
+          "--iterations",
+          "500",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "wall_seconds": 1.7954351719999977,
+        "peak_rss_kib": 596920,
+        "stdout": "report iterations=500 threads=1 information_sets=3492885 traversals=1000 visited_nodes=20174542 seconds=1.775451\n",
+        "iterations": 500,
+        "threads": 1,
+        "information_sets": 3492885,
+        "traversals": 1000,
+        "visited_nodes": 20174542,
+        "training_seconds": 1.775451
+      },
+      {
+        "group": "ordago-public",
+        "version": "accepted",
+        "repeat": 1,
+        "command": [
+          "build/review-j01/release/mus-solver",
+          "--format",
+          "ordago-public",
+          "--iterations",
+          "500",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "wall_seconds": 5.678690442000516,
+        "peak_rss_kib": 1343184,
+        "stdout": "report iterations=500 threads=1 information_sets=11018683 traversals=1000 visited_nodes=42630116 seconds=5.633124\n",
+        "iterations": 500,
+        "threads": 1,
+        "information_sets": 11018683,
+        "traversals": 1000,
+        "visited_nodes": 42630116,
+        "training_seconds": 5.633124
+      },
+      {
+        "group": "ordago-public",
+        "version": "final",
+        "repeat": 1,
+        "command": [
+          "build/review-j01-final/release/mus-solver",
+          "--format",
+          "ordago-public",
+          "--iterations",
+          "500",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "wall_seconds": 5.754924639000819,
+        "peak_rss_kib": 1343180,
+        "stdout": "report iterations=500 threads=1 information_sets=11018683 traversals=1000 visited_nodes=42630116 seconds=5.708734\n",
+        "iterations": 500,
+        "threads": 1,
+        "information_sets": 11018683,
+        "traversals": 1000,
+        "visited_nodes": 42630116,
+        "training_seconds": 5.708734
+      },
+      {
+        "group": "ordago-public",
+        "version": "final",
+        "repeat": 2,
+        "command": [
+          "build/review-j01-final/release/mus-solver",
+          "--format",
+          "ordago-public",
+          "--iterations",
+          "500",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "wall_seconds": 5.6970685070009495,
+        "peak_rss_kib": 1342376,
+        "stdout": "report iterations=500 threads=1 information_sets=11018683 traversals=1000 visited_nodes=42630116 seconds=5.651449\n",
+        "iterations": 500,
+        "threads": 1,
+        "information_sets": 11018683,
+        "traversals": 1000,
+        "visited_nodes": 42630116,
+        "training_seconds": 5.651449
+      },
+      {
+        "group": "ordago-public",
+        "version": "accepted",
+        "repeat": 2,
+        "command": [
+          "build/review-j01/release/mus-solver",
+          "--format",
+          "ordago-public",
+          "--iterations",
+          "500",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "wall_seconds": 5.424649081000098,
+        "peak_rss_kib": 1342356,
+        "stdout": "report iterations=500 threads=1 information_sets=11018683 traversals=1000 visited_nodes=42630116 seconds=5.385154\n",
+        "iterations": 500,
+        "threads": 1,
+        "information_sets": 11018683,
+        "traversals": 1000,
+        "visited_nodes": 42630116,
+        "training_seconds": 5.385154
+      },
+      {
+        "group": "ordago-public",
+        "version": "accepted",
+        "repeat": 3,
+        "command": [
+          "build/review-j01/release/mus-solver",
+          "--format",
+          "ordago-public",
+          "--iterations",
+          "500",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "wall_seconds": 5.466640359998564,
+        "peak_rss_kib": 1342332,
+        "stdout": "report iterations=500 threads=1 information_sets=11018683 traversals=1000 visited_nodes=42630116 seconds=5.426759\n",
+        "iterations": 500,
+        "threads": 1,
+        "information_sets": 11018683,
+        "traversals": 1000,
+        "visited_nodes": 42630116,
+        "training_seconds": 5.426759
+      },
+      {
+        "group": "ordago-public",
+        "version": "final",
+        "repeat": 3,
+        "command": [
+          "build/review-j01-final/release/mus-solver",
+          "--format",
+          "ordago-public",
+          "--iterations",
+          "500",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "wall_seconds": 5.716123999998672,
+        "peak_rss_kib": 1342844,
+        "stdout": "report iterations=500 threads=1 information_sets=11018683 traversals=1000 visited_nodes=42630116 seconds=5.673966\n",
+        "iterations": 500,
+        "threads": 1,
+        "information_sets": 11018683,
+        "traversals": 1000,
+        "visited_nodes": 42630116,
+        "training_seconds": 5.673966
+      },
+      {
+        "group": "score",
+        "version": "parent",
+        "repeat": 1,
+        "command": [
+          "build/review-j07/release/mus-solver",
+          "--format",
+          "ordago-score",
+          "--score",
+          "35:35",
+          "--continuation",
+          "/tmp/mus-review-j01-score-11c0oq6c/table",
+          "--iterations",
+          "1000",
+          "--evaluation-samples",
+          "10000",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "wall_seconds": 3.7981552290002583,
+        "peak_rss_kib": 75512,
+        "stdout": "score-cell score=39:39 target=40 iterations=1000 evaluation_samples=10000 value=0.060200000000000184 win_probability=0.53010000000000013\nscore-cell score=38:39 target=40 iterations=1000 evaluation_samples=10000 value=-0.30039999999999961 win_probability=0.34980000000000022\nscore-cell score=39:38 target=40 iterations=1000 evaluation_samples=10000 value=0.41699999999999993 win_probability=0.70849999999999991\nscore-cell score=37:39 target=40 iterations=1000 evaluation_samples=10000 value=-0.36240000000000039 win_probability=0.31879999999999981\nscore-cell score=38:38 target=40 iterations=1000 evaluation_samples=10000 value=0.031800000000000085 win_probability=0.51590000000000003\nscore-cell score=39:37 target=40 iterations=1000 evaluation_samples=10000 value=0.50039999999999774 win_probability=0.75019999999999887\nscore-cell score=36:39 target=40 iterations=1000 evaluation_samples=10000 value=-0.43810835999999909 win_probability=0.28094582000000046\nscore-cell score=37:38 target=40 iterations=1000 evaluation_samples=10000 value=-0.074110699999999821 win_probability=0.46294465000000007\nscore-cell score=38:37 target=40 iterations=1000 evaluation_samples=10000 value=0.14697124000000017 win_probability=0.57348562000000003\nscore-cell score=39:36 target=40 iterations=1000 evaluation_samples=10000 value=0.54855183999999901 win_probability=0.77427591999999956\nscore-cell score=35:39 target=40 iterations=1000 evaluation_samples=10000 value=-0.42662236000000081 win_probability=0.28668881999999962\nscore-cell score=36:38 target=40 iterations=1000 evaluation_samples=10000 value=-0.13851256000000012 win_probability=0.43074371999999994\nscore-cell score=37:37 target=40 iterations=1000 evaluation_samples=10000 value=0.11153229999999989 win_probability=0.55576614999999996\nscore-cell score=38:36 target=40 iterations=1000 evaluation_samples=10000 value=0.24925309999999878 win_probability=0.62462654999999945\nscore-cell score=39:35 target=40 iterations=1000 evaluation_samples=10000 value=0.55125708000000084 win_probability=0.77562854000000048\nscore-cell score=34:39 target=40 iterations=1000 evaluation_samples=10000 value=-0.4678563200000001 win_probability=0.26607183999999995\nscore-cell score=35:38 target=40 iterations=1000 evaluation_samples=10000 value=-0.24477870000000018 win_probability=0.37761064999999994\nscore-cell score=36:37 target=40 iterations=1000 evaluation_samples=10000 value=0.0081585400000000422 win_probability=0.50407926999999997\nscore-cell score=37:36 target=40 iterations=1000 evaluation_samples=10000 value=0.16471182000000031 win_probability=0.5823559100000002\nscore-cell score=38:35 target=40 iterations=1000 evaluation_samples=10000 value=0.32672596000000048 win_probability=0.66336298000000027\nscore-cell score=39:34 target=40 iterations=1000 evaluation_samples=10000 value=0.58933991999999902 win_probability=0.79466995999999956\nscore-cell score=33:39 target=40 iterations=1000 evaluation_samples=10000 value=-0.5010402940479991 win_probability=0.24947985297600045\nscore-cell score=34:38 target=40 iterations=1000 evaluation_samples=10000 value=-0.32345884261599966 win_probability=0.33827057869200017\nscore-cell score=35:37 target=40 iterations=1000 evaluation_samples=10000 value=-0.090809793851999929 win_probability=0.45459510307400003\nscore-cell score=36:36 target=40 iterations=1000 evaluation_samples=10000 value=0.062033564411999795 win_probability=0.5310167822059999\nscore-cell score=37:35 target=40 iterations=1000 evaluation_samples=10000 value=0.24592009815399968 win_probability=0.62296004907699987\nscore-cell score=38:34 target=40 iterations=1000 evaluation_samples=10000 value=0.39655346868799946 win_probability=0.69827673434399973\nscore-cell score=39:33 target=40 iterations=1000 evaluation_samples=10000 value=0.6080503700319968 win_probability=0.8040251850159984\nscore-cell score=32:39 target=40 iterations=1000 evaluation_samples=10000 value=-0.53447940337999977 win_probability=0.23276029831000011\nscore-cell score=33:38 target=40 iterations=1000 evaluation_samples=10000 value=-0.38193061363600012 win_probability=0.30903469318199994\nscore-cell score=34:37 target=40 iterations=1000 evaluation_samples=10000 value=-0.20690606777400011 win_probability=0.39654696611299994\nscore-cell score=35:36 target=40 iterations=1000 evaluation_samples=10000 value=-0.027173493817999984 win_probability=0.48641325309100003\nscore-cell score=36:35 target=40 iterations=1000 evaluation_samples=10000 value=0.13170168077000063 win_probability=0.56585084038500033\nscore-cell score=37:34 target=40 iterations=1000 evaluation_samples=10000 value=0.31063604837399916 win_probability=0.65531802418699958\nscore-cell score=38:33 target=40 iterations=1000 evaluation_samples=10000 value=0.44684890513800057 win_probability=0.72342445256900034\nscore-cell score=39:32 target=40 iterations=1000 evaluation_samples=10000 value=0.6327809745800006 win_probability=0.8163904872900003\nscore-cell score=31:39 target=40 iterations=1000 evaluation_samples=10000 value=-0.54499401437199724 win_probability=0.22750299281400138\nscore-cell score=32:38 target=40 iterations=1000 evaluation_samples=10000 value=-0.41361183987599903 win_probability=0.29319408006200048\nscore-cell score=33:37 target=40 iterations=1000 evaluation_samples=10000 value=-0.28626862694399907 win_probability=0.35686568652800044\nscore-cell score=34:36 target=40 iterations=1000 evaluation_samples=10000 value=-0.1158934672719998 win_probability=0.44205326636400011\nscore-cell score=35:35 target=40 iterations=1000 evaluation_samples=10000 value=0.044528727400000134 win_probability=0.52226436370000007\nscore-cell score=36:34 target=40 iterations=1000 evaluation_samples=10000 value=0.19269446550400043 win_probability=0.59634723275200019\nscore-cell score=37:33 target=40 iterations=1000 evaluation_samples=10000 value=0.36356582129399989 win_probability=0.68178291064699992\nscore-cell score=38:32 target=40 iterations=1000 evaluation_samples=10000 value=0.44753336651999942 win_probability=0.72376668325999971\nscore-cell score=39:31 target=40 iterations=1000 evaluation_samples=10000 value=0.63869046899999793 win_probability=0.81934523449999896\nscore-table score=35:35 target=40 value=0.044528727400000134 win_probability=0.52226436370000007\n",
+        "files_identical": true,
+        "file_sha256": {
+          "score-31-39.cfr.zst": "e702b05fca03c558f9c90c3ace3a6a6a158e3fba8923e2c2f1c83c29a225a2ba",
+          "score-32-38.cfr.zst": "240bb172c978c7ec69d223d669f9bd4db000b936f23261c2105ed1c8451f0a94",
+          "score-32-39.cfr.zst": "27130a1822fd8dbee27e4cfdbfe9cfdf56888f46bc6999847a83beeea56512d2",
+          "score-33-37.cfr.zst": "83c3777123bb1a10f3b951aac996a0549ab2e95684df688fa72c4fa501fc9555",
+          "score-33-38.cfr.zst": "c87fe734d95f2f519c05756c3e45dd484fc0a601dd04d69d660b404c7b88849f",
+          "score-33-39.cfr.zst": "5605887712555f4d852adcfc47aff54ff277a515e3a6913d8602f132ec259422",
+          "score-34-36.cfr.zst": "2faec318ca1be42214d253ab52a0488bf0344b7775dd988bd408b026ddfdc129",
+          "score-34-37.cfr.zst": "a70027d7726e7bde471484cc9037f09aaf78468ed1218f6921dfd8f753e340a5",
+          "score-34-38.cfr.zst": "9d4f66db90720164c40935bd5340c3bee1f7a6fd250fa449251578ddbfef363b",
+          "score-34-39.cfr.zst": "f9eb1adfbb1c829006634a567119b282c808af0eb814d1a83bf3cc6d8672d499",
+          "score-35-35.cfr.zst": "646c1ffdcab383c0db2a3b2e8449c593087b4f5261a944ec0b46421ea9d6e5f6",
+          "score-35-36.cfr.zst": "1525bd98e50aee53c1d44a51f41459740836a7880a8520fb6e7784e29d22f75c",
+          "score-35-37.cfr.zst": "22992d338b1618cb63976bad336c7d85fc5874ee303575ce4c1d1b6b6ee71b9f",
+          "score-35-38.cfr.zst": "8537c9fc1d32b55c79b0c6d51f545f5edb9f2c29457848f5aa966924eeed08ca",
+          "score-35-39.cfr.zst": "ce8723b283c052f79fbfa8eb7918ca09c4fe9aae7dee04154f80a3886296df7c",
+          "score-36-34.cfr.zst": "56bf9f7da82e32da7324b4620957e2abc0bd0725338894e5a417ef0341667d59",
+          "score-36-35.cfr.zst": "9cb134a4a5e39c4b914cc57b31ed579aac4ae7524f740e4cdd15f8f0a39b89d9",
+          "score-36-36.cfr.zst": "02f4d5d36497a16121b5dedaea08c56890ec1402570d345fb458c365a6705f20",
+          "score-36-37.cfr.zst": "ce39da9a95958eb6cb84abb3c780146024c195a148c32564215bba350eb07142",
+          "score-36-38.cfr.zst": "6d27d4a6b0e48a7150f4473b96da316d96d8b71dfebbab2ca8a320c3eff4bf86",
+          "score-36-39.cfr.zst": "3d4be4e41041eb2fb1b36defcbbd6bbbca15ccd628b7388f54a1c352f2c73525",
+          "score-37-33.cfr.zst": "d9116da3173e9c7f8a91651596ec322d380473d3e8467ee50bfbfb1002d41825",
+          "score-37-34.cfr.zst": "2eaee8f37cf02e1747ba3d0886f2441992b950230b1872afa7049cc3a9ee12a8",
+          "score-37-35.cfr.zst": "424d3a034c4cddc8edc38d3fe0440a897334162b26ae90f507120ae0e5f4836c",
+          "score-37-36.cfr.zst": "5f49da74a7c39211158f6268a99ff267be090cfd9bf1a84cae177496a25be5dd",
+          "score-37-37.cfr.zst": "8082eec8d039879862463341d1483cd62fec9f8e403f39c92a3e37a80b0cc0ca",
+          "score-37-38.cfr.zst": "cbc8e52d34e9a3fe2411772d2c1a06cc8a95c99edb66c694a343e0eab456bdf7",
+          "score-37-39.cfr.zst": "6e4b5ff338a10b2c05a92876225ff941e867c7237c71ca294c6f0feeaa9da9b4",
+          "score-38-32.cfr.zst": "4fe86333f7627af787ce554c6b75f5500f7e74e53ee475ceb3a6bb5b126a0b7d",
+          "score-38-33.cfr.zst": "8acdfcc1e8aad1d80a77213ec3c0ef19b28a3aad80c57584fc2e74abf531669a",
+          "score-38-34.cfr.zst": "5070ba28e4620a47100d20a640422d2f1607ed8abf58948967d6c36cfdc0bf18",
+          "score-38-35.cfr.zst": "6cf631e6a4a10a99985fe87af6f608bd376c9424c600d33576bd2f6a76c5d70a",
+          "score-38-36.cfr.zst": "85281fdd4cf25aa3efd85f8efa8611aa5fbf8012f10b51eefef2693021b303dc",
+          "score-38-37.cfr.zst": "768d2d8d8f0e9a97be4697bddb55f91b69f982acc09c2b8de0dc5d4d8766c13a",
+          "score-38-38.cfr.zst": "e5066b14d21d000bcc2f57a2d1f4c52ab6e906f6c4670e862403207902d4054b",
+          "score-38-39.cfr.zst": "6bf57274c4db1b65b27591b6220ae97e552a7462d5c3d2061268dfb5469d5fc0",
+          "score-39-31.cfr.zst": "48b8e3ac81394b8cf5ed49d442ee7e0dd0b586630db7945282627a6d093e138d",
+          "score-39-32.cfr.zst": "f1d065e795b1af2bc4bec1ca7d4e49823ffa1fe868e2879aeb90446f091ee07b",
+          "score-39-33.cfr.zst": "b11d1ab03300ebb2acbcdd6e6ebab963f28d257383378500b8f57e8455e9c800",
+          "score-39-34.cfr.zst": "17d4e08f43e4652b5cebb473754d56717b857ff49a5f1eda1b9a43a5734019fd",
+          "score-39-35.cfr.zst": "32cafc585bc8daeb735b6b227b9e8c832914839b8ca618ac458a3c487ae9e633",
+          "score-39-36.cfr.zst": "a0bea0096f82edd3803f86054969192c9c92cf0041fc61315b9a66a600e308ac",
+          "score-39-37.cfr.zst": "3ffad50456d9555f1efe5319c535f4637336d66a5e3eee1ffc3793d6f1a1a52d",
+          "score-39-38.cfr.zst": "aac85358d79f942946a9bdafbb08a93f0a88abd5f26e26b7247604e1d8cd0189",
+          "score-39-39.cfr.zst": "b070b0775651673585eae9603b909e1d87a71b0e4f88455c2e789accfbdaf8bb",
+          "values.txt": "32aabf861c25c08b5a86b2bbda45a8e61c256532e65af06071c3152ca8dd5c30"
+        }
+      },
+      {
+        "group": "score",
+        "version": "final",
+        "repeat": 1,
+        "command": [
+          "build/review-j01-final/release/mus-solver",
+          "--format",
+          "ordago-score",
+          "--score",
+          "35:35",
+          "--continuation",
+          "/tmp/mus-review-j01-score-tjjc34hk/table",
+          "--iterations",
+          "1000",
+          "--evaluation-samples",
+          "10000",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "wall_seconds": 3.8071539090014994,
+        "peak_rss_kib": 75512,
+        "stdout": "score-cell score=39:39 target=40 iterations=1000 evaluation_samples=10000 value=0.060200000000000184 win_probability=0.53010000000000013\nscore-cell score=38:39 target=40 iterations=1000 evaluation_samples=10000 value=-0.30039999999999961 win_probability=0.34980000000000022\nscore-cell score=39:38 target=40 iterations=1000 evaluation_samples=10000 value=0.41699999999999993 win_probability=0.70849999999999991\nscore-cell score=37:39 target=40 iterations=1000 evaluation_samples=10000 value=-0.36240000000000039 win_probability=0.31879999999999981\nscore-cell score=38:38 target=40 iterations=1000 evaluation_samples=10000 value=0.031800000000000085 win_probability=0.51590000000000003\nscore-cell score=39:37 target=40 iterations=1000 evaluation_samples=10000 value=0.50039999999999774 win_probability=0.75019999999999887\nscore-cell score=36:39 target=40 iterations=1000 evaluation_samples=10000 value=-0.43810835999999909 win_probability=0.28094582000000046\nscore-cell score=37:38 target=40 iterations=1000 evaluation_samples=10000 value=-0.074110699999999821 win_probability=0.46294465000000007\nscore-cell score=38:37 target=40 iterations=1000 evaluation_samples=10000 value=0.14697124000000017 win_probability=0.57348562000000003\nscore-cell score=39:36 target=40 iterations=1000 evaluation_samples=10000 value=0.54855183999999901 win_probability=0.77427591999999956\nscore-cell score=35:39 target=40 iterations=1000 evaluation_samples=10000 value=-0.42662236000000081 win_probability=0.28668881999999962\nscore-cell score=36:38 target=40 iterations=1000 evaluation_samples=10000 value=-0.13851256000000012 win_probability=0.43074371999999994\nscore-cell score=37:37 target=40 iterations=1000 evaluation_samples=10000 value=0.11153229999999989 win_probability=0.55576614999999996\nscore-cell score=38:36 target=40 iterations=1000 evaluation_samples=10000 value=0.24925309999999878 win_probability=0.62462654999999945\nscore-cell score=39:35 target=40 iterations=1000 evaluation_samples=10000 value=0.55125708000000084 win_probability=0.77562854000000048\nscore-cell score=34:39 target=40 iterations=1000 evaluation_samples=10000 value=-0.4678563200000001 win_probability=0.26607183999999995\nscore-cell score=35:38 target=40 iterations=1000 evaluation_samples=10000 value=-0.24477870000000018 win_probability=0.37761064999999994\nscore-cell score=36:37 target=40 iterations=1000 evaluation_samples=10000 value=0.0081585400000000422 win_probability=0.50407926999999997\nscore-cell score=37:36 target=40 iterations=1000 evaluation_samples=10000 value=0.16471182000000031 win_probability=0.5823559100000002\nscore-cell score=38:35 target=40 iterations=1000 evaluation_samples=10000 value=0.32672596000000048 win_probability=0.66336298000000027\nscore-cell score=39:34 target=40 iterations=1000 evaluation_samples=10000 value=0.58933991999999902 win_probability=0.79466995999999956\nscore-cell score=33:39 target=40 iterations=1000 evaluation_samples=10000 value=-0.5010402940479991 win_probability=0.24947985297600045\nscore-cell score=34:38 target=40 iterations=1000 evaluation_samples=10000 value=-0.32345884261599966 win_probability=0.33827057869200017\nscore-cell score=35:37 target=40 iterations=1000 evaluation_samples=10000 value=-0.090809793851999929 win_probability=0.45459510307400003\nscore-cell score=36:36 target=40 iterations=1000 evaluation_samples=10000 value=0.062033564411999795 win_probability=0.5310167822059999\nscore-cell score=37:35 target=40 iterations=1000 evaluation_samples=10000 value=0.24592009815399968 win_probability=0.62296004907699987\nscore-cell score=38:34 target=40 iterations=1000 evaluation_samples=10000 value=0.39655346868799946 win_probability=0.69827673434399973\nscore-cell score=39:33 target=40 iterations=1000 evaluation_samples=10000 value=0.6080503700319968 win_probability=0.8040251850159984\nscore-cell score=32:39 target=40 iterations=1000 evaluation_samples=10000 value=-0.53447940337999977 win_probability=0.23276029831000011\nscore-cell score=33:38 target=40 iterations=1000 evaluation_samples=10000 value=-0.38193061363600012 win_probability=0.30903469318199994\nscore-cell score=34:37 target=40 iterations=1000 evaluation_samples=10000 value=-0.20690606777400011 win_probability=0.39654696611299994\nscore-cell score=35:36 target=40 iterations=1000 evaluation_samples=10000 value=-0.027173493817999984 win_probability=0.48641325309100003\nscore-cell score=36:35 target=40 iterations=1000 evaluation_samples=10000 value=0.13170168077000063 win_probability=0.56585084038500033\nscore-cell score=37:34 target=40 iterations=1000 evaluation_samples=10000 value=0.31063604837399916 win_probability=0.65531802418699958\nscore-cell score=38:33 target=40 iterations=1000 evaluation_samples=10000 value=0.44684890513800057 win_probability=0.72342445256900034\nscore-cell score=39:32 target=40 iterations=1000 evaluation_samples=10000 value=0.6327809745800006 win_probability=0.8163904872900003\nscore-cell score=31:39 target=40 iterations=1000 evaluation_samples=10000 value=-0.54499401437199724 win_probability=0.22750299281400138\nscore-cell score=32:38 target=40 iterations=1000 evaluation_samples=10000 value=-0.41361183987599903 win_probability=0.29319408006200048\nscore-cell score=33:37 target=40 iterations=1000 evaluation_samples=10000 value=-0.28626862694399907 win_probability=0.35686568652800044\nscore-cell score=34:36 target=40 iterations=1000 evaluation_samples=10000 value=-0.1158934672719998 win_probability=0.44205326636400011\nscore-cell score=35:35 target=40 iterations=1000 evaluation_samples=10000 value=0.044528727400000134 win_probability=0.52226436370000007\nscore-cell score=36:34 target=40 iterations=1000 evaluation_samples=10000 value=0.19269446550400043 win_probability=0.59634723275200019\nscore-cell score=37:33 target=40 iterations=1000 evaluation_samples=10000 value=0.36356582129399989 win_probability=0.68178291064699992\nscore-cell score=38:32 target=40 iterations=1000 evaluation_samples=10000 value=0.44753336651999942 win_probability=0.72376668325999971\nscore-cell score=39:31 target=40 iterations=1000 evaluation_samples=10000 value=0.63869046899999793 win_probability=0.81934523449999896\nscore-table score=35:35 target=40 value=0.044528727400000134 win_probability=0.52226436370000007\n",
+        "files_identical": true,
+        "file_sha256": {
+          "score-31-39.cfr.zst": "e702b05fca03c558f9c90c3ace3a6a6a158e3fba8923e2c2f1c83c29a225a2ba",
+          "score-32-38.cfr.zst": "240bb172c978c7ec69d223d669f9bd4db000b936f23261c2105ed1c8451f0a94",
+          "score-32-39.cfr.zst": "27130a1822fd8dbee27e4cfdbfe9cfdf56888f46bc6999847a83beeea56512d2",
+          "score-33-37.cfr.zst": "83c3777123bb1a10f3b951aac996a0549ab2e95684df688fa72c4fa501fc9555",
+          "score-33-38.cfr.zst": "c87fe734d95f2f519c05756c3e45dd484fc0a601dd04d69d660b404c7b88849f",
+          "score-33-39.cfr.zst": "5605887712555f4d852adcfc47aff54ff277a515e3a6913d8602f132ec259422",
+          "score-34-36.cfr.zst": "2faec318ca1be42214d253ab52a0488bf0344b7775dd988bd408b026ddfdc129",
+          "score-34-37.cfr.zst": "a70027d7726e7bde471484cc9037f09aaf78468ed1218f6921dfd8f753e340a5",
+          "score-34-38.cfr.zst": "9d4f66db90720164c40935bd5340c3bee1f7a6fd250fa449251578ddbfef363b",
+          "score-34-39.cfr.zst": "f9eb1adfbb1c829006634a567119b282c808af0eb814d1a83bf3cc6d8672d499",
+          "score-35-35.cfr.zst": "646c1ffdcab383c0db2a3b2e8449c593087b4f5261a944ec0b46421ea9d6e5f6",
+          "score-35-36.cfr.zst": "1525bd98e50aee53c1d44a51f41459740836a7880a8520fb6e7784e29d22f75c",
+          "score-35-37.cfr.zst": "22992d338b1618cb63976bad336c7d85fc5874ee303575ce4c1d1b6b6ee71b9f",
+          "score-35-38.cfr.zst": "8537c9fc1d32b55c79b0c6d51f545f5edb9f2c29457848f5aa966924eeed08ca",
+          "score-35-39.cfr.zst": "ce8723b283c052f79fbfa8eb7918ca09c4fe9aae7dee04154f80a3886296df7c",
+          "score-36-34.cfr.zst": "56bf9f7da82e32da7324b4620957e2abc0bd0725338894e5a417ef0341667d59",
+          "score-36-35.cfr.zst": "9cb134a4a5e39c4b914cc57b31ed579aac4ae7524f740e4cdd15f8f0a39b89d9",
+          "score-36-36.cfr.zst": "02f4d5d36497a16121b5dedaea08c56890ec1402570d345fb458c365a6705f20",
+          "score-36-37.cfr.zst": "ce39da9a95958eb6cb84abb3c780146024c195a148c32564215bba350eb07142",
+          "score-36-38.cfr.zst": "6d27d4a6b0e48a7150f4473b96da316d96d8b71dfebbab2ca8a320c3eff4bf86",
+          "score-36-39.cfr.zst": "3d4be4e41041eb2fb1b36defcbbd6bbbca15ccd628b7388f54a1c352f2c73525",
+          "score-37-33.cfr.zst": "d9116da3173e9c7f8a91651596ec322d380473d3e8467ee50bfbfb1002d41825",
+          "score-37-34.cfr.zst": "2eaee8f37cf02e1747ba3d0886f2441992b950230b1872afa7049cc3a9ee12a8",
+          "score-37-35.cfr.zst": "424d3a034c4cddc8edc38d3fe0440a897334162b26ae90f507120ae0e5f4836c",
+          "score-37-36.cfr.zst": "5f49da74a7c39211158f6268a99ff267be090cfd9bf1a84cae177496a25be5dd",
+          "score-37-37.cfr.zst": "8082eec8d039879862463341d1483cd62fec9f8e403f39c92a3e37a80b0cc0ca",
+          "score-37-38.cfr.zst": "cbc8e52d34e9a3fe2411772d2c1a06cc8a95c99edb66c694a343e0eab456bdf7",
+          "score-37-39.cfr.zst": "6e4b5ff338a10b2c05a92876225ff941e867c7237c71ca294c6f0feeaa9da9b4",
+          "score-38-32.cfr.zst": "4fe86333f7627af787ce554c6b75f5500f7e74e53ee475ceb3a6bb5b126a0b7d",
+          "score-38-33.cfr.zst": "8acdfcc1e8aad1d80a77213ec3c0ef19b28a3aad80c57584fc2e74abf531669a",
+          "score-38-34.cfr.zst": "5070ba28e4620a47100d20a640422d2f1607ed8abf58948967d6c36cfdc0bf18",
+          "score-38-35.cfr.zst": "6cf631e6a4a10a99985fe87af6f608bd376c9424c600d33576bd2f6a76c5d70a",
+          "score-38-36.cfr.zst": "85281fdd4cf25aa3efd85f8efa8611aa5fbf8012f10b51eefef2693021b303dc",
+          "score-38-37.cfr.zst": "768d2d8d8f0e9a97be4697bddb55f91b69f982acc09c2b8de0dc5d4d8766c13a",
+          "score-38-38.cfr.zst": "e5066b14d21d000bcc2f57a2d1f4c52ab6e906f6c4670e862403207902d4054b",
+          "score-38-39.cfr.zst": "6bf57274c4db1b65b27591b6220ae97e552a7462d5c3d2061268dfb5469d5fc0",
+          "score-39-31.cfr.zst": "48b8e3ac81394b8cf5ed49d442ee7e0dd0b586630db7945282627a6d093e138d",
+          "score-39-32.cfr.zst": "f1d065e795b1af2bc4bec1ca7d4e49823ffa1fe868e2879aeb90446f091ee07b",
+          "score-39-33.cfr.zst": "b11d1ab03300ebb2acbcdd6e6ebab963f28d257383378500b8f57e8455e9c800",
+          "score-39-34.cfr.zst": "17d4e08f43e4652b5cebb473754d56717b857ff49a5f1eda1b9a43a5734019fd",
+          "score-39-35.cfr.zst": "32cafc585bc8daeb735b6b227b9e8c832914839b8ca618ac458a3c487ae9e633",
+          "score-39-36.cfr.zst": "a0bea0096f82edd3803f86054969192c9c92cf0041fc61315b9a66a600e308ac",
+          "score-39-37.cfr.zst": "3ffad50456d9555f1efe5319c535f4637336d66a5e3eee1ffc3793d6f1a1a52d",
+          "score-39-38.cfr.zst": "aac85358d79f942946a9bdafbb08a93f0a88abd5f26e26b7247604e1d8cd0189",
+          "score-39-39.cfr.zst": "b070b0775651673585eae9603b909e1d87a71b0e4f88455c2e789accfbdaf8bb",
+          "values.txt": "32aabf861c25c08b5a86b2bbda45a8e61c256532e65af06071c3152ca8dd5c30"
+        }
+      },
+      {
+        "group": "score",
+        "version": "final",
+        "repeat": 2,
+        "command": [
+          "build/review-j01-final/release/mus-solver",
+          "--format",
+          "ordago-score",
+          "--score",
+          "35:35",
+          "--continuation",
+          "/tmp/mus-review-j01-score-9c7xkvre/table",
+          "--iterations",
+          "1000",
+          "--evaluation-samples",
+          "10000",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "wall_seconds": 3.814836429999559,
+        "peak_rss_kib": 75512,
+        "stdout": "score-cell score=39:39 target=40 iterations=1000 evaluation_samples=10000 value=0.060200000000000184 win_probability=0.53010000000000013\nscore-cell score=38:39 target=40 iterations=1000 evaluation_samples=10000 value=-0.30039999999999961 win_probability=0.34980000000000022\nscore-cell score=39:38 target=40 iterations=1000 evaluation_samples=10000 value=0.41699999999999993 win_probability=0.70849999999999991\nscore-cell score=37:39 target=40 iterations=1000 evaluation_samples=10000 value=-0.36240000000000039 win_probability=0.31879999999999981\nscore-cell score=38:38 target=40 iterations=1000 evaluation_samples=10000 value=0.031800000000000085 win_probability=0.51590000000000003\nscore-cell score=39:37 target=40 iterations=1000 evaluation_samples=10000 value=0.50039999999999774 win_probability=0.75019999999999887\nscore-cell score=36:39 target=40 iterations=1000 evaluation_samples=10000 value=-0.43810835999999909 win_probability=0.28094582000000046\nscore-cell score=37:38 target=40 iterations=1000 evaluation_samples=10000 value=-0.074110699999999821 win_probability=0.46294465000000007\nscore-cell score=38:37 target=40 iterations=1000 evaluation_samples=10000 value=0.14697124000000017 win_probability=0.57348562000000003\nscore-cell score=39:36 target=40 iterations=1000 evaluation_samples=10000 value=0.54855183999999901 win_probability=0.77427591999999956\nscore-cell score=35:39 target=40 iterations=1000 evaluation_samples=10000 value=-0.42662236000000081 win_probability=0.28668881999999962\nscore-cell score=36:38 target=40 iterations=1000 evaluation_samples=10000 value=-0.13851256000000012 win_probability=0.43074371999999994\nscore-cell score=37:37 target=40 iterations=1000 evaluation_samples=10000 value=0.11153229999999989 win_probability=0.55576614999999996\nscore-cell score=38:36 target=40 iterations=1000 evaluation_samples=10000 value=0.24925309999999878 win_probability=0.62462654999999945\nscore-cell score=39:35 target=40 iterations=1000 evaluation_samples=10000 value=0.55125708000000084 win_probability=0.77562854000000048\nscore-cell score=34:39 target=40 iterations=1000 evaluation_samples=10000 value=-0.4678563200000001 win_probability=0.26607183999999995\nscore-cell score=35:38 target=40 iterations=1000 evaluation_samples=10000 value=-0.24477870000000018 win_probability=0.37761064999999994\nscore-cell score=36:37 target=40 iterations=1000 evaluation_samples=10000 value=0.0081585400000000422 win_probability=0.50407926999999997\nscore-cell score=37:36 target=40 iterations=1000 evaluation_samples=10000 value=0.16471182000000031 win_probability=0.5823559100000002\nscore-cell score=38:35 target=40 iterations=1000 evaluation_samples=10000 value=0.32672596000000048 win_probability=0.66336298000000027\nscore-cell score=39:34 target=40 iterations=1000 evaluation_samples=10000 value=0.58933991999999902 win_probability=0.79466995999999956\nscore-cell score=33:39 target=40 iterations=1000 evaluation_samples=10000 value=-0.5010402940479991 win_probability=0.24947985297600045\nscore-cell score=34:38 target=40 iterations=1000 evaluation_samples=10000 value=-0.32345884261599966 win_probability=0.33827057869200017\nscore-cell score=35:37 target=40 iterations=1000 evaluation_samples=10000 value=-0.090809793851999929 win_probability=0.45459510307400003\nscore-cell score=36:36 target=40 iterations=1000 evaluation_samples=10000 value=0.062033564411999795 win_probability=0.5310167822059999\nscore-cell score=37:35 target=40 iterations=1000 evaluation_samples=10000 value=0.24592009815399968 win_probability=0.62296004907699987\nscore-cell score=38:34 target=40 iterations=1000 evaluation_samples=10000 value=0.39655346868799946 win_probability=0.69827673434399973\nscore-cell score=39:33 target=40 iterations=1000 evaluation_samples=10000 value=0.6080503700319968 win_probability=0.8040251850159984\nscore-cell score=32:39 target=40 iterations=1000 evaluation_samples=10000 value=-0.53447940337999977 win_probability=0.23276029831000011\nscore-cell score=33:38 target=40 iterations=1000 evaluation_samples=10000 value=-0.38193061363600012 win_probability=0.30903469318199994\nscore-cell score=34:37 target=40 iterations=1000 evaluation_samples=10000 value=-0.20690606777400011 win_probability=0.39654696611299994\nscore-cell score=35:36 target=40 iterations=1000 evaluation_samples=10000 value=-0.027173493817999984 win_probability=0.48641325309100003\nscore-cell score=36:35 target=40 iterations=1000 evaluation_samples=10000 value=0.13170168077000063 win_probability=0.56585084038500033\nscore-cell score=37:34 target=40 iterations=1000 evaluation_samples=10000 value=0.31063604837399916 win_probability=0.65531802418699958\nscore-cell score=38:33 target=40 iterations=1000 evaluation_samples=10000 value=0.44684890513800057 win_probability=0.72342445256900034\nscore-cell score=39:32 target=40 iterations=1000 evaluation_samples=10000 value=0.6327809745800006 win_probability=0.8163904872900003\nscore-cell score=31:39 target=40 iterations=1000 evaluation_samples=10000 value=-0.54499401437199724 win_probability=0.22750299281400138\nscore-cell score=32:38 target=40 iterations=1000 evaluation_samples=10000 value=-0.41361183987599903 win_probability=0.29319408006200048\nscore-cell score=33:37 target=40 iterations=1000 evaluation_samples=10000 value=-0.28626862694399907 win_probability=0.35686568652800044\nscore-cell score=34:36 target=40 iterations=1000 evaluation_samples=10000 value=-0.1158934672719998 win_probability=0.44205326636400011\nscore-cell score=35:35 target=40 iterations=1000 evaluation_samples=10000 value=0.044528727400000134 win_probability=0.52226436370000007\nscore-cell score=36:34 target=40 iterations=1000 evaluation_samples=10000 value=0.19269446550400043 win_probability=0.59634723275200019\nscore-cell score=37:33 target=40 iterations=1000 evaluation_samples=10000 value=0.36356582129399989 win_probability=0.68178291064699992\nscore-cell score=38:32 target=40 iterations=1000 evaluation_samples=10000 value=0.44753336651999942 win_probability=0.72376668325999971\nscore-cell score=39:31 target=40 iterations=1000 evaluation_samples=10000 value=0.63869046899999793 win_probability=0.81934523449999896\nscore-table score=35:35 target=40 value=0.044528727400000134 win_probability=0.52226436370000007\n",
+        "files_identical": true,
+        "file_sha256": {
+          "score-31-39.cfr.zst": "e702b05fca03c558f9c90c3ace3a6a6a158e3fba8923e2c2f1c83c29a225a2ba",
+          "score-32-38.cfr.zst": "240bb172c978c7ec69d223d669f9bd4db000b936f23261c2105ed1c8451f0a94",
+          "score-32-39.cfr.zst": "27130a1822fd8dbee27e4cfdbfe9cfdf56888f46bc6999847a83beeea56512d2",
+          "score-33-37.cfr.zst": "83c3777123bb1a10f3b951aac996a0549ab2e95684df688fa72c4fa501fc9555",
+          "score-33-38.cfr.zst": "c87fe734d95f2f519c05756c3e45dd484fc0a601dd04d69d660b404c7b88849f",
+          "score-33-39.cfr.zst": "5605887712555f4d852adcfc47aff54ff277a515e3a6913d8602f132ec259422",
+          "score-34-36.cfr.zst": "2faec318ca1be42214d253ab52a0488bf0344b7775dd988bd408b026ddfdc129",
+          "score-34-37.cfr.zst": "a70027d7726e7bde471484cc9037f09aaf78468ed1218f6921dfd8f753e340a5",
+          "score-34-38.cfr.zst": "9d4f66db90720164c40935bd5340c3bee1f7a6fd250fa449251578ddbfef363b",
+          "score-34-39.cfr.zst": "f9eb1adfbb1c829006634a567119b282c808af0eb814d1a83bf3cc6d8672d499",
+          "score-35-35.cfr.zst": "646c1ffdcab383c0db2a3b2e8449c593087b4f5261a944ec0b46421ea9d6e5f6",
+          "score-35-36.cfr.zst": "1525bd98e50aee53c1d44a51f41459740836a7880a8520fb6e7784e29d22f75c",
+          "score-35-37.cfr.zst": "22992d338b1618cb63976bad336c7d85fc5874ee303575ce4c1d1b6b6ee71b9f",
+          "score-35-38.cfr.zst": "8537c9fc1d32b55c79b0c6d51f545f5edb9f2c29457848f5aa966924eeed08ca",
+          "score-35-39.cfr.zst": "ce8723b283c052f79fbfa8eb7918ca09c4fe9aae7dee04154f80a3886296df7c",
+          "score-36-34.cfr.zst": "56bf9f7da82e32da7324b4620957e2abc0bd0725338894e5a417ef0341667d59",
+          "score-36-35.cfr.zst": "9cb134a4a5e39c4b914cc57b31ed579aac4ae7524f740e4cdd15f8f0a39b89d9",
+          "score-36-36.cfr.zst": "02f4d5d36497a16121b5dedaea08c56890ec1402570d345fb458c365a6705f20",
+          "score-36-37.cfr.zst": "ce39da9a95958eb6cb84abb3c780146024c195a148c32564215bba350eb07142",
+          "score-36-38.cfr.zst": "6d27d4a6b0e48a7150f4473b96da316d96d8b71dfebbab2ca8a320c3eff4bf86",
+          "score-36-39.cfr.zst": "3d4be4e41041eb2fb1b36defcbbd6bbbca15ccd628b7388f54a1c352f2c73525",
+          "score-37-33.cfr.zst": "d9116da3173e9c7f8a91651596ec322d380473d3e8467ee50bfbfb1002d41825",
+          "score-37-34.cfr.zst": "2eaee8f37cf02e1747ba3d0886f2441992b950230b1872afa7049cc3a9ee12a8",
+          "score-37-35.cfr.zst": "424d3a034c4cddc8edc38d3fe0440a897334162b26ae90f507120ae0e5f4836c",
+          "score-37-36.cfr.zst": "5f49da74a7c39211158f6268a99ff267be090cfd9bf1a84cae177496a25be5dd",
+          "score-37-37.cfr.zst": "8082eec8d039879862463341d1483cd62fec9f8e403f39c92a3e37a80b0cc0ca",
+          "score-37-38.cfr.zst": "cbc8e52d34e9a3fe2411772d2c1a06cc8a95c99edb66c694a343e0eab456bdf7",
+          "score-37-39.cfr.zst": "6e4b5ff338a10b2c05a92876225ff941e867c7237c71ca294c6f0feeaa9da9b4",
+          "score-38-32.cfr.zst": "4fe86333f7627af787ce554c6b75f5500f7e74e53ee475ceb3a6bb5b126a0b7d",
+          "score-38-33.cfr.zst": "8acdfcc1e8aad1d80a77213ec3c0ef19b28a3aad80c57584fc2e74abf531669a",
+          "score-38-34.cfr.zst": "5070ba28e4620a47100d20a640422d2f1607ed8abf58948967d6c36cfdc0bf18",
+          "score-38-35.cfr.zst": "6cf631e6a4a10a99985fe87af6f608bd376c9424c600d33576bd2f6a76c5d70a",
+          "score-38-36.cfr.zst": "85281fdd4cf25aa3efd85f8efa8611aa5fbf8012f10b51eefef2693021b303dc",
+          "score-38-37.cfr.zst": "768d2d8d8f0e9a97be4697bddb55f91b69f982acc09c2b8de0dc5d4d8766c13a",
+          "score-38-38.cfr.zst": "e5066b14d21d000bcc2f57a2d1f4c52ab6e906f6c4670e862403207902d4054b",
+          "score-38-39.cfr.zst": "6bf57274c4db1b65b27591b6220ae97e552a7462d5c3d2061268dfb5469d5fc0",
+          "score-39-31.cfr.zst": "48b8e3ac81394b8cf5ed49d442ee7e0dd0b586630db7945282627a6d093e138d",
+          "score-39-32.cfr.zst": "f1d065e795b1af2bc4bec1ca7d4e49823ffa1fe868e2879aeb90446f091ee07b",
+          "score-39-33.cfr.zst": "b11d1ab03300ebb2acbcdd6e6ebab963f28d257383378500b8f57e8455e9c800",
+          "score-39-34.cfr.zst": "17d4e08f43e4652b5cebb473754d56717b857ff49a5f1eda1b9a43a5734019fd",
+          "score-39-35.cfr.zst": "32cafc585bc8daeb735b6b227b9e8c832914839b8ca618ac458a3c487ae9e633",
+          "score-39-36.cfr.zst": "a0bea0096f82edd3803f86054969192c9c92cf0041fc61315b9a66a600e308ac",
+          "score-39-37.cfr.zst": "3ffad50456d9555f1efe5319c535f4637336d66a5e3eee1ffc3793d6f1a1a52d",
+          "score-39-38.cfr.zst": "aac85358d79f942946a9bdafbb08a93f0a88abd5f26e26b7247604e1d8cd0189",
+          "score-39-39.cfr.zst": "b070b0775651673585eae9603b909e1d87a71b0e4f88455c2e789accfbdaf8bb",
+          "values.txt": "32aabf861c25c08b5a86b2bbda45a8e61c256532e65af06071c3152ca8dd5c30"
+        }
+      },
+      {
+        "group": "score",
+        "version": "parent",
+        "repeat": 2,
+        "command": [
+          "build/review-j07/release/mus-solver",
+          "--format",
+          "ordago-score",
+          "--score",
+          "35:35",
+          "--continuation",
+          "/tmp/mus-review-j01-score-lkokotye/table",
+          "--iterations",
+          "1000",
+          "--evaluation-samples",
+          "10000",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "wall_seconds": 3.7515064729996084,
+        "peak_rss_kib": 75512,
+        "stdout": "score-cell score=39:39 target=40 iterations=1000 evaluation_samples=10000 value=0.060200000000000184 win_probability=0.53010000000000013\nscore-cell score=38:39 target=40 iterations=1000 evaluation_samples=10000 value=-0.30039999999999961 win_probability=0.34980000000000022\nscore-cell score=39:38 target=40 iterations=1000 evaluation_samples=10000 value=0.41699999999999993 win_probability=0.70849999999999991\nscore-cell score=37:39 target=40 iterations=1000 evaluation_samples=10000 value=-0.36240000000000039 win_probability=0.31879999999999981\nscore-cell score=38:38 target=40 iterations=1000 evaluation_samples=10000 value=0.031800000000000085 win_probability=0.51590000000000003\nscore-cell score=39:37 target=40 iterations=1000 evaluation_samples=10000 value=0.50039999999999774 win_probability=0.75019999999999887\nscore-cell score=36:39 target=40 iterations=1000 evaluation_samples=10000 value=-0.43810835999999909 win_probability=0.28094582000000046\nscore-cell score=37:38 target=40 iterations=1000 evaluation_samples=10000 value=-0.074110699999999821 win_probability=0.46294465000000007\nscore-cell score=38:37 target=40 iterations=1000 evaluation_samples=10000 value=0.14697124000000017 win_probability=0.57348562000000003\nscore-cell score=39:36 target=40 iterations=1000 evaluation_samples=10000 value=0.54855183999999901 win_probability=0.77427591999999956\nscore-cell score=35:39 target=40 iterations=1000 evaluation_samples=10000 value=-0.42662236000000081 win_probability=0.28668881999999962\nscore-cell score=36:38 target=40 iterations=1000 evaluation_samples=10000 value=-0.13851256000000012 win_probability=0.43074371999999994\nscore-cell score=37:37 target=40 iterations=1000 evaluation_samples=10000 value=0.11153229999999989 win_probability=0.55576614999999996\nscore-cell score=38:36 target=40 iterations=1000 evaluation_samples=10000 value=0.24925309999999878 win_probability=0.62462654999999945\nscore-cell score=39:35 target=40 iterations=1000 evaluation_samples=10000 value=0.55125708000000084 win_probability=0.77562854000000048\nscore-cell score=34:39 target=40 iterations=1000 evaluation_samples=10000 value=-0.4678563200000001 win_probability=0.26607183999999995\nscore-cell score=35:38 target=40 iterations=1000 evaluation_samples=10000 value=-0.24477870000000018 win_probability=0.37761064999999994\nscore-cell score=36:37 target=40 iterations=1000 evaluation_samples=10000 value=0.0081585400000000422 win_probability=0.50407926999999997\nscore-cell score=37:36 target=40 iterations=1000 evaluation_samples=10000 value=0.16471182000000031 win_probability=0.5823559100000002\nscore-cell score=38:35 target=40 iterations=1000 evaluation_samples=10000 value=0.32672596000000048 win_probability=0.66336298000000027\nscore-cell score=39:34 target=40 iterations=1000 evaluation_samples=10000 value=0.58933991999999902 win_probability=0.79466995999999956\nscore-cell score=33:39 target=40 iterations=1000 evaluation_samples=10000 value=-0.5010402940479991 win_probability=0.24947985297600045\nscore-cell score=34:38 target=40 iterations=1000 evaluation_samples=10000 value=-0.32345884261599966 win_probability=0.33827057869200017\nscore-cell score=35:37 target=40 iterations=1000 evaluation_samples=10000 value=-0.090809793851999929 win_probability=0.45459510307400003\nscore-cell score=36:36 target=40 iterations=1000 evaluation_samples=10000 value=0.062033564411999795 win_probability=0.5310167822059999\nscore-cell score=37:35 target=40 iterations=1000 evaluation_samples=10000 value=0.24592009815399968 win_probability=0.62296004907699987\nscore-cell score=38:34 target=40 iterations=1000 evaluation_samples=10000 value=0.39655346868799946 win_probability=0.69827673434399973\nscore-cell score=39:33 target=40 iterations=1000 evaluation_samples=10000 value=0.6080503700319968 win_probability=0.8040251850159984\nscore-cell score=32:39 target=40 iterations=1000 evaluation_samples=10000 value=-0.53447940337999977 win_probability=0.23276029831000011\nscore-cell score=33:38 target=40 iterations=1000 evaluation_samples=10000 value=-0.38193061363600012 win_probability=0.30903469318199994\nscore-cell score=34:37 target=40 iterations=1000 evaluation_samples=10000 value=-0.20690606777400011 win_probability=0.39654696611299994\nscore-cell score=35:36 target=40 iterations=1000 evaluation_samples=10000 value=-0.027173493817999984 win_probability=0.48641325309100003\nscore-cell score=36:35 target=40 iterations=1000 evaluation_samples=10000 value=0.13170168077000063 win_probability=0.56585084038500033\nscore-cell score=37:34 target=40 iterations=1000 evaluation_samples=10000 value=0.31063604837399916 win_probability=0.65531802418699958\nscore-cell score=38:33 target=40 iterations=1000 evaluation_samples=10000 value=0.44684890513800057 win_probability=0.72342445256900034\nscore-cell score=39:32 target=40 iterations=1000 evaluation_samples=10000 value=0.6327809745800006 win_probability=0.8163904872900003\nscore-cell score=31:39 target=40 iterations=1000 evaluation_samples=10000 value=-0.54499401437199724 win_probability=0.22750299281400138\nscore-cell score=32:38 target=40 iterations=1000 evaluation_samples=10000 value=-0.41361183987599903 win_probability=0.29319408006200048\nscore-cell score=33:37 target=40 iterations=1000 evaluation_samples=10000 value=-0.28626862694399907 win_probability=0.35686568652800044\nscore-cell score=34:36 target=40 iterations=1000 evaluation_samples=10000 value=-0.1158934672719998 win_probability=0.44205326636400011\nscore-cell score=35:35 target=40 iterations=1000 evaluation_samples=10000 value=0.044528727400000134 win_probability=0.52226436370000007\nscore-cell score=36:34 target=40 iterations=1000 evaluation_samples=10000 value=0.19269446550400043 win_probability=0.59634723275200019\nscore-cell score=37:33 target=40 iterations=1000 evaluation_samples=10000 value=0.36356582129399989 win_probability=0.68178291064699992\nscore-cell score=38:32 target=40 iterations=1000 evaluation_samples=10000 value=0.44753336651999942 win_probability=0.72376668325999971\nscore-cell score=39:31 target=40 iterations=1000 evaluation_samples=10000 value=0.63869046899999793 win_probability=0.81934523449999896\nscore-table score=35:35 target=40 value=0.044528727400000134 win_probability=0.52226436370000007\n",
+        "files_identical": true,
+        "file_sha256": {
+          "score-31-39.cfr.zst": "e702b05fca03c558f9c90c3ace3a6a6a158e3fba8923e2c2f1c83c29a225a2ba",
+          "score-32-38.cfr.zst": "240bb172c978c7ec69d223d669f9bd4db000b936f23261c2105ed1c8451f0a94",
+          "score-32-39.cfr.zst": "27130a1822fd8dbee27e4cfdbfe9cfdf56888f46bc6999847a83beeea56512d2",
+          "score-33-37.cfr.zst": "83c3777123bb1a10f3b951aac996a0549ab2e95684df688fa72c4fa501fc9555",
+          "score-33-38.cfr.zst": "c87fe734d95f2f519c05756c3e45dd484fc0a601dd04d69d660b404c7b88849f",
+          "score-33-39.cfr.zst": "5605887712555f4d852adcfc47aff54ff277a515e3a6913d8602f132ec259422",
+          "score-34-36.cfr.zst": "2faec318ca1be42214d253ab52a0488bf0344b7775dd988bd408b026ddfdc129",
+          "score-34-37.cfr.zst": "a70027d7726e7bde471484cc9037f09aaf78468ed1218f6921dfd8f753e340a5",
+          "score-34-38.cfr.zst": "9d4f66db90720164c40935bd5340c3bee1f7a6fd250fa449251578ddbfef363b",
+          "score-34-39.cfr.zst": "f9eb1adfbb1c829006634a567119b282c808af0eb814d1a83bf3cc6d8672d499",
+          "score-35-35.cfr.zst": "646c1ffdcab383c0db2a3b2e8449c593087b4f5261a944ec0b46421ea9d6e5f6",
+          "score-35-36.cfr.zst": "1525bd98e50aee53c1d44a51f41459740836a7880a8520fb6e7784e29d22f75c",
+          "score-35-37.cfr.zst": "22992d338b1618cb63976bad336c7d85fc5874ee303575ce4c1d1b6b6ee71b9f",
+          "score-35-38.cfr.zst": "8537c9fc1d32b55c79b0c6d51f545f5edb9f2c29457848f5aa966924eeed08ca",
+          "score-35-39.cfr.zst": "ce8723b283c052f79fbfa8eb7918ca09c4fe9aae7dee04154f80a3886296df7c",
+          "score-36-34.cfr.zst": "56bf9f7da82e32da7324b4620957e2abc0bd0725338894e5a417ef0341667d59",
+          "score-36-35.cfr.zst": "9cb134a4a5e39c4b914cc57b31ed579aac4ae7524f740e4cdd15f8f0a39b89d9",
+          "score-36-36.cfr.zst": "02f4d5d36497a16121b5dedaea08c56890ec1402570d345fb458c365a6705f20",
+          "score-36-37.cfr.zst": "ce39da9a95958eb6cb84abb3c780146024c195a148c32564215bba350eb07142",
+          "score-36-38.cfr.zst": "6d27d4a6b0e48a7150f4473b96da316d96d8b71dfebbab2ca8a320c3eff4bf86",
+          "score-36-39.cfr.zst": "3d4be4e41041eb2fb1b36defcbbd6bbbca15ccd628b7388f54a1c352f2c73525",
+          "score-37-33.cfr.zst": "d9116da3173e9c7f8a91651596ec322d380473d3e8467ee50bfbfb1002d41825",
+          "score-37-34.cfr.zst": "2eaee8f37cf02e1747ba3d0886f2441992b950230b1872afa7049cc3a9ee12a8",
+          "score-37-35.cfr.zst": "424d3a034c4cddc8edc38d3fe0440a897334162b26ae90f507120ae0e5f4836c",
+          "score-37-36.cfr.zst": "5f49da74a7c39211158f6268a99ff267be090cfd9bf1a84cae177496a25be5dd",
+          "score-37-37.cfr.zst": "8082eec8d039879862463341d1483cd62fec9f8e403f39c92a3e37a80b0cc0ca",
+          "score-37-38.cfr.zst": "cbc8e52d34e9a3fe2411772d2c1a06cc8a95c99edb66c694a343e0eab456bdf7",
+          "score-37-39.cfr.zst": "6e4b5ff338a10b2c05a92876225ff941e867c7237c71ca294c6f0feeaa9da9b4",
+          "score-38-32.cfr.zst": "4fe86333f7627af787ce554c6b75f5500f7e74e53ee475ceb3a6bb5b126a0b7d",
+          "score-38-33.cfr.zst": "8acdfcc1e8aad1d80a77213ec3c0ef19b28a3aad80c57584fc2e74abf531669a",
+          "score-38-34.cfr.zst": "5070ba28e4620a47100d20a640422d2f1607ed8abf58948967d6c36cfdc0bf18",
+          "score-38-35.cfr.zst": "6cf631e6a4a10a99985fe87af6f608bd376c9424c600d33576bd2f6a76c5d70a",
+          "score-38-36.cfr.zst": "85281fdd4cf25aa3efd85f8efa8611aa5fbf8012f10b51eefef2693021b303dc",
+          "score-38-37.cfr.zst": "768d2d8d8f0e9a97be4697bddb55f91b69f982acc09c2b8de0dc5d4d8766c13a",
+          "score-38-38.cfr.zst": "e5066b14d21d000bcc2f57a2d1f4c52ab6e906f6c4670e862403207902d4054b",
+          "score-38-39.cfr.zst": "6bf57274c4db1b65b27591b6220ae97e552a7462d5c3d2061268dfb5469d5fc0",
+          "score-39-31.cfr.zst": "48b8e3ac81394b8cf5ed49d442ee7e0dd0b586630db7945282627a6d093e138d",
+          "score-39-32.cfr.zst": "f1d065e795b1af2bc4bec1ca7d4e49823ffa1fe868e2879aeb90446f091ee07b",
+          "score-39-33.cfr.zst": "b11d1ab03300ebb2acbcdd6e6ebab963f28d257383378500b8f57e8455e9c800",
+          "score-39-34.cfr.zst": "17d4e08f43e4652b5cebb473754d56717b857ff49a5f1eda1b9a43a5734019fd",
+          "score-39-35.cfr.zst": "32cafc585bc8daeb735b6b227b9e8c832914839b8ca618ac458a3c487ae9e633",
+          "score-39-36.cfr.zst": "a0bea0096f82edd3803f86054969192c9c92cf0041fc61315b9a66a600e308ac",
+          "score-39-37.cfr.zst": "3ffad50456d9555f1efe5319c535f4637336d66a5e3eee1ffc3793d6f1a1a52d",
+          "score-39-38.cfr.zst": "aac85358d79f942946a9bdafbb08a93f0a88abd5f26e26b7247604e1d8cd0189",
+          "score-39-39.cfr.zst": "b070b0775651673585eae9603b909e1d87a71b0e4f88455c2e789accfbdaf8bb",
+          "values.txt": "32aabf861c25c08b5a86b2bbda45a8e61c256532e65af06071c3152ca8dd5c30"
+        }
+      },
+      {
+        "group": "score",
+        "version": "parent",
+        "repeat": 3,
+        "command": [
+          "build/review-j07/release/mus-solver",
+          "--format",
+          "ordago-score",
+          "--score",
+          "35:35",
+          "--continuation",
+          "/tmp/mus-review-j01-score-2vfj6o4j/table",
+          "--iterations",
+          "1000",
+          "--evaluation-samples",
+          "10000",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "wall_seconds": 3.6896099369987496,
+        "peak_rss_kib": 75512,
+        "stdout": "score-cell score=39:39 target=40 iterations=1000 evaluation_samples=10000 value=0.060200000000000184 win_probability=0.53010000000000013\nscore-cell score=38:39 target=40 iterations=1000 evaluation_samples=10000 value=-0.30039999999999961 win_probability=0.34980000000000022\nscore-cell score=39:38 target=40 iterations=1000 evaluation_samples=10000 value=0.41699999999999993 win_probability=0.70849999999999991\nscore-cell score=37:39 target=40 iterations=1000 evaluation_samples=10000 value=-0.36240000000000039 win_probability=0.31879999999999981\nscore-cell score=38:38 target=40 iterations=1000 evaluation_samples=10000 value=0.031800000000000085 win_probability=0.51590000000000003\nscore-cell score=39:37 target=40 iterations=1000 evaluation_samples=10000 value=0.50039999999999774 win_probability=0.75019999999999887\nscore-cell score=36:39 target=40 iterations=1000 evaluation_samples=10000 value=-0.43810835999999909 win_probability=0.28094582000000046\nscore-cell score=37:38 target=40 iterations=1000 evaluation_samples=10000 value=-0.074110699999999821 win_probability=0.46294465000000007\nscore-cell score=38:37 target=40 iterations=1000 evaluation_samples=10000 value=0.14697124000000017 win_probability=0.57348562000000003\nscore-cell score=39:36 target=40 iterations=1000 evaluation_samples=10000 value=0.54855183999999901 win_probability=0.77427591999999956\nscore-cell score=35:39 target=40 iterations=1000 evaluation_samples=10000 value=-0.42662236000000081 win_probability=0.28668881999999962\nscore-cell score=36:38 target=40 iterations=1000 evaluation_samples=10000 value=-0.13851256000000012 win_probability=0.43074371999999994\nscore-cell score=37:37 target=40 iterations=1000 evaluation_samples=10000 value=0.11153229999999989 win_probability=0.55576614999999996\nscore-cell score=38:36 target=40 iterations=1000 evaluation_samples=10000 value=0.24925309999999878 win_probability=0.62462654999999945\nscore-cell score=39:35 target=40 iterations=1000 evaluation_samples=10000 value=0.55125708000000084 win_probability=0.77562854000000048\nscore-cell score=34:39 target=40 iterations=1000 evaluation_samples=10000 value=-0.4678563200000001 win_probability=0.26607183999999995\nscore-cell score=35:38 target=40 iterations=1000 evaluation_samples=10000 value=-0.24477870000000018 win_probability=0.37761064999999994\nscore-cell score=36:37 target=40 iterations=1000 evaluation_samples=10000 value=0.0081585400000000422 win_probability=0.50407926999999997\nscore-cell score=37:36 target=40 iterations=1000 evaluation_samples=10000 value=0.16471182000000031 win_probability=0.5823559100000002\nscore-cell score=38:35 target=40 iterations=1000 evaluation_samples=10000 value=0.32672596000000048 win_probability=0.66336298000000027\nscore-cell score=39:34 target=40 iterations=1000 evaluation_samples=10000 value=0.58933991999999902 win_probability=0.79466995999999956\nscore-cell score=33:39 target=40 iterations=1000 evaluation_samples=10000 value=-0.5010402940479991 win_probability=0.24947985297600045\nscore-cell score=34:38 target=40 iterations=1000 evaluation_samples=10000 value=-0.32345884261599966 win_probability=0.33827057869200017\nscore-cell score=35:37 target=40 iterations=1000 evaluation_samples=10000 value=-0.090809793851999929 win_probability=0.45459510307400003\nscore-cell score=36:36 target=40 iterations=1000 evaluation_samples=10000 value=0.062033564411999795 win_probability=0.5310167822059999\nscore-cell score=37:35 target=40 iterations=1000 evaluation_samples=10000 value=0.24592009815399968 win_probability=0.62296004907699987\nscore-cell score=38:34 target=40 iterations=1000 evaluation_samples=10000 value=0.39655346868799946 win_probability=0.69827673434399973\nscore-cell score=39:33 target=40 iterations=1000 evaluation_samples=10000 value=0.6080503700319968 win_probability=0.8040251850159984\nscore-cell score=32:39 target=40 iterations=1000 evaluation_samples=10000 value=-0.53447940337999977 win_probability=0.23276029831000011\nscore-cell score=33:38 target=40 iterations=1000 evaluation_samples=10000 value=-0.38193061363600012 win_probability=0.30903469318199994\nscore-cell score=34:37 target=40 iterations=1000 evaluation_samples=10000 value=-0.20690606777400011 win_probability=0.39654696611299994\nscore-cell score=35:36 target=40 iterations=1000 evaluation_samples=10000 value=-0.027173493817999984 win_probability=0.48641325309100003\nscore-cell score=36:35 target=40 iterations=1000 evaluation_samples=10000 value=0.13170168077000063 win_probability=0.56585084038500033\nscore-cell score=37:34 target=40 iterations=1000 evaluation_samples=10000 value=0.31063604837399916 win_probability=0.65531802418699958\nscore-cell score=38:33 target=40 iterations=1000 evaluation_samples=10000 value=0.44684890513800057 win_probability=0.72342445256900034\nscore-cell score=39:32 target=40 iterations=1000 evaluation_samples=10000 value=0.6327809745800006 win_probability=0.8163904872900003\nscore-cell score=31:39 target=40 iterations=1000 evaluation_samples=10000 value=-0.54499401437199724 win_probability=0.22750299281400138\nscore-cell score=32:38 target=40 iterations=1000 evaluation_samples=10000 value=-0.41361183987599903 win_probability=0.29319408006200048\nscore-cell score=33:37 target=40 iterations=1000 evaluation_samples=10000 value=-0.28626862694399907 win_probability=0.35686568652800044\nscore-cell score=34:36 target=40 iterations=1000 evaluation_samples=10000 value=-0.1158934672719998 win_probability=0.44205326636400011\nscore-cell score=35:35 target=40 iterations=1000 evaluation_samples=10000 value=0.044528727400000134 win_probability=0.52226436370000007\nscore-cell score=36:34 target=40 iterations=1000 evaluation_samples=10000 value=0.19269446550400043 win_probability=0.59634723275200019\nscore-cell score=37:33 target=40 iterations=1000 evaluation_samples=10000 value=0.36356582129399989 win_probability=0.68178291064699992\nscore-cell score=38:32 target=40 iterations=1000 evaluation_samples=10000 value=0.44753336651999942 win_probability=0.72376668325999971\nscore-cell score=39:31 target=40 iterations=1000 evaluation_samples=10000 value=0.63869046899999793 win_probability=0.81934523449999896\nscore-table score=35:35 target=40 value=0.044528727400000134 win_probability=0.52226436370000007\n",
+        "files_identical": true,
+        "file_sha256": {
+          "score-31-39.cfr.zst": "e702b05fca03c558f9c90c3ace3a6a6a158e3fba8923e2c2f1c83c29a225a2ba",
+          "score-32-38.cfr.zst": "240bb172c978c7ec69d223d669f9bd4db000b936f23261c2105ed1c8451f0a94",
+          "score-32-39.cfr.zst": "27130a1822fd8dbee27e4cfdbfe9cfdf56888f46bc6999847a83beeea56512d2",
+          "score-33-37.cfr.zst": "83c3777123bb1a10f3b951aac996a0549ab2e95684df688fa72c4fa501fc9555",
+          "score-33-38.cfr.zst": "c87fe734d95f2f519c05756c3e45dd484fc0a601dd04d69d660b404c7b88849f",
+          "score-33-39.cfr.zst": "5605887712555f4d852adcfc47aff54ff277a515e3a6913d8602f132ec259422",
+          "score-34-36.cfr.zst": "2faec318ca1be42214d253ab52a0488bf0344b7775dd988bd408b026ddfdc129",
+          "score-34-37.cfr.zst": "a70027d7726e7bde471484cc9037f09aaf78468ed1218f6921dfd8f753e340a5",
+          "score-34-38.cfr.zst": "9d4f66db90720164c40935bd5340c3bee1f7a6fd250fa449251578ddbfef363b",
+          "score-34-39.cfr.zst": "f9eb1adfbb1c829006634a567119b282c808af0eb814d1a83bf3cc6d8672d499",
+          "score-35-35.cfr.zst": "646c1ffdcab383c0db2a3b2e8449c593087b4f5261a944ec0b46421ea9d6e5f6",
+          "score-35-36.cfr.zst": "1525bd98e50aee53c1d44a51f41459740836a7880a8520fb6e7784e29d22f75c",
+          "score-35-37.cfr.zst": "22992d338b1618cb63976bad336c7d85fc5874ee303575ce4c1d1b6b6ee71b9f",
+          "score-35-38.cfr.zst": "8537c9fc1d32b55c79b0c6d51f545f5edb9f2c29457848f5aa966924eeed08ca",
+          "score-35-39.cfr.zst": "ce8723b283c052f79fbfa8eb7918ca09c4fe9aae7dee04154f80a3886296df7c",
+          "score-36-34.cfr.zst": "56bf9f7da82e32da7324b4620957e2abc0bd0725338894e5a417ef0341667d59",
+          "score-36-35.cfr.zst": "9cb134a4a5e39c4b914cc57b31ed579aac4ae7524f740e4cdd15f8f0a39b89d9",
+          "score-36-36.cfr.zst": "02f4d5d36497a16121b5dedaea08c56890ec1402570d345fb458c365a6705f20",
+          "score-36-37.cfr.zst": "ce39da9a95958eb6cb84abb3c780146024c195a148c32564215bba350eb07142",
+          "score-36-38.cfr.zst": "6d27d4a6b0e48a7150f4473b96da316d96d8b71dfebbab2ca8a320c3eff4bf86",
+          "score-36-39.cfr.zst": "3d4be4e41041eb2fb1b36defcbbd6bbbca15ccd628b7388f54a1c352f2c73525",
+          "score-37-33.cfr.zst": "d9116da3173e9c7f8a91651596ec322d380473d3e8467ee50bfbfb1002d41825",
+          "score-37-34.cfr.zst": "2eaee8f37cf02e1747ba3d0886f2441992b950230b1872afa7049cc3a9ee12a8",
+          "score-37-35.cfr.zst": "424d3a034c4cddc8edc38d3fe0440a897334162b26ae90f507120ae0e5f4836c",
+          "score-37-36.cfr.zst": "5f49da74a7c39211158f6268a99ff267be090cfd9bf1a84cae177496a25be5dd",
+          "score-37-37.cfr.zst": "8082eec8d039879862463341d1483cd62fec9f8e403f39c92a3e37a80b0cc0ca",
+          "score-37-38.cfr.zst": "cbc8e52d34e9a3fe2411772d2c1a06cc8a95c99edb66c694a343e0eab456bdf7",
+          "score-37-39.cfr.zst": "6e4b5ff338a10b2c05a92876225ff941e867c7237c71ca294c6f0feeaa9da9b4",
+          "score-38-32.cfr.zst": "4fe86333f7627af787ce554c6b75f5500f7e74e53ee475ceb3a6bb5b126a0b7d",
+          "score-38-33.cfr.zst": "8acdfcc1e8aad1d80a77213ec3c0ef19b28a3aad80c57584fc2e74abf531669a",
+          "score-38-34.cfr.zst": "5070ba28e4620a47100d20a640422d2f1607ed8abf58948967d6c36cfdc0bf18",
+          "score-38-35.cfr.zst": "6cf631e6a4a10a99985fe87af6f608bd376c9424c600d33576bd2f6a76c5d70a",
+          "score-38-36.cfr.zst": "85281fdd4cf25aa3efd85f8efa8611aa5fbf8012f10b51eefef2693021b303dc",
+          "score-38-37.cfr.zst": "768d2d8d8f0e9a97be4697bddb55f91b69f982acc09c2b8de0dc5d4d8766c13a",
+          "score-38-38.cfr.zst": "e5066b14d21d000bcc2f57a2d1f4c52ab6e906f6c4670e862403207902d4054b",
+          "score-38-39.cfr.zst": "6bf57274c4db1b65b27591b6220ae97e552a7462d5c3d2061268dfb5469d5fc0",
+          "score-39-31.cfr.zst": "48b8e3ac81394b8cf5ed49d442ee7e0dd0b586630db7945282627a6d093e138d",
+          "score-39-32.cfr.zst": "f1d065e795b1af2bc4bec1ca7d4e49823ffa1fe868e2879aeb90446f091ee07b",
+          "score-39-33.cfr.zst": "b11d1ab03300ebb2acbcdd6e6ebab963f28d257383378500b8f57e8455e9c800",
+          "score-39-34.cfr.zst": "17d4e08f43e4652b5cebb473754d56717b857ff49a5f1eda1b9a43a5734019fd",
+          "score-39-35.cfr.zst": "32cafc585bc8daeb735b6b227b9e8c832914839b8ca618ac458a3c487ae9e633",
+          "score-39-36.cfr.zst": "a0bea0096f82edd3803f86054969192c9c92cf0041fc61315b9a66a600e308ac",
+          "score-39-37.cfr.zst": "3ffad50456d9555f1efe5319c535f4637336d66a5e3eee1ffc3793d6f1a1a52d",
+          "score-39-38.cfr.zst": "aac85358d79f942946a9bdafbb08a93f0a88abd5f26e26b7247604e1d8cd0189",
+          "score-39-39.cfr.zst": "b070b0775651673585eae9603b909e1d87a71b0e4f88455c2e789accfbdaf8bb",
+          "values.txt": "32aabf861c25c08b5a86b2bbda45a8e61c256532e65af06071c3152ca8dd5c30"
+        }
+      },
+      {
+        "group": "score",
+        "version": "final",
+        "repeat": 3,
+        "command": [
+          "build/review-j01-final/release/mus-solver",
+          "--format",
+          "ordago-score",
+          "--score",
+          "35:35",
+          "--continuation",
+          "/tmp/mus-review-j01-score-jenrju90/table",
+          "--iterations",
+          "1000",
+          "--evaluation-samples",
+          "10000",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "wall_seconds": 3.6806914980006695,
+        "peak_rss_kib": 75512,
+        "stdout": "score-cell score=39:39 target=40 iterations=1000 evaluation_samples=10000 value=0.060200000000000184 win_probability=0.53010000000000013\nscore-cell score=38:39 target=40 iterations=1000 evaluation_samples=10000 value=-0.30039999999999961 win_probability=0.34980000000000022\nscore-cell score=39:38 target=40 iterations=1000 evaluation_samples=10000 value=0.41699999999999993 win_probability=0.70849999999999991\nscore-cell score=37:39 target=40 iterations=1000 evaluation_samples=10000 value=-0.36240000000000039 win_probability=0.31879999999999981\nscore-cell score=38:38 target=40 iterations=1000 evaluation_samples=10000 value=0.031800000000000085 win_probability=0.51590000000000003\nscore-cell score=39:37 target=40 iterations=1000 evaluation_samples=10000 value=0.50039999999999774 win_probability=0.75019999999999887\nscore-cell score=36:39 target=40 iterations=1000 evaluation_samples=10000 value=-0.43810835999999909 win_probability=0.28094582000000046\nscore-cell score=37:38 target=40 iterations=1000 evaluation_samples=10000 value=-0.074110699999999821 win_probability=0.46294465000000007\nscore-cell score=38:37 target=40 iterations=1000 evaluation_samples=10000 value=0.14697124000000017 win_probability=0.57348562000000003\nscore-cell score=39:36 target=40 iterations=1000 evaluation_samples=10000 value=0.54855183999999901 win_probability=0.77427591999999956\nscore-cell score=35:39 target=40 iterations=1000 evaluation_samples=10000 value=-0.42662236000000081 win_probability=0.28668881999999962\nscore-cell score=36:38 target=40 iterations=1000 evaluation_samples=10000 value=-0.13851256000000012 win_probability=0.43074371999999994\nscore-cell score=37:37 target=40 iterations=1000 evaluation_samples=10000 value=0.11153229999999989 win_probability=0.55576614999999996\nscore-cell score=38:36 target=40 iterations=1000 evaluation_samples=10000 value=0.24925309999999878 win_probability=0.62462654999999945\nscore-cell score=39:35 target=40 iterations=1000 evaluation_samples=10000 value=0.55125708000000084 win_probability=0.77562854000000048\nscore-cell score=34:39 target=40 iterations=1000 evaluation_samples=10000 value=-0.4678563200000001 win_probability=0.26607183999999995\nscore-cell score=35:38 target=40 iterations=1000 evaluation_samples=10000 value=-0.24477870000000018 win_probability=0.37761064999999994\nscore-cell score=36:37 target=40 iterations=1000 evaluation_samples=10000 value=0.0081585400000000422 win_probability=0.50407926999999997\nscore-cell score=37:36 target=40 iterations=1000 evaluation_samples=10000 value=0.16471182000000031 win_probability=0.5823559100000002\nscore-cell score=38:35 target=40 iterations=1000 evaluation_samples=10000 value=0.32672596000000048 win_probability=0.66336298000000027\nscore-cell score=39:34 target=40 iterations=1000 evaluation_samples=10000 value=0.58933991999999902 win_probability=0.79466995999999956\nscore-cell score=33:39 target=40 iterations=1000 evaluation_samples=10000 value=-0.5010402940479991 win_probability=0.24947985297600045\nscore-cell score=34:38 target=40 iterations=1000 evaluation_samples=10000 value=-0.32345884261599966 win_probability=0.33827057869200017\nscore-cell score=35:37 target=40 iterations=1000 evaluation_samples=10000 value=-0.090809793851999929 win_probability=0.45459510307400003\nscore-cell score=36:36 target=40 iterations=1000 evaluation_samples=10000 value=0.062033564411999795 win_probability=0.5310167822059999\nscore-cell score=37:35 target=40 iterations=1000 evaluation_samples=10000 value=0.24592009815399968 win_probability=0.62296004907699987\nscore-cell score=38:34 target=40 iterations=1000 evaluation_samples=10000 value=0.39655346868799946 win_probability=0.69827673434399973\nscore-cell score=39:33 target=40 iterations=1000 evaluation_samples=10000 value=0.6080503700319968 win_probability=0.8040251850159984\nscore-cell score=32:39 target=40 iterations=1000 evaluation_samples=10000 value=-0.53447940337999977 win_probability=0.23276029831000011\nscore-cell score=33:38 target=40 iterations=1000 evaluation_samples=10000 value=-0.38193061363600012 win_probability=0.30903469318199994\nscore-cell score=34:37 target=40 iterations=1000 evaluation_samples=10000 value=-0.20690606777400011 win_probability=0.39654696611299994\nscore-cell score=35:36 target=40 iterations=1000 evaluation_samples=10000 value=-0.027173493817999984 win_probability=0.48641325309100003\nscore-cell score=36:35 target=40 iterations=1000 evaluation_samples=10000 value=0.13170168077000063 win_probability=0.56585084038500033\nscore-cell score=37:34 target=40 iterations=1000 evaluation_samples=10000 value=0.31063604837399916 win_probability=0.65531802418699958\nscore-cell score=38:33 target=40 iterations=1000 evaluation_samples=10000 value=0.44684890513800057 win_probability=0.72342445256900034\nscore-cell score=39:32 target=40 iterations=1000 evaluation_samples=10000 value=0.6327809745800006 win_probability=0.8163904872900003\nscore-cell score=31:39 target=40 iterations=1000 evaluation_samples=10000 value=-0.54499401437199724 win_probability=0.22750299281400138\nscore-cell score=32:38 target=40 iterations=1000 evaluation_samples=10000 value=-0.41361183987599903 win_probability=0.29319408006200048\nscore-cell score=33:37 target=40 iterations=1000 evaluation_samples=10000 value=-0.28626862694399907 win_probability=0.35686568652800044\nscore-cell score=34:36 target=40 iterations=1000 evaluation_samples=10000 value=-0.1158934672719998 win_probability=0.44205326636400011\nscore-cell score=35:35 target=40 iterations=1000 evaluation_samples=10000 value=0.044528727400000134 win_probability=0.52226436370000007\nscore-cell score=36:34 target=40 iterations=1000 evaluation_samples=10000 value=0.19269446550400043 win_probability=0.59634723275200019\nscore-cell score=37:33 target=40 iterations=1000 evaluation_samples=10000 value=0.36356582129399989 win_probability=0.68178291064699992\nscore-cell score=38:32 target=40 iterations=1000 evaluation_samples=10000 value=0.44753336651999942 win_probability=0.72376668325999971\nscore-cell score=39:31 target=40 iterations=1000 evaluation_samples=10000 value=0.63869046899999793 win_probability=0.81934523449999896\nscore-table score=35:35 target=40 value=0.044528727400000134 win_probability=0.52226436370000007\n",
+        "files_identical": true,
+        "file_sha256": {
+          "score-31-39.cfr.zst": "e702b05fca03c558f9c90c3ace3a6a6a158e3fba8923e2c2f1c83c29a225a2ba",
+          "score-32-38.cfr.zst": "240bb172c978c7ec69d223d669f9bd4db000b936f23261c2105ed1c8451f0a94",
+          "score-32-39.cfr.zst": "27130a1822fd8dbee27e4cfdbfe9cfdf56888f46bc6999847a83beeea56512d2",
+          "score-33-37.cfr.zst": "83c3777123bb1a10f3b951aac996a0549ab2e95684df688fa72c4fa501fc9555",
+          "score-33-38.cfr.zst": "c87fe734d95f2f519c05756c3e45dd484fc0a601dd04d69d660b404c7b88849f",
+          "score-33-39.cfr.zst": "5605887712555f4d852adcfc47aff54ff277a515e3a6913d8602f132ec259422",
+          "score-34-36.cfr.zst": "2faec318ca1be42214d253ab52a0488bf0344b7775dd988bd408b026ddfdc129",
+          "score-34-37.cfr.zst": "a70027d7726e7bde471484cc9037f09aaf78468ed1218f6921dfd8f753e340a5",
+          "score-34-38.cfr.zst": "9d4f66db90720164c40935bd5340c3bee1f7a6fd250fa449251578ddbfef363b",
+          "score-34-39.cfr.zst": "f9eb1adfbb1c829006634a567119b282c808af0eb814d1a83bf3cc6d8672d499",
+          "score-35-35.cfr.zst": "646c1ffdcab383c0db2a3b2e8449c593087b4f5261a944ec0b46421ea9d6e5f6",
+          "score-35-36.cfr.zst": "1525bd98e50aee53c1d44a51f41459740836a7880a8520fb6e7784e29d22f75c",
+          "score-35-37.cfr.zst": "22992d338b1618cb63976bad336c7d85fc5874ee303575ce4c1d1b6b6ee71b9f",
+          "score-35-38.cfr.zst": "8537c9fc1d32b55c79b0c6d51f545f5edb9f2c29457848f5aa966924eeed08ca",
+          "score-35-39.cfr.zst": "ce8723b283c052f79fbfa8eb7918ca09c4fe9aae7dee04154f80a3886296df7c",
+          "score-36-34.cfr.zst": "56bf9f7da82e32da7324b4620957e2abc0bd0725338894e5a417ef0341667d59",
+          "score-36-35.cfr.zst": "9cb134a4a5e39c4b914cc57b31ed579aac4ae7524f740e4cdd15f8f0a39b89d9",
+          "score-36-36.cfr.zst": "02f4d5d36497a16121b5dedaea08c56890ec1402570d345fb458c365a6705f20",
+          "score-36-37.cfr.zst": "ce39da9a95958eb6cb84abb3c780146024c195a148c32564215bba350eb07142",
+          "score-36-38.cfr.zst": "6d27d4a6b0e48a7150f4473b96da316d96d8b71dfebbab2ca8a320c3eff4bf86",
+          "score-36-39.cfr.zst": "3d4be4e41041eb2fb1b36defcbbd6bbbca15ccd628b7388f54a1c352f2c73525",
+          "score-37-33.cfr.zst": "d9116da3173e9c7f8a91651596ec322d380473d3e8467ee50bfbfb1002d41825",
+          "score-37-34.cfr.zst": "2eaee8f37cf02e1747ba3d0886f2441992b950230b1872afa7049cc3a9ee12a8",
+          "score-37-35.cfr.zst": "424d3a034c4cddc8edc38d3fe0440a897334162b26ae90f507120ae0e5f4836c",
+          "score-37-36.cfr.zst": "5f49da74a7c39211158f6268a99ff267be090cfd9bf1a84cae177496a25be5dd",
+          "score-37-37.cfr.zst": "8082eec8d039879862463341d1483cd62fec9f8e403f39c92a3e37a80b0cc0ca",
+          "score-37-38.cfr.zst": "cbc8e52d34e9a3fe2411772d2c1a06cc8a95c99edb66c694a343e0eab456bdf7",
+          "score-37-39.cfr.zst": "6e4b5ff338a10b2c05a92876225ff941e867c7237c71ca294c6f0feeaa9da9b4",
+          "score-38-32.cfr.zst": "4fe86333f7627af787ce554c6b75f5500f7e74e53ee475ceb3a6bb5b126a0b7d",
+          "score-38-33.cfr.zst": "8acdfcc1e8aad1d80a77213ec3c0ef19b28a3aad80c57584fc2e74abf531669a",
+          "score-38-34.cfr.zst": "5070ba28e4620a47100d20a640422d2f1607ed8abf58948967d6c36cfdc0bf18",
+          "score-38-35.cfr.zst": "6cf631e6a4a10a99985fe87af6f608bd376c9424c600d33576bd2f6a76c5d70a",
+          "score-38-36.cfr.zst": "85281fdd4cf25aa3efd85f8efa8611aa5fbf8012f10b51eefef2693021b303dc",
+          "score-38-37.cfr.zst": "768d2d8d8f0e9a97be4697bddb55f91b69f982acc09c2b8de0dc5d4d8766c13a",
+          "score-38-38.cfr.zst": "e5066b14d21d000bcc2f57a2d1f4c52ab6e906f6c4670e862403207902d4054b",
+          "score-38-39.cfr.zst": "6bf57274c4db1b65b27591b6220ae97e552a7462d5c3d2061268dfb5469d5fc0",
+          "score-39-31.cfr.zst": "48b8e3ac81394b8cf5ed49d442ee7e0dd0b586630db7945282627a6d093e138d",
+          "score-39-32.cfr.zst": "f1d065e795b1af2bc4bec1ca7d4e49823ffa1fe868e2879aeb90446f091ee07b",
+          "score-39-33.cfr.zst": "b11d1ab03300ebb2acbcdd6e6ebab963f28d257383378500b8f57e8455e9c800",
+          "score-39-34.cfr.zst": "17d4e08f43e4652b5cebb473754d56717b857ff49a5f1eda1b9a43a5734019fd",
+          "score-39-35.cfr.zst": "32cafc585bc8daeb735b6b227b9e8c832914839b8ca618ac458a3c487ae9e633",
+          "score-39-36.cfr.zst": "a0bea0096f82edd3803f86054969192c9c92cf0041fc61315b9a66a600e308ac",
+          "score-39-37.cfr.zst": "3ffad50456d9555f1efe5319c535f4637336d66a5e3eee1ffc3793d6f1a1a52d",
+          "score-39-38.cfr.zst": "aac85358d79f942946a9bdafbb08a93f0a88abd5f26e26b7247604e1d8cd0189",
+          "score-39-39.cfr.zst": "b070b0775651673585eae9603b909e1d87a71b0e4f88455c2e789accfbdaf8bb",
+          "values.txt": "32aabf861c25c08b5a86b2bbda45a8e61c256532e65af06071c3152ca8dd5c30"
+        }
+      }
+    ],
+    "summary": [
+      {
+        "group": "single-bet",
+        "before": "parent",
+        "after": "final",
+        "wall_seconds": {
+          "before": 0.9355991949996678,
+          "after": 0.966734549998364,
+          "change_percent": 3.327851837100737
+        },
+        "peak_rss_kib": {
+          "before": 21484,
+          "after": 21484,
+          "change_percent": 0.0
+        },
+        "training_seconds": {
+          "before": 0.934267,
+          "after": 0.965349,
+          "change_percent": 3.326886211329305
+        },
+        "visited_nodes": {
+          "before": 11223357,
+          "after": 11223357,
+          "change_percent": 0.0
+        },
+        "information_sets": {
+          "before": 165694,
+          "after": 165694,
+          "change_percent": 0.0
+        }
+      },
+      {
+        "group": "raises-to-eight",
+        "before": "parent",
+        "after": "final",
+        "wall_seconds": {
+          "before": 1.3696157630001835,
+          "after": 1.403921787001309,
+          "change_percent": 2.5047918495021637
+        },
+        "peak_rss_kib": {
+          "before": 138328,
+          "after": 138308,
+          "change_percent": -0.014458388757154772
+        },
+        "training_seconds": {
+          "before": 1.366377,
+          "after": 1.400735,
+          "change_percent": 2.5145329583270204
+        },
+        "visited_nodes": {
+          "before": 9494753,
+          "after": 9494753,
+          "change_percent": 0.0
+        },
+        "information_sets": {
+          "before": 1313500,
+          "after": 1313500,
+          "change_percent": 0.0
+        }
+      },
+      {
+        "group": "ordago",
+        "before": "parent",
+        "after": "final",
+        "wall_seconds": {
+          "before": 1.7587617150020378,
+          "after": 1.7954351719999977,
+          "change_percent": 2.085186224213298
+        },
+        "peak_rss_kib": {
+          "before": 596676,
+          "after": 596996,
+          "change_percent": 0.053630446004193644
+        },
+        "training_seconds": {
+          "before": 1.738783,
+          "after": 1.775451,
+          "change_percent": 2.108831291771307
+        },
+        "visited_nodes": {
+          "before": 20174542,
+          "after": 20174542,
+          "change_percent": 0.0
+        },
+        "information_sets": {
+          "before": 3492885,
+          "after": 3492885,
+          "change_percent": 0.0
+        }
+      },
+      {
+        "group": "ordago-public",
+        "before": "accepted",
+        "after": "final",
+        "wall_seconds": {
+          "before": 5.466640359998564,
+          "after": 5.716123999998672,
+          "change_percent": 4.563747083595837
+        },
+        "peak_rss_kib": {
+          "before": 1342356,
+          "after": 1342844,
+          "change_percent": 0.036353992532522916
+        },
+        "training_seconds": {
+          "before": 5.426759,
+          "after": 5.673966,
+          "change_percent": 4.555334040078063
+        },
+        "visited_nodes": {
+          "before": 42630116,
+          "after": 42630116,
+          "change_percent": 0.0
+        },
+        "information_sets": {
+          "before": 11018683,
+          "after": 11018683,
+          "change_percent": 0.0
+        }
+      },
+      {
+        "group": "score",
+        "before": "parent",
+        "after": "final",
+        "wall_seconds": {
+          "before": 3.7515064729996084,
+          "after": 3.8071539090014994,
+          "change_percent": 1.4833357319891993
+        },
+        "peak_rss_kib": {
+          "before": 75512,
+          "after": 75512,
+          "change_percent": 0.0
+        }
+      }
+    ],
+    "checkpoint_checks": [
+      {
+        "format": "single-bet",
+        "iterations": 1000,
+        "before": "parent",
+        "sha256": {
+          "parent": "cd5266e85788bc0eba4243254a44addd74f4327e9bdd6257a51876fac21d79ca",
+          "final": "cd5266e85788bc0eba4243254a44addd74f4327e9bdd6257a51876fac21d79ca"
+        },
+        "files_identical": true
+      },
+      {
+        "format": "raises-to-eight",
+        "iterations": 500,
+        "before": "parent",
+        "sha256": {
+          "parent": "a4642d238ff71ab3b5fe384647ca10158c5e7eb26ebc840e5bb12715dec57071",
+          "final": "a4642d238ff71ab3b5fe384647ca10158c5e7eb26ebc840e5bb12715dec57071"
+        },
+        "files_identical": true
+      },
+      {
+        "format": "ordago",
+        "iterations": 20,
+        "before": "parent",
+        "sha256": {
+          "parent": "4f711660322ad64fd12be84664824a9413587bdcaa4bd7f19c011b465b02455b",
+          "final": "4f711660322ad64fd12be84664824a9413587bdcaa4bd7f19c011b465b02455b"
+        },
+        "files_identical": true
+      },
+      {
+        "format": "ordago-public",
+        "iterations": 20,
+        "before": "accepted",
+        "sha256": {
+          "accepted": "1184c5061b916718b43f19bc19af7aa2b2aadb556b02768f090222006e9563ac",
+          "final": "1184c5061b916718b43f19bc19af7aa2b2aadb556b02768f090222006e9563ac"
+        },
+        "files_identical": true
+      }
+    ],
+    "benchmark_source": "import hashlib,json,os,re,statistics,subprocess,tempfile,time\nfrom pathlib import Path\nos.sched_setaffinity(0,{0})\nbinaries={'parent':'build/review-j07/release/mus-solver','accepted':'build/review-j01/release/mus-solver','final':'build/review-j01-final/release/mus-solver'}\ndata={'method':'Three paired runs, alternating order, CPU0, seed7 and one thread. No own concurrent builds or tests. Public format compared with the accepted candidate; historical formats and score compared with HEAD83c0a28.','binary_sha256':{k:hashlib.sha256(Path(v).read_bytes()).hexdigest() for k,v in binaries.items()},'runs':[],'summary':[],'checkpoint_checks':[]}\nout=Path('/tmp/mus-review-j01-final-performance.json')\ndef save():out.write_text(json.dumps(data,indent=2)+'\\n')\ndef run(group,version,args,repeat):\n command=[binaries[version],*args]\n with tempfile.TemporaryFile(mode='w+') as log:\n  start=time.perf_counter();pid=os.posix_spawn(command[0],command,os.environ,file_actions=[(os.POSIX_SPAWN_DUP2,log.fileno(),1),(os.POSIX_SPAWN_DUP2,log.fileno(),2)])\n  _,status,usage=os.wait4(pid,0);elapsed=time.perf_counter()-start;log.seek(0);stdout=log.read()\n if status:raise RuntimeError((command,status,stdout))\n row={'group':group,'version':version,'repeat':repeat,'command':command,'wall_seconds':elapsed,'peak_rss_kib':usage.ru_maxrss,'stdout':stdout}\n if group!='score':\n  for k,v in re.findall(r'(\\w+)=([\\d.]+)',stdout):row['training_seconds' if k=='seconds' else k]=float(v) if '.' in v else int(v)\n data['runs'].append(row);save();print(json.dumps(row),flush=True)\n return row\ndef summary(group,before):\n rows=[r for r in data['runs'] if r['group']==group];s={'group':group,'before':before,'after':'final'}\n for metric in ['wall_seconds','peak_rss_kib']+([] if group=='score' else ['training_seconds','visited_nodes','information_sets']):\n  a=statistics.median(r[metric] for r in rows if r['version']==before);b=statistics.median(r[metric] for r in rows if r['version']=='final');s[metric]={'before':a,'after':b,'change_percent':100*(b/a-1)}\n data['summary'].append(s);save();print('SUMMARY '+json.dumps(s),flush=True)\n if s['wall_seconds']['change_percent']>=20 or s['peak_rss_kib']['change_percent']>=25:raise RuntimeError('Additional performance concern; confirmation required')\nfor fmt,it in [('single-bet',100000),('raises-to-eight',30000),('ordago',500),('ordago-public',500)]:\n before='accepted' if fmt=='ordago-public' else 'parent'\n for repeat in range(3):\n  for version in ([before,'final'] if repeat%2==0 else ['final',before]):run(fmt,version,['--format',fmt,'--iterations',str(it),'--seed','7','--threads','1'],repeat+1)\n summary(fmt,before)\n# Small deterministic checkpoints test serialized keys, policy and counters.\nfor fmt,it in [('single-bet',1000),('raises-to-eight',500),('ordago',20),('ordago-public',20)]:\n before='accepted' if fmt=='ordago-public' else 'parent'\n with tempfile.TemporaryDirectory(prefix='mus-review-j01-checkpoint-') as directory:\n  hashes={}\n  for version in [before,'final']:\n   path=Path(directory)/f'{version}.cfr'\n   command=[binaries[version],'--format',fmt,'--iterations',str(it),'--seed','7','--save',str(path)]\n   result=subprocess.run(command,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,check=True)\n   hashes[version]=hashlib.sha256(path.read_bytes()).hexdigest()\n  assert len(set(hashes.values()))==1,(fmt,hashes)\n  data['checkpoint_checks'].append({'format':fmt,'iterations':it,'before':before,'sha256':hashes,'files_identical':True});save()\n# Full v4 tables must preserve every published checkpoint and value file.\nreference=None\nfor repeat in range(3):\n for version in (['parent','final'] if repeat%2==0 else ['final','parent']):\n  with tempfile.TemporaryDirectory(prefix='mus-review-j01-score-') as directory:\n   path=Path(directory)/'table'\n   row=run('score',version,['--format','ordago-score','--score','35:35','--continuation',str(path),'--iterations','1000','--evaluation-samples','10000','--seed','7','--threads','1'],repeat+1)\n   hashes={p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(path.iterdir()) if p.is_file()}\n   assert len(hashes)==46,len(hashes)\n   if reference is None:reference=hashes\n   assert hashes==reference,(version,repeat)\n   row['files_identical']=True;row['file_sha256']=hashes;save()\nsummary('score','parent')\nprint('ALL_CHECKS_PASSED',flush=True)\n",
+    "tests": {
+      "full_default_suite": "passed",
+      "hotpath_digests_default": "passed",
+      "core_hotpaths_public_two_muses": "passed",
+      "core_hotpaths_public_asan_ubsan": "passed",
+      "hidden_hand_comparisons_one_mus": 75900,
+      "hidden_hand_comparisons_two_muses": 141358,
+      "historical_checkpoint_bytes": "identical in single-bet, raises-to-eight, ordago",
+      "public_checkpoint_bytes": "identical to the accepted candidate",
+      "score_v4_files": "45 checkpoints and values.txt identical in all six processes"
+    },
+    "legacy_reference": {
+      "source_commit": "83c0a2829a4a5ea10a1dcf58443a6204751e8ca6",
+      "probe_source": "#include <stdint.h>\n#include <inttypes.h>\n#include <stdio.h>\n#include <stdlib.h>\n#include \"mus_solver/mus_game.h\"\n#define CHECK(c) do { if (!(c)) { fprintf(stderr,\"line %d: %s\\n\",__LINE__,#c); exit(1); } } while(0)\nstatic GameState *as_game(MusGameState *s) { return mus_game_state_as_game_state(s); }\nstatic uint64_t digest_value(uint64_t hash, uint64_t value) {\n    for (int byte = 0; byte < 8; ++byte) {\n        hash = (hash ^ (value & UINT64_C(255))) * UINT64_C(1099511628211);\n        value >>= 8;\n    }\n    return hash;\n}\n\n/* Explicit byte order avoids compiler padding and host-endian dependencies. */\nstatic uint64_t legacy_playout_digest(unsigned int format) {\n    const Game *game = format == 0 ? mus_single_bet_game_descriptor()\n                       : format == 1 ? mus_raises_to_eight_game_descriptor()\n                                     : mus_ordago_game_descriptor();\n    uint64_t hash = UINT64_C(14695981039346656037);\n    uint32_t random = 7;\n    for (unsigned int sample = 0; sample < 256; ++sample) {\n        MusGameState state;\n        CHECK((format == 0 ? mus_single_bet_game_state_init(&state)\n               : format == 1 ? mus_raises_to_eight_game_state_init(&state)\n                             : mus_ordago_game_state_init(&state)) == CFR_STATUS_SUCCESS);\n        size_t steps = 0;\n        while (state.model.phase != MUS_PHASE_TERMINAL) {\n            CHECK(++steps < 150);\n            Actor actor;\n            CHECK(cfr_game_current_actor(game, as_game(&state), &actor) == CFR_STATUS_SUCCESS);\n            Action actions[MUS_GAME_MAX_LEGAL_ACTIONS];\n            size_t count;\n            CHECK(cfr_game_legal_actions(game, as_game(&state), actions,\n                  MUS_GAME_MAX_LEGAL_ACTIONS, &count) == CFR_STATUS_SUCCESS);\n            hash = digest_value(hash, state.model.phase);\n            hash = digest_value(hash, count);\n            for (size_t i = 0; i < count; ++i) hash = digest_value(hash, (uint64_t)actions[i]);\n            if (actor.kind == CFR_ACTOR_PLAYER) {\n                InfoSetKey key;\n                CHECK(cfr_game_information_set_key(game, as_game(&state), &key) == CFR_STATUS_SUCCESS);\n                hash = digest_value(hash, (uint64_t)key);\n            }\n            random = random * UINT32_C(1664525) + UINT32_C(1013904223);\n            size_t choices = count;\n            if ((sample & 1U) != 0 && count > 1 && actions[count - 1] == MUS_ACTION_ORDAGO)\n                --choices;\n            CHECK(cfr_game_apply_action(game, as_game(&state), actions[random % choices]) == CFR_STATUS_SUCCESS);\n        }\n        Utility value;\n        CHECK(cfr_game_terminal_utility(game, as_game(&state), CFR_PLAYER_0, &value) == CFR_STATUS_SUCCESS);\n        CHECK(value >= -40 && value <= 40);\n        hash = digest_value(hash, (uint64_t)(value + 40));\n    }\n    return hash;\n}\n\nint main(void) { for(unsigned int f=0;f<3;f++)printf(\"muses=%d format=%u digest=%016\" PRIx64 \"\\n\",MUS_GAME_MAX_MUSES,f,legacy_playout_digest(f)); }\n",
+      "reference_stdout": "muses=1 format=0 digest=27bf6926c90b799b\nmuses=1 format=1 digest=8fd5109be387f39a\nmuses=1 format=2 digest=04572433352ddfdd\nmuses=2 format=0 digest=27bf6926c90b799b\nmuses=2 format=1 digest=8fd5109be387f39a\nmuses=2 format=2 digest=2b46283cdb285ff6\n",
+      "commands": [
+        "git show 83c0a28:include/mus_solver/mus_game.h > /tmp/mus-review-j01-legacy-headers/mus_solver/mus_game.h",
+        "git show 83c0a28:src/mus_game.c > /tmp/mus-review-j01-legacy-game.c",
+        "cc -O3 -std=c17 -I/tmp/mus-review-j01-legacy-headers -Iinclude -IC-CFR/include -ISimulador-Mus/include /tmp/mus-review-j01-legacy-digest.c /tmp/mus-review-j01-legacy-game.c build/review-j07/release/libmus_solver.a C-CFR/build/review-baseline/release/libcfr.a -pthread -lzstd -o /tmp/mus-review-j01-legacy-digest-one",
+        "/tmp/mus-review-j01-legacy-digest-one",
+        "Repeat compilation with -DMUS_GAME_MAX_MUSES=2 and output path /tmp/mus-review-j01-legacy-digest-two, then run that executable."
+      ],
+      "note": "The explicit game source object supplies all mus_game symbols. The parent archive supplies unchanged score dependencies; the probe calls only historical descriptors. Both game source and its layout header use the selected mus limit."
+    }
+  },
+  "final_review": {
+    "task": "task_70823959bab2",
+    "dispatch": "ctx_278271202084",
+    "message": "msg_a35a82f8cf47",
+    "verdict": "APPROVE",
+    "scope": "core/CLI; adapter and preload remain pending",
+    "report": "J01-final-claude-review.md"
+  }
+}

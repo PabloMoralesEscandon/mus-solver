@@ -78,7 +78,7 @@ if "$solver" --format ordago-score --iterations 1 --threads-per-cell 0 \
     echo "--threads-per-cell 0 debio fallar" >&2
     exit 1
 fi
-for format in single-bet raises-to-eight ordago; do
+for format in single-bet raises-to-eight ordago ordago-public; do
     if "$solver" --format "$format" --iterations 1 --threads-per-cell 2 \
         >"$tmp_dir/legacy-cell-threads.out" 2>"$tmp_dir/legacy-cell-threads.err"; then
         echo "--threads-per-cell requiere ordago-score" >&2
@@ -593,5 +593,34 @@ if "$solver" --format ordago-score --target 3 --continuation "$tmp_dir/score" \
     echo "una tabla sin sus estrategias debio fallar" >&2
     exit 1
 fi
+
+# The public isolated-hand schema must resume, export, and reject legacy data.
+"$solver" --format ordago-public --iterations 10 --seed 7 \
+    --save "$tmp_dir/public.cfr" >"$tmp_dir/public.out"
+"$solver" --format ordago-public --load "$tmp_dir/public.cfr" --iterations 10 \
+    --save-compressed "$tmp_dir/public-resumed.zst" >"$tmp_dir/public-resumed.out"
+"$solver" --format ordago-public --iterations 20 --seed 7 \
+    --save-compressed "$tmp_dir/public-continuous.zst" >"$tmp_dir/public-continuous.out"
+cmp "$tmp_dir/public-resumed.zst" "$tmp_dir/public-continuous.zst"
+"$solver" --format ordago-public --load-compressed "$tmp_dir/public-resumed.zst" \
+    --evaluate --export-strategy "$tmp_dir/public.txt" >"$tmp_dir/public-eval.out"
+grep -q 'scope=bounded-final-lances' "$tmp_dir/public-eval.out"
+grep -q 'schema=mus.heads-up-single-hand.ordago-public/v1-muses-' "$tmp_dir/public.txt"
+grep -q 'maximo_pagado=' "$tmp_dir/public.txt"
+grep -q 'envites_pendientes=' "$tmp_dir/public.txt"
+"$solver" --format ordago --iterations 10 --seed 7 --save "$tmp_dir/legacy.cfr" >"$tmp_dir/legacy.out"
+if "$solver" --format ordago --load "$tmp_dir/public.cfr" --iterations 1 >"$tmp_dir/wrong.out" 2>"$tmp_dir/wrong.err"; then
+    echo 'ordago accepted a public checkpoint' >&2; exit 1
+fi
+if "$solver" --format ordago-public --load "$tmp_dir/legacy.cfr" --iterations 1 >"$tmp_dir/wrong.out" 2>"$tmp_dir/wrong.err"; then
+    echo 'ordago-public accepted a legacy checkpoint' >&2; exit 1
+fi
+
+"$solver" --format ordago-public --iterations 12 --threads 2 --seed 7 \
+    --save "$tmp_dir/public-parallel.cfr" >"$tmp_dir/public-parallel.out"
+grep -q 'report iterations=12 threads=2' "$tmp_dir/public-parallel.out"
+"$solver" --format ordago-public --load "$tmp_dir/public-parallel.cfr" \
+    --iterations 2 --threads 2 >"$tmp_dir/public-parallel-resumed.out"
+grep -q 'report iterations=14 threads=2' "$tmp_dir/public-parallel-resumed.out"
 
 echo "Todas las pruebas de CLI pasaron."

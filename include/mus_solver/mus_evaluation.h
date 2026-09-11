@@ -36,4 +36,11 @@ Status mus_ordago_evaluation_metrics_from_state(
     const MusOrdagoGameState *root, const InfoStore *store,
     EvaluationMetrics *metrics_out);
 
+/* The same fixed-deal diagnostic, using public-deferred generic rules. */
+Status mus_ordago_public_evaluation_metrics(const InfoStore *store,
+                                            EvaluationMetrics *metrics_out);
+Status mus_ordago_public_evaluation_metrics_from_state(
+    const MusOrdagoPublicGameState *root, const InfoStore *store,
+    EvaluationMetrics *metrics_out);
+
 #endif

@@ -43,7 +43,8 @@ static bool supported_game(const Game *game) {
         (game == mus_game_descriptor() ||
          game == mus_single_bet_game_descriptor() ||
          game == mus_raises_to_eight_game_descriptor() ||
-         game == mus_ordago_game_descriptor() || mus_score_game_matches(game));
+         game == mus_ordago_game_descriptor() ||
+         game == mus_ordago_public_game_descriptor() || mus_score_game_matches(game));
 }
 
 static size_t saturated_add(size_t left, size_t right) {
