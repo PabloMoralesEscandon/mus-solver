@@ -482,6 +482,9 @@ El directorio contiene:
 - `score-AA-BB.cfr.zst`: checkpoint CFR de cada marcador, con la estrategia
   media y los acumuladores necesarios para reanudar el entrenamiento mediante
   la CLI o la API de C-CFR.
+- `recovery.txt`: registro de celdas evaluadas cuyos checkpoints ya se guardaron.
+  Permite recuperar las celdas de una diagonal que quedó incompleta. Se comprueban
+  esquema, parámetros y contenido del checkpoint antes de reutilizar su valor.
 - `training.lock`: metadatos del último escritor: PID, equipo y fecha UTC de inicio.
   El bloqueo real se mantiene sobre un descriptor del **directorio**. Es
   exclusivo para entrenar y compartido para leer o ampliar desde esa tabla.
@@ -501,13 +504,33 @@ de un sistema de archivos de red. El directorio debe permanecer en su ubicación
 Un sistema que rechace esa operación produce un error; no se continúa sin bloqueo.
 
 Una señal termina el trabajo en curso; el bloqueo se libera sin ejecutar código
-desde un manejador de señales. La recuperación sigue partiendo de las diagonales
-publicadas. Este bloqueo entre procesos no cambia el contrato de persistencia
+desde un manejador de señales. La recuperación parte de las diagonales publicadas
+y puede reutilizar celdas terminadas de la siguiente diagonal. Este bloqueo
+entre procesos no cambia el contrato de persistencia
 ante un corte de energía: la sincronización de archivos y directorios se trata
 por separado.
 
 Repetir el comando del coordinador con el mismo directorio conserva las diagonales terminadas
-y completa las pendientes. Una diagonal interrumpida se vuelve a entrenar.
+y completa las pendientes. Una celda recuperada conserva el checkpoint y su
+fecha de modificación, sin repetir entrenamiento ni evaluación; se anuncia como
+`score-recovered`. La diagonal completa se publica al terminar sus celdas.
+
+El registro se escribe y vacía después de guardar cada checkpoint. Las entradas
+incompletas, dañadas o incompatibles se ignoran y esas celdas se entrenan de nuevo.
+Otros errores de lectura, memoria o escritura se notifican y detienen el trabajo.
+Se comprueban las iteraciones, muestras, semilla, hilos, reserva, intervalo de
+informes, esquema y parámetros de precarga, incluido el contenido del prior y,
+en ampliaciones, del checkpoint de origen de esa celda. Los archivos de origen
+deben permanecer inmutables durante la ejecución. Las huellas FNV detectan
+cambios accidentales; no autentican los archivos. El lector de checkpoints
+comprueba además el formato y su checksum. Esta recuperación cubre interrupciones
+del proceso; no incorpora la sincronización de disco pendiente de J17.
+
+El registro conserva como máximo una entrada por marcador en memoria y se lee
+una vez al iniciar la escritura. Las entradas antiguas permanecen en el archivo.
+Se puede eliminar `recovery.txt` con el coordinador detenido: las diagonales
+publicadas siguen disponibles, pero se pierde la recuperación de celdas aún
+no publicadas. Las tablas antiguas sin registro continúan siendo compatibles.
 Las celdas ya publicadas no reciben iteraciones adicionales, porque sus
 estrategias y valores son continuaciones fijas de las anteriores. Para cambiar
 el entrenamiento completo se utiliza otro directorio. Los checkpoints tienen
@@ -525,7 +548,8 @@ tamaño no validan el modelo corregido. Los artefactos antiguos pueden conservar
 para diagnóstico. Los formatos históricos mantienen sus esquemas y comportamiento;
 no representan esta corrección del tanteo ni de la información disponible.
 Los checkpoints de una diagonal interrumpida que no figuren en `values.txt`
-se ignoran; se reemplazan cuando se vuelve a entrenar esa celda. Tanto los
+solo se reutilizan si tienen una entrada válida en `recovery.txt`; los demás
+se reemplazan cuando se vuelve a entrenar esa celda. Tanto los
 checkpoints como la tabla se publican mediante archivo temporal y `rename()`;
 las estrategias de celdas ya publicadas no se sobrescriben al reanudar.
 

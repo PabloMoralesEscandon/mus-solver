@@ -28,6 +28,7 @@
 #include "mus_solver/mus_score.h"
 #include "mus_solver/mus_training.h"
 #include "reservation_internal.h"
+#include "score_recovery.h"
 
 enum { EXIT_RUNTIME_ERROR = 1, EXIT_USAGE_ERROR = 2 };
 
@@ -601,6 +602,7 @@ static char *score_cell_path(const char *directory, unsigned int a, unsigned int
 typedef struct {
     const CliOptions *options;
     const MusScorePreloadStats *preload_stats;
+    ScoreRecovery *recovery;
 } ScorePersistence;
 
 static Status report_score_preload(const MusScoreGame *game,
@@ -640,6 +642,8 @@ static Status save_score_cell(const MusScoreGame *game, const Trainer *trainer,
     if (path == NULL)
         return CFR_STATUS_OUT_OF_MEMORY;
     Status status = save_checkpoint(path, trainer, true);
+    if (status == CFR_STATUS_SUCCESS)
+        status = score_recovery_save(persistence->recovery, game, cell, path);
     free(path);
     if (status == CFR_STATUS_SUCCESS && persistence->preload_stats != NULL)
         status = report_score_preload(game, persistence->preload_stats);
@@ -1181,9 +1185,11 @@ static int run_score(const CliOptions *options) {
         .source = &preload_trainer, .weight = options->preload_weight,
         .uniform_mix = MUS_SCORE_PRELOAD_DEFAULT_UNIFORM_MIX,
     };
+    ScoreRecovery recovery = {0};
     ScorePersistence persistence = {
         .options = options,
         .preload_stats = options->preload_ordago_path == NULL ? NULL : &preload_stats,
+        .recovery = &recovery,
     };
     char *path = score_path(options->continuation_dir, "values.txt");
     int lock = -1, source_lock = -1;
@@ -1257,6 +1263,24 @@ static int run_score(const CliOptions *options) {
             status = CFR_STATUS_IO_ERROR;
             goto done;
         }
+        const ScoreRecoveryOptions recovery_options = {
+            .directory = options->continuation_dir,
+            .source_directory = options->extend_continuation_dir,
+            .source_table = options->extend_continuation_dir == NULL ? NULL : &source_table,
+            .prior_path = options->preload_ordago_path,
+            .prior_compressed = options->preload_ordago_compressed,
+            .iterations = options->iterations,
+            .evaluation_samples = options->evaluation_samples,
+            .seed = options->seed,
+            .threads = options->threads,
+            .threads_per_cell = options->threads_per_cell,
+            .reserve_information_sets = options->reserve_information_sets,
+            .report_every = options->report_every_set ? options->report_every : 0,
+            .prior_weight = options->preload_weight,
+            .uniform_mix = MUS_SCORE_PRELOAD_DEFAULT_UNIFORM_MIX,
+        };
+        status = score_recovery_open(&recovery, &recovery_options);
+        if (status != CFR_STATUS_SUCCESS) goto done;
         const MusScoreTrainingOptions training = {
             .extension = options->extend_continuation_dir == NULL ? NULL : &extension,
             .iterations = options->iterations,
@@ -1269,6 +1293,8 @@ static int run_score(const CliOptions *options) {
             .progress = options->report_every_set ? report_score_progress : NULL,
             .preload = options->preload_ordago_path == NULL ? NULL : &preload,
             .preload_stats = persistence.preload_stats == NULL ? NULL : &preload_stats,
+            .recover_cell = score_recovery_load,
+            .recovery_context = &recovery,
         };
         status = mus_score_train(&table, options->score_a + options->score_b,
                                   &training, save_score_cell, save_score_diagonal,
@@ -1331,6 +1357,8 @@ static int run_score(const CliOptions *options) {
             status = export_strategy(options->export_path, &trainer, CLI_FORMAT_ORDAGO_SCORE);
     }
 done:
+    if (score_recovery_close(&recovery) != CFR_STATUS_SUCCESS)
+        status = CFR_STATUS_IO_ERROR;
     (void)cfr_info_store_destroy(&preload_store);
     free(preload_state);
     if (store_initialized)

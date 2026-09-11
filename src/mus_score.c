@@ -301,6 +301,7 @@ typedef struct {
     MusScoreCell cell;
     MusScorePreloadStats preload_stats;
     MusScorePrior prior;
+    bool recovered;
     Status status;
 } ScoreTrainingWorker;
 
@@ -321,8 +322,31 @@ static void *train_score_cell(void *raw_worker) {
     worker->store = (InfoStore){0};
     worker->trainer = (Trainer){0};
     worker->preload_stats = (MusScorePreloadStats){0};
+    worker->recovered = false;
     Status status = mus_score_game_init(&worker->game, worker->table,
                                         worker->a, worker->b);
+    if (status == CFR_STATUS_SUCCESS && options->recover_cell != NULL) {
+        status = options->recover_cell(&worker->game, &worker->cell,
+                                        options->recovery_context);
+        if (status == CFR_STATUS_SUCCESS) {
+            const MusScoreCell *source = options->extension == NULL ? NULL
+                : &options->extension->table->cells[worker->a][worker->b];
+            const size_t iterations = options->iterations +
+                (source == NULL ? 0 : source->iterations);
+            const uint64_t expected_seed = source == NULL ? seed : source->training_seed;
+            if (!worker->cell.ready || !valid_cell(&worker->cell) ||
+                worker->cell.iterations != iterations ||
+                worker->cell.evaluation_samples != options->evaluation_samples ||
+                worker->cell.training_seed != expected_seed)
+                status = CFR_STATUS_INCOMPATIBLE_GAME;
+            worker->recovered = status == CFR_STATUS_SUCCESS;
+        }
+        if (status != CFR_STATUS_NOT_FOUND) {
+            worker->status = status;
+            return NULL;
+        }
+        status = CFR_STATUS_SUCCESS;
+    }
     if (status == CFR_STATUS_SUCCESS && options->extension != NULL) {
         const MusScoreExtension *extension = options->extension;
         const MusScoreCell *source_cell = &extension->table->cells[worker->a][worker->b];
@@ -463,7 +487,7 @@ Status mus_score_train(MusScoreTable *table, unsigned int minimum_sum,
                     if (options->preload_stats != NULL)
                         *options->preload_stats = worker->preload_stats;
                     status = worker->status;
-                    if (status == CFR_STATUS_SUCCESS && save_cell != NULL)
+                    if (status == CFR_STATUS_SUCCESS && !worker->recovered && save_cell != NULL)
                         status = save_cell(&worker->game, &worker->trainer,
                                             &worker->cell, context);
                     if (status == CFR_STATUS_SUCCESS)

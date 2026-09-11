@@ -51,8 +51,8 @@ def main():
                 # File comparison stays outside the measured process runtime.
                 hashes = {}
                 for path in sorted(destination.iterdir()):
-                    if path.name == "training.lock":
-                        continue  # Process metadata is not a policy artifact.
+                    if path.name in ("training.lock", "recovery.txt"):
+                        continue  # Auxiliary metadata is not a policy artifact.
                     with path.open("rb") as stream:
                         hashes[path.name] = hashlib.file_digest(stream, "sha256").hexdigest()
                 if len(hashes) != cells + 1:

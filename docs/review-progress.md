@@ -43,7 +43,7 @@ rendimiento del bot desplegado son métricas diferentes.
 | J05 | Excluir candidatos de precarga incompatibles con los dejes | Completado |
 | J06 | Usar operaciones de confianza en la evaluación exacta local | Completado |
 | J07 | Mezclar bits en la tabla de mejor respuesta | Completado |
-| J08 | Reutilizar celdas terminadas de una diagonal interrumpida | Pendiente |
+| J08 | Reutilizar celdas terminadas de una diagonal interrumpida | Completado |
 | J09 | Región opcional de continuaciones cerrada por incrementos y giro | Pendiente |
 | J10 | Incertidumbre y presupuesto de evaluación | Pendiente |
 | J11 | Precisar el alcance del diagnóstico de repartos fijos | Pendiente |
@@ -613,3 +613,85 @@ un posible solapamiento confundía la creación del script con su ejecución:
 el último log regular es de 19:07:39,735 y el nuevo log mínimo se crea a las
 19:07:49,914. Las herramientas también confirman ese orden serial.
 [Informe de la pausa](../ASTRA_BLOQUEO_RENDIMIENTO_J17_2026-09-11.md).
+
+## J08: recuperación de celdas terminadas
+
+Tras la autorización para continuar, se mantiene pendiente el candidato de
+sincronización J17 y se implementa la recuperación ante interrupciones del
+proceso. El CLI añade una entrada con checksum a `recovery.txt` después de
+guardar cada checkpoint y vacía el buffer del registro. Una línea incompleta
+no impide leer las posteriores. La caché de registros se carga una vez y es
+inmutable durante el entrenamiento; los trabajadores pueden consultarla a
+la vez y solo el coordinador escribe el archivo.
+
+Para recuperar se exige coincidencia del esquema, valor y metadatos de la
+celda, parámetros de entrenamiento/evaluación, contenido del prior y contenido,
+iteraciones y semilla inicial de la celda de origen en ampliaciones. Se verifica
+la huella del checkpoint y se carga con el lector de C-CFR para comprobar
+formato, checksum, esquema y contador. Las huellas FNV detectan cambios
+accidentales, no autentican archivos. No se añade `fsync` ni se promete
+persistencia ante una caída del sistema.
+
+La API incorpora un callback opcional de recuperación. Un resultado válido
+omite entrenamiento, evaluación y guardado del checkpoint; la diagonal se
+publica completa. `NOT_FOUND` solicita entrenamiento ordinario y los demás
+errores detienen la operación. El núcleo rechaza los resultados de callbacks
+que incumplan el contrato de contadores, semilla o valor. Se conserva la
+restauración de J03 ante fallo al publicar la diagonal.
+
+Las pruebas cubren reintentos con uno y dos trabajadores, checkpoint y registro
+incompletos, checksum inválido, cambios de hilos y reserva, prior modificado
+con el mismo tamaño/fecha y CRC32 válido, ampliaciones sin modificar el origen
+y SIGKILL después de guardar una celda. Se comprueban igualdad de resultados
+y conservación del contenido y fecha del checkpoint recuperado. Pasan la
+batería completa, núcleo/rutas rápidas con dos muses, núcleo con ASan/UBSan y
+las pruebas finales de recuperación normales y con sanitizadores.
+
+La primera prueba SIGKILL usaba 20.000 iteraciones por celda y agotaba su plazo
+en debug; se redujo a 500 y se evitó el buffering de Python al esperar la salida.
+Las pruebas de recuperación finalizaron correctamente con esa carga.
+
+Primera revisión de Claude: **APPROVE**, tarea `task_743f471e0df6`, dispatch
+`ctx_d18f7188c8ef`, mensaje `msg_71c4fc9d38e0`. Se corrigió una frase antigua
+del README que todavía afirmaba que todos los checkpoints no publicados se
+ignoraban. Se conserva la comprobación conservadora de `--threads`, aunque
+variar solo los trabajadores entre celdas no cambie los resultados.
+
+La revisión final de identidad y pruebas dio **APPROVE**: tarea
+`task_9a37095bb6aa`, dispatch `ctx_eb1c997813af`, mensaje `msg_e1254c38f2ab`.
+Se encontró después que una línea con NUL podía hacer descartar la siguiente
+entrada válida. El lector acotado ahora consume exactamente una línea física
+y rechaza NUL, exceso de longitud y cola incompleta sin perder la siguiente.
+Las regresiones de NUL y 8.192 bytes pasan en la batería completa y con
+ASan/UBSan. Claude aprobó el ajuste, condicionado a las verificaciones finales:
+tarea `task_e21303055acf`, dispatch `ctx_cdd1868e91f1`, mensaje
+`msg_b4987b3af72c`. Los logs finales de pruebas y compilación corresponden
+a la revisión con ese lector; no se cambia el núcleo entre estas revisiones.
+
+[Rendimiento final](review-performance/J08.json), tres pares alternados en
+Btrfs del workspace y CPU0: tabla de 45 celdas con 1.000 iteraciones y 10.000
+muestras por celda, 3,7077 → 3,7514 s (+1,18 %), RSS +0,03 %; ampliación,
+4,0473 → 4,1353 s (+2,18 %), RSS +0,24 %. Todos los checkpoints y valores
+comparados son idénticos y los orígenes de ampliación quedan intactos.
+La [carga mínima](review-performance/J08-small.json), 100 tablas de 45 celdas
+con una iteración y una muestra por celda, pasa de 0,7378 a 0,7589 s (+2,87 %).
+No se activa el límite de regresión. Las cifras incluyen la lectura adicional
+para calcular la huella y la escritura del registro.
+
+Al [recuperar ocho celdas de una diagonal de nueve](review-performance/J08-resume.json),
+la mediana pasa de 1,1190 a 0,2801 s (−74,97 %) y el RSS baja un 9,63 %.
+Los archivos finales son iguales; el candidato conserva las ocho fechas de
+modificación y el padre vuelve a escribir esos ocho checkpoints. La mejora
+corresponde a esta interrupción concreta, no a todo entrenamiento. El registro
+ocupa 21.310 bytes para las 44 celdas guardadas del ejemplo; crece cuando se
+vuelven a escribir celdas y no se compacta automáticamente.
+
+Los scripts y las mediciones completas se conservan en sus JSON. Se ejecutaron
+con el binario final `build/review-j08-final2/release/mus-solver`, después de
+acabar compilaciones y pruebas y sin otras cargas propias simultáneas.
+
+La batería completa de recuperación por CLI pasa también con dos muses. En esa
+configuración, la prueba de interrupción usa 100 iteraciones por celda en lugar
+de 500: con 500, la reanudación agotaba el plazo de 30 s de la prueba. Se
+mantienen SIGKILL, recuperación efectiva e igualdad de contenido y fecha.
+Las condiciones de validación de las revisiones quedan satisfechas.

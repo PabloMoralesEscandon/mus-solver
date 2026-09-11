@@ -29,7 +29,7 @@ MUS_SOURCES := src/mus_game.c src/mus_evaluation.c src/mus_strategy.c src/mus_sc
 SIMULATOR_SOURCES := Simulador-Mus/src/cartas.c \
 	Simulador-Mus/src/baraja_espanola.c Simulador-Mus/src/mus.c
 LIB_SOURCES := $(MUS_SOURCES) $(SIMULATOR_SOURCES)
-APP_SOURCE := app/mus_solver_cli.c
+APP_SOURCE := app/mus_solver_cli.c app/score_recovery.c
 TEST_SOURCE := tests/test_mus_solver.c
 
 RELEASE_OBJECTS := $(patsubst %.c,$(RELEASE_DIR)/%.o,$(LIB_SOURCES))
@@ -91,6 +91,7 @@ test: $(TEST_BINARY) $(DEBUG_BINARY) $(DEBUG_DIR)/mus-bot $(DEBUG_DIR)/mus_adapt
 	./$(DEBUG_DIR)/mus_ordago_public_tests
 	./tests/test_cli.sh ./$(DEBUG_BINARY)
 	python3 tests/test_score_locks.py ./$(DEBUG_BINARY)
+	python3 tests/test_score_recovery.py ./$(DEBUG_BINARY)
 	./$(DEBUG_DIR)/mus_adapter_tests
 	./$(DEBUG_DIR)/mus_adapter_configuration_tests
 	python3 tests/test_adapter_cli.py ./$(DEBUG_DIR)/mus-bot ./$(DEBUG_DIR)/mus_adapter_tests

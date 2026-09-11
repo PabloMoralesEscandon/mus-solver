@@ -4007,6 +4007,77 @@ static void test_score_diagonal_retry(void) {
     }
 }
 
+typedef struct {
+    MusScoreCell saved[3][3];
+    char schemas[3][3][256];
+    size_t saves[3][3];
+    size_t recoveries[3][3];
+    bool fail;
+    bool invalid;
+    Status recovery_error;
+} ScoreRecoveryTest;
+
+static Status save_recovery_test_cell(const MusScoreGame *game, const Trainer *trainer,
+    const MusScoreCell *cell, void *context) {
+    (void)trainer;
+    ScoreRecoveryTest *test = context;
+    const unsigned int a = game->initial_scores[0], b = game->initial_scores[1];
+    if (test->fail && a == 2 && b == 1) return CFR_STATUS_IO_ERROR;
+    test->saves[a][b]++;
+    test->saved[a][b] = *cell;
+    strcpy(test->schemas[a][b], game->schema);
+    return CFR_STATUS_SUCCESS;
+}
+
+static Status recover_test_cell(const MusScoreGame *game, MusScoreCell *cell, void *context) {
+    ScoreRecoveryTest *test = context;
+    const unsigned int a = game->initial_scores[0], b = game->initial_scores[1];
+    if (test->recovery_error != CFR_STATUS_SUCCESS) return test->recovery_error;
+    if (!test->saved[a][b].ready || strcmp(test->schemas[a][b], game->schema) != 0)
+        return CFR_STATUS_NOT_FOUND;
+    test->recoveries[a][b]++;
+    *cell = test->saved[a][b];
+    if (test->invalid) cell->iterations++;
+    return CFR_STATUS_SUCCESS;
+}
+
+static void test_score_completed_cell_recovery(void) {
+    for (size_t threads = 1; threads <= 2; ++threads) {
+        MusScoreTable table, reference;
+        ScoreRecoveryTest test = {.fail = true};
+        MusScoreTrainingOptions options = {
+            .iterations = 2, .evaluation_samples = 50, .seed = 7, .threads = threads,
+            .recover_cell = recover_test_cell, .recovery_context = &test,
+        };
+        CHECK(mus_score_table_init(&table, 3) == CFR_STATUS_SUCCESS);
+        CHECK(mus_score_train(&table, 0, &options, save_recovery_test_cell, NULL, &test) ==
+              CFR_STATUS_IO_ERROR);
+        CHECK(table.cells[2][2].ready && !table.cells[1][2].ready && !table.cells[2][1].ready);
+        CHECK(test.saved[1][2].ready && test.saves[1][2] == 1);
+        test.fail = false;
+        test.invalid = true;
+        CHECK(mus_score_train(&table, 0, &options, save_recovery_test_cell, NULL, &test) ==
+              CFR_STATUS_INCOMPATIBLE_GAME);
+        CHECK(!table.cells[1][2].ready && test.saves[1][2] == 1);
+        test.invalid = false;
+        test.recovery_error = CFR_STATUS_IO_ERROR;
+        CHECK(mus_score_train(&table, 0, &options, save_recovery_test_cell, NULL, &test) ==
+              CFR_STATUS_IO_ERROR);
+        test.recovery_error = CFR_STATUS_SUCCESS;
+        CHECK(mus_score_train(&table, 0, &options, save_recovery_test_cell, NULL, &test) ==
+              CFR_STATUS_SUCCESS);
+        CHECK(test.saves[1][2] == 1 && test.recoveries[1][2] == 2);
+        for (unsigned int a = 0; a < 3; ++a)
+            for (unsigned int b = 0; b < 3; ++b) CHECK(test.saves[a][b] == 1);
+        CHECK(mus_score_table_init(&reference, 3) == CFR_STATUS_SUCCESS);
+        options.recover_cell = NULL;
+        CHECK(mus_score_train(&reference, 0, &options, NULL, NULL, NULL) == CFR_STATUS_SUCCESS);
+        for (unsigned int a = 0; a < 3; ++a)
+            for (unsigned int b = 0; b < 3; ++b)
+                CHECK(table.cells[a][b].value == reference.cells[a][b].value);
+    }
+}
+
 static void test_score_training_and_persistence(void) {
     MusScoreTable table;
     ScoreTestSave saved = {0};
@@ -4103,6 +4174,7 @@ int main(void) {
     test_score_utilities_and_order();
     test_score_keys_and_full_match();
     test_score_training_and_persistence();
+    test_score_completed_cell_recovery();
     test_score_diagonal_retry();
     test_score_extension();
     test_score_parallel_training();

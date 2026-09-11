@@ -81,6 +81,14 @@ typedef struct {
     void *context;
 } MusScoreExtension;
 
+/* Recover an evaluated cell after validating its persisted checkpoint, exact
+ * game schema, and all result-affecting settings. SUCCESS skips training,
+ * evaluation, and save_cell. NOT_FOUND requests ordinary training. Other
+ * errors abort the diagonal. Different cells can call concurrently. The
+ * callback owns its temporary resources and must not retain game or cell. */
+typedef Status (*MusScoreRecoverCell)(const MusScoreGame *game,
+    MusScoreCell *cell, void *context);
+
 typedef struct {
     /* New iterations per cell. With extension, add to the loaded counter. */
     size_t iterations;
@@ -111,6 +119,8 @@ typedef struct {
      * regrets into a changed continuation model, rather than replaying all
      * iterations under the final fixed payoffs. */
     const MusScoreExtension *extension;
+    MusScoreRecoverCell recover_cell;
+    void *recovery_context;
 } MusScoreTrainingOptions;
 
 /* Save the strategy before the coordinator publishes its value. */
@@ -194,8 +204,9 @@ Status mus_score_evaluate(const MusScoreGame *game, const InfoStore *store,
 /* Resolves all missing diagonals down to minimum_sum, inclusive.
  * A save_diagonal failure restores that diagonal's previous in-memory cells.
  * A save_cell failure leaves the current diagonal unpublished.
- * Earlier completed diagonals remain ready. A retry trains the failed diagonal
- * again, so both save callbacks must support replacement of prior output.
+ * Earlier completed diagonals remain ready. A retry can recover completed
+ * cells through recover_cell, and trains the other cells again. Both save
+ * callbacks must support replacement of prior output.
  * Callbacks must not retain pointers to temporary games, trainers, or cells. */
 Status mus_score_train(MusScoreTable *table, unsigned int minimum_sum,
                        const MusScoreTrainingOptions *options,
