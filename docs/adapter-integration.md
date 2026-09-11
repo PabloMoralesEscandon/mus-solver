@@ -9,9 +9,16 @@ las acciones y las aproximaciones de los envites arbitrarios.
 
 Se necesitan tres recursos de la misma configuración de un mus:
 
-1. La estrategia genérica `ordago/v9-muses-1`, exportada como TXT ordenado.
+1. La estrategia genérica `ordago-public/v1-muses-1` o la histórica
+   `ordago/v9-muses-1`, exportada como TXT ordenado.
 2. La tabla `continuacion/values.txt` de `ordago-score/v4`.
 3. Los TXT `score-AA-BB.txt` de **todas las celdas publicadas** de esa tabla.
+
+La genérica pública usa los mismos campos `hand_start_scores` y
+`pending_wager_total` para las manos cuyo marcador inicial no esté entrenado.
+También los requiere si se ejecuta sin tabla. Calcula los cobros restando el
+marcador inicial al actual y conserva los envites aceptados pendientes; no
+necesita estimar qué jugador ganará cada lance al mostrar las cartas.
 
 No se necesitan los checkpoints binarios para servir decisiones. Conserva la
 tabla y los TXT de una misma ejecución. No edites ni sustituyas archivos

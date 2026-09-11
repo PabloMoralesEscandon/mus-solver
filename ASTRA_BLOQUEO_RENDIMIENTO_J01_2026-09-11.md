@@ -4,10 +4,12 @@
 Base del candidato: `83c0a28`.
 
 **Actualización: el usuario ha aceptado el coste y ha pedido conservar J01.**
-El núcleo/CLI se recupera con las observaciones incorporadas, pruebas
+El núcleo/CLI se recuperó con las observaciones incorporadas, pruebas
 completas y una nueva aprobación de Claude (`msg_a35a82f8cf47`). El resto de este informe conserva las mediciones y el historial
 de la pausa; las referencias a «retirado» describen esa decisión inicial.
-El [registro de trabajo](docs/review-progress.md) refleja el estado actual.
+La precarga y el bot también admiten el modelo público, con sus revisiones y
+mediciones propias. El [registro de trabajo](docs/review-progress.md) refleja
+el estado actual.
 
 **J01 se ha retirado del código y no tiene commit.** La confirmación de cinco
 pares supera ampliamente el límite de rendimiento acordado. Se conserva el

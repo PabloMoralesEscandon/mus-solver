@@ -1,0 +1,2796 @@
+{
+  "method": "Three alternating paired runs on CPU0. 64000 sequential JSON queries per run; include all lances, mus, discard and off-abstraction responses. RSS is the process VmHWM sampled during queries. Public backends are new optional paths, measured absolutely. No concurrent own tests or builds.",
+  "parent_commit": "f62ad27",
+  "runs": [
+    {
+      "group": "legacy-raw",
+      "version": "parent",
+      "repeat": 1,
+      "command": [
+        "build/review-j01-preload/release/mus-bot",
+        "--load",
+        "/tmp/mus-review-j01-adapter-69enu930/legacy.cfr",
+        "--seed",
+        "123",
+        "--no-score-adjustment"
+      ],
+      "wall_seconds": 1.6908999650004262,
+      "peak_rss_kib": 2496,
+      "mean_query_ms": 0.02092634282850649,
+      "p95_query_ms": 0.05301999772200361,
+      "output_sha256": "e8926f7e202712636aafb29b748f6fa9a72b30ef9afbc9dd59d7693b088d45de",
+      "methods": {
+        "exact": 22857,
+        "fallback": 18288,
+        "interpolated": 9142,
+        "nearest": 13713
+      }
+    },
+    {
+      "group": "legacy-raw",
+      "version": "candidate",
+      "repeat": 1,
+      "command": [
+        "build/review-j01-adapter/release/mus-bot",
+        "--load",
+        "/tmp/mus-review-j01-adapter-69enu930/legacy.cfr",
+        "--seed",
+        "123",
+        "--no-score-adjustment"
+      ],
+      "wall_seconds": 1.688803969998844,
+      "peak_rss_kib": 2484,
+      "mean_query_ms": 0.02093005398458169,
+      "p95_query_ms": 0.05283900100039318,
+      "output_sha256": "e8926f7e202712636aafb29b748f6fa9a72b30ef9afbc9dd59d7693b088d45de",
+      "methods": {
+        "exact": 22857,
+        "fallback": 18288,
+        "interpolated": 9142,
+        "nearest": 13713
+      }
+    },
+    {
+      "group": "legacy-raw",
+      "version": "candidate",
+      "repeat": 2,
+      "command": [
+        "build/review-j01-adapter/release/mus-bot",
+        "--load",
+        "/tmp/mus-review-j01-adapter-69enu930/legacy.cfr",
+        "--seed",
+        "123",
+        "--no-score-adjustment"
+      ],
+      "wall_seconds": 1.690753675000451,
+      "peak_rss_kib": 2464,
+      "mean_query_ms": 0.02104160710092166,
+      "p95_query_ms": 0.05479299943544902,
+      "output_sha256": "e8926f7e202712636aafb29b748f6fa9a72b30ef9afbc9dd59d7693b088d45de",
+      "methods": {
+        "exact": 22857,
+        "fallback": 18288,
+        "interpolated": 9142,
+        "nearest": 13713
+      }
+    },
+    {
+      "group": "legacy-raw",
+      "version": "parent",
+      "repeat": 2,
+      "command": [
+        "build/review-j01-preload/release/mus-bot",
+        "--load",
+        "/tmp/mus-review-j01-adapter-69enu930/legacy.cfr",
+        "--seed",
+        "123",
+        "--no-score-adjustment"
+      ],
+      "wall_seconds": 1.6838128620001953,
+      "peak_rss_kib": 2440,
+      "mean_query_ms": 0.020882204065091274,
+      "p95_query_ms": 0.05297000097925775,
+      "output_sha256": "e8926f7e202712636aafb29b748f6fa9a72b30ef9afbc9dd59d7693b088d45de",
+      "methods": {
+        "exact": 22857,
+        "fallback": 18288,
+        "interpolated": 9142,
+        "nearest": 13713
+      }
+    },
+    {
+      "group": "legacy-raw",
+      "version": "parent",
+      "repeat": 3,
+      "command": [
+        "build/review-j01-preload/release/mus-bot",
+        "--load",
+        "/tmp/mus-review-j01-adapter-69enu930/legacy.cfr",
+        "--seed",
+        "123",
+        "--no-score-adjustment"
+      ],
+      "wall_seconds": 1.6913112340007501,
+      "peak_rss_kib": 2432,
+      "mean_query_ms": 0.02101268798291426,
+      "p95_query_ms": 0.052859999414067715,
+      "output_sha256": "e8926f7e202712636aafb29b748f6fa9a72b30ef9afbc9dd59d7693b088d45de",
+      "methods": {
+        "exact": 22857,
+        "fallback": 18288,
+        "interpolated": 9142,
+        "nearest": 13713
+      }
+    },
+    {
+      "group": "legacy-raw",
+      "version": "candidate",
+      "repeat": 3,
+      "command": [
+        "build/review-j01-adapter/release/mus-bot",
+        "--load",
+        "/tmp/mus-review-j01-adapter-69enu930/legacy.cfr",
+        "--seed",
+        "123",
+        "--no-score-adjustment"
+      ],
+      "wall_seconds": 1.6993443649989786,
+      "peak_rss_kib": 2484,
+      "mean_query_ms": 0.02107392113568567,
+      "p95_query_ms": 0.05379099820856936,
+      "output_sha256": "e8926f7e202712636aafb29b748f6fa9a72b30ef9afbc9dd59d7693b088d45de",
+      "methods": {
+        "exact": 22857,
+        "fallback": 18288,
+        "interpolated": 9142,
+        "nearest": 13713
+      }
+    },
+    {
+      "group": "legacy-text",
+      "version": "parent",
+      "repeat": 1,
+      "command": [
+        "build/review-j01-preload/release/mus-bot",
+        "--strategy",
+        "/tmp/mus-review-j01-adapter-69enu930/legacy.cfr.txt",
+        "--seed",
+        "123",
+        "--no-score-adjustment"
+      ],
+      "wall_seconds": 2.91440672400131,
+      "peak_rss_kib": 2380,
+      "mean_query_ms": 0.039961491658470176,
+      "p95_query_ms": 0.13443400166579522,
+      "output_sha256": "e8926f7e202712636aafb29b748f6fa9a72b30ef9afbc9dd59d7693b088d45de",
+      "methods": {
+        "exact": 22857,
+        "fallback": 18288,
+        "interpolated": 9142,
+        "nearest": 13713
+      }
+    },
+    {
+      "group": "legacy-text",
+      "version": "candidate",
+      "repeat": 1,
+      "command": [
+        "build/review-j01-adapter/release/mus-bot",
+        "--strategy",
+        "/tmp/mus-review-j01-adapter-69enu930/legacy.cfr.txt",
+        "--seed",
+        "123",
+        "--no-score-adjustment"
+      ],
+      "wall_seconds": 2.911706292998133,
+      "peak_rss_kib": 2344,
+      "mean_query_ms": 0.03990653422076775,
+      "p95_query_ms": 0.13403299817582592,
+      "output_sha256": "e8926f7e202712636aafb29b748f6fa9a72b30ef9afbc9dd59d7693b088d45de",
+      "methods": {
+        "exact": 22857,
+        "fallback": 18288,
+        "interpolated": 9142,
+        "nearest": 13713
+      }
+    },
+    {
+      "group": "legacy-text",
+      "version": "candidate",
+      "repeat": 2,
+      "command": [
+        "build/review-j01-adapter/release/mus-bot",
+        "--strategy",
+        "/tmp/mus-review-j01-adapter-69enu930/legacy.cfr.txt",
+        "--seed",
+        "123",
+        "--no-score-adjustment"
+      ],
+      "wall_seconds": 2.956954422999843,
+      "peak_rss_kib": 2348,
+      "mean_query_ms": 0.04051366469567223,
+      "p95_query_ms": 0.13471399870468304,
+      "output_sha256": "e8926f7e202712636aafb29b748f6fa9a72b30ef9afbc9dd59d7693b088d45de",
+      "methods": {
+        "exact": 22857,
+        "fallback": 18288,
+        "interpolated": 9142,
+        "nearest": 13713
+      }
+    },
+    {
+      "group": "legacy-text",
+      "version": "parent",
+      "repeat": 2,
+      "command": [
+        "build/review-j01-preload/release/mus-bot",
+        "--strategy",
+        "/tmp/mus-review-j01-adapter-69enu930/legacy.cfr.txt",
+        "--seed",
+        "123",
+        "--no-score-adjustment"
+      ],
+      "wall_seconds": 2.9184602739987895,
+      "peak_rss_kib": 2356,
+      "mean_query_ms": 0.040067462021573706,
+      "p95_query_ms": 0.1341339993814472,
+      "output_sha256": "e8926f7e202712636aafb29b748f6fa9a72b30ef9afbc9dd59d7693b088d45de",
+      "methods": {
+        "exact": 22857,
+        "fallback": 18288,
+        "interpolated": 9142,
+        "nearest": 13713
+      }
+    },
+    {
+      "group": "legacy-text",
+      "version": "parent",
+      "repeat": 3,
+      "command": [
+        "build/review-j01-preload/release/mus-bot",
+        "--strategy",
+        "/tmp/mus-review-j01-adapter-69enu930/legacy.cfr.txt",
+        "--seed",
+        "123",
+        "--no-score-adjustment"
+      ],
+      "wall_seconds": 2.952138014999946,
+      "peak_rss_kib": 2376,
+      "mean_query_ms": 0.0404768345004838,
+      "p95_query_ms": 0.13486399984685704,
+      "output_sha256": "e8926f7e202712636aafb29b748f6fa9a72b30ef9afbc9dd59d7693b088d45de",
+      "methods": {
+        "exact": 22857,
+        "fallback": 18288,
+        "interpolated": 9142,
+        "nearest": 13713
+      }
+    },
+    {
+      "group": "legacy-text",
+      "version": "candidate",
+      "repeat": 3,
+      "command": [
+        "build/review-j01-adapter/release/mus-bot",
+        "--strategy",
+        "/tmp/mus-review-j01-adapter-69enu930/legacy.cfr.txt",
+        "--seed",
+        "123",
+        "--no-score-adjustment"
+      ],
+      "wall_seconds": 2.951169045001734,
+      "peak_rss_kib": 2356,
+      "mean_query_ms": 0.0404441353315558,
+      "p95_query_ms": 0.13489499906427227,
+      "output_sha256": "e8926f7e202712636aafb29b748f6fa9a72b30ef9afbc9dd59d7693b088d45de",
+      "methods": {
+        "exact": 22857,
+        "fallback": 18288,
+        "interpolated": 9142,
+        "nearest": 13713
+      }
+    },
+    {
+      "group": "hybrid-text",
+      "version": "parent",
+      "repeat": 1,
+      "command": [
+        "build/review-j01-preload/release/mus-bot",
+        "--strategy",
+        "/tmp/mus-review-j01-adapter-69enu930/legacy.cfr.txt",
+        "--score-table",
+        "/tmp/mus-review-j01-adapter-69enu930/scores/values.txt",
+        "--score-strategies",
+        "/tmp/mus-review-j01-adapter-69enu930/scores",
+        "--seed",
+        "123",
+        "--no-score-adjustment"
+      ],
+      "wall_seconds": 2.3238150990000577,
+      "peak_rss_kib": 2620,
+      "mean_query_ms": 0.03126055895484202,
+      "p95_query_ms": 0.04355300188763067,
+      "output_sha256": "141e1a3c35f2ff1b6a267d695b0efd2129c9c043dd5cf2df38c9c01ff215b2a2",
+      "methods": {
+        "exact": 32003,
+        "fallback": 18284,
+        "interpolated": 9142,
+        "nearest": 4571
+      }
+    },
+    {
+      "group": "hybrid-text",
+      "version": "candidate",
+      "repeat": 1,
+      "command": [
+        "build/review-j01-adapter/release/mus-bot",
+        "--strategy",
+        "/tmp/mus-review-j01-adapter-69enu930/legacy.cfr.txt",
+        "--score-table",
+        "/tmp/mus-review-j01-adapter-69enu930/scores/values.txt",
+        "--score-strategies",
+        "/tmp/mus-review-j01-adapter-69enu930/scores",
+        "--seed",
+        "123",
+        "--no-score-adjustment"
+      ],
+      "wall_seconds": 2.3308986100018956,
+      "peak_rss_kib": 2636,
+      "mean_query_ms": 0.03137477478528716,
+      "p95_query_ms": 0.04345199704403058,
+      "output_sha256": "141e1a3c35f2ff1b6a267d695b0efd2129c9c043dd5cf2df38c9c01ff215b2a2",
+      "methods": {
+        "exact": 32003,
+        "fallback": 18284,
+        "interpolated": 9142,
+        "nearest": 4571
+      }
+    },
+    {
+      "group": "hybrid-text",
+      "version": "candidate",
+      "repeat": 2,
+      "command": [
+        "build/review-j01-adapter/release/mus-bot",
+        "--strategy",
+        "/tmp/mus-review-j01-adapter-69enu930/legacy.cfr.txt",
+        "--score-table",
+        "/tmp/mus-review-j01-adapter-69enu930/scores/values.txt",
+        "--score-strategies",
+        "/tmp/mus-review-j01-adapter-69enu930/scores",
+        "--seed",
+        "123",
+        "--no-score-adjustment"
+      ],
+      "wall_seconds": 2.333014589999948,
+      "peak_rss_kib": 2640,
+      "mean_query_ms": 0.031404726866844,
+      "p95_query_ms": 0.04346200148575008,
+      "output_sha256": "141e1a3c35f2ff1b6a267d695b0efd2129c9c043dd5cf2df38c9c01ff215b2a2",
+      "methods": {
+        "exact": 32003,
+        "fallback": 18284,
+        "interpolated": 9142,
+        "nearest": 4571
+      }
+    },
+    {
+      "group": "hybrid-text",
+      "version": "parent",
+      "repeat": 2,
+      "command": [
+        "build/review-j01-preload/release/mus-bot",
+        "--strategy",
+        "/tmp/mus-review-j01-adapter-69enu930/legacy.cfr.txt",
+        "--score-table",
+        "/tmp/mus-review-j01-adapter-69enu930/scores/values.txt",
+        "--score-strategies",
+        "/tmp/mus-review-j01-adapter-69enu930/scores",
+        "--seed",
+        "123",
+        "--no-score-adjustment"
+      ],
+      "wall_seconds": 2.3238287399981346,
+      "peak_rss_kib": 2664,
+      "mean_query_ms": 0.031240834126441304,
+      "p95_query_ms": 0.043120999180246145,
+      "output_sha256": "141e1a3c35f2ff1b6a267d695b0efd2129c9c043dd5cf2df38c9c01ff215b2a2",
+      "methods": {
+        "exact": 32003,
+        "fallback": 18284,
+        "interpolated": 9142,
+        "nearest": 4571
+      }
+    },
+    {
+      "group": "hybrid-text",
+      "version": "parent",
+      "repeat": 3,
+      "command": [
+        "build/review-j01-preload/release/mus-bot",
+        "--strategy",
+        "/tmp/mus-review-j01-adapter-69enu930/legacy.cfr.txt",
+        "--score-table",
+        "/tmp/mus-review-j01-adapter-69enu930/scores/values.txt",
+        "--score-strategies",
+        "/tmp/mus-review-j01-adapter-69enu930/scores",
+        "--seed",
+        "123",
+        "--no-score-adjustment"
+      ],
+      "wall_seconds": 2.3543475639999087,
+      "peak_rss_kib": 2664,
+      "mean_query_ms": 0.031717667258191626,
+      "p95_query_ms": 0.043873002141481265,
+      "output_sha256": "141e1a3c35f2ff1b6a267d695b0efd2129c9c043dd5cf2df38c9c01ff215b2a2",
+      "methods": {
+        "exact": 32003,
+        "fallback": 18284,
+        "interpolated": 9142,
+        "nearest": 4571
+      }
+    },
+    {
+      "group": "hybrid-text",
+      "version": "candidate",
+      "repeat": 3,
+      "command": [
+        "build/review-j01-adapter/release/mus-bot",
+        "--strategy",
+        "/tmp/mus-review-j01-adapter-69enu930/legacy.cfr.txt",
+        "--score-table",
+        "/tmp/mus-review-j01-adapter-69enu930/scores/values.txt",
+        "--score-strategies",
+        "/tmp/mus-review-j01-adapter-69enu930/scores",
+        "--seed",
+        "123",
+        "--no-score-adjustment"
+      ],
+      "wall_seconds": 2.3367913479996787,
+      "peak_rss_kib": 2636,
+      "mean_query_ms": 0.03149142687900094,
+      "p95_query_ms": 0.04344199987826869,
+      "output_sha256": "141e1a3c35f2ff1b6a267d695b0efd2129c9c043dd5cf2df38c9c01ff215b2a2",
+      "methods": {
+        "exact": 32003,
+        "fallback": 18284,
+        "interpolated": 9142,
+        "nearest": 4571
+      }
+    },
+    {
+      "group": "public-raw",
+      "version": "candidate",
+      "repeat": 1,
+      "command": [
+        "build/review-j01-adapter/release/mus-bot",
+        "--load",
+        "/tmp/mus-review-j01-adapter-69enu930/public.cfr",
+        "--seed",
+        "123",
+        "--no-score-adjustment"
+      ],
+      "wall_seconds": 1.3919544169984874,
+      "peak_rss_kib": 2324,
+      "mean_query_ms": 0.015794086910918406,
+      "p95_query_ms": 0.022031999833416194,
+      "output_sha256": "98b70b8c9c5a2927a44ce251febaa706cbc714811b5c4a47449ebb577d739f30",
+      "methods": {
+        "exact": 41145,
+        "interpolated": 9142,
+        "nearest": 13713
+      }
+    },
+    {
+      "group": "public-raw",
+      "version": "candidate",
+      "repeat": 2,
+      "command": [
+        "build/review-j01-adapter/release/mus-bot",
+        "--load",
+        "/tmp/mus-review-j01-adapter-69enu930/public.cfr",
+        "--seed",
+        "123",
+        "--no-score-adjustment"
+      ],
+      "wall_seconds": 1.3921124769985909,
+      "peak_rss_kib": 2280,
+      "mean_query_ms": 0.01575371073187356,
+      "p95_query_ms": 0.02197099820477888,
+      "output_sha256": "98b70b8c9c5a2927a44ce251febaa706cbc714811b5c4a47449ebb577d739f30",
+      "methods": {
+        "exact": 41145,
+        "interpolated": 9142,
+        "nearest": 13713
+      }
+    },
+    {
+      "group": "public-raw",
+      "version": "candidate",
+      "repeat": 3,
+      "command": [
+        "build/review-j01-adapter/release/mus-bot",
+        "--load",
+        "/tmp/mus-review-j01-adapter-69enu930/public.cfr",
+        "--seed",
+        "123",
+        "--no-score-adjustment"
+      ],
+      "wall_seconds": 1.394469069000479,
+      "peak_rss_kib": 2312,
+      "mean_query_ms": 0.01581398471523806,
+      "p95_query_ms": 0.022082000214140862,
+      "output_sha256": "98b70b8c9c5a2927a44ce251febaa706cbc714811b5c4a47449ebb577d739f30",
+      "methods": {
+        "exact": 41145,
+        "interpolated": 9142,
+        "nearest": 13713
+      }
+    },
+    {
+      "group": "public-text",
+      "version": "candidate",
+      "repeat": 1,
+      "command": [
+        "build/review-j01-adapter/release/mus-bot",
+        "--strategy",
+        "/tmp/mus-review-j01-adapter-69enu930/public.cfr.txt",
+        "--seed",
+        "123",
+        "--no-score-adjustment"
+      ],
+      "wall_seconds": 1.3982982720008295,
+      "peak_rss_kib": 2340,
+      "mean_query_ms": 0.015757794718901458,
+      "p95_query_ms": 0.02168100036215037,
+      "output_sha256": "98b70b8c9c5a2927a44ce251febaa706cbc714811b5c4a47449ebb577d739f30",
+      "methods": {
+        "exact": 41145,
+        "interpolated": 9142,
+        "nearest": 13713
+      }
+    },
+    {
+      "group": "public-text",
+      "version": "candidate",
+      "repeat": 2,
+      "command": [
+        "build/review-j01-adapter/release/mus-bot",
+        "--strategy",
+        "/tmp/mus-review-j01-adapter-69enu930/public.cfr.txt",
+        "--seed",
+        "123",
+        "--no-score-adjustment"
+      ],
+      "wall_seconds": 1.4074723570010974,
+      "peak_rss_kib": 2348,
+      "mean_query_ms": 0.015937025257423198,
+      "p95_query_ms": 0.022111002181190997,
+      "output_sha256": "98b70b8c9c5a2927a44ce251febaa706cbc714811b5c4a47449ebb577d739f30",
+      "methods": {
+        "exact": 41145,
+        "interpolated": 9142,
+        "nearest": 13713
+      }
+    },
+    {
+      "group": "public-text",
+      "version": "candidate",
+      "repeat": 3,
+      "command": [
+        "build/review-j01-adapter/release/mus-bot",
+        "--strategy",
+        "/tmp/mus-review-j01-adapter-69enu930/public.cfr.txt",
+        "--seed",
+        "123",
+        "--no-score-adjustment"
+      ],
+      "wall_seconds": 1.4001149260002421,
+      "peak_rss_kib": 2320,
+      "mean_query_ms": 0.015900921434195102,
+      "p95_query_ms": 0.02204100019298494,
+      "output_sha256": "98b70b8c9c5a2927a44ce251febaa706cbc714811b5c4a47449ebb577d739f30",
+      "methods": {
+        "exact": 41145,
+        "interpolated": 9142,
+        "nearest": 13713
+      }
+    }
+  ],
+  "summary": [
+    {
+      "group": "legacy-raw",
+      "outputs_identical": true,
+      "wall_seconds": {
+        "candidate": 1.690753675000451,
+        "parent": 1.6908999650004262,
+        "change_percent": -0.008651605831400122
+      },
+      "peak_rss_kib": {
+        "candidate": 2484,
+        "parent": 2440,
+        "change_percent": 1.80327868852459
+      },
+      "mean_query_ms": {
+        "candidate": 0.02104160710092166,
+        "parent": 0.02092634282850649,
+        "change_percent": 0.550809443196898
+      },
+      "p95_query_ms": {
+        "candidate": 0.05379099820856936,
+        "parent": 0.05297000097925775,
+        "change_percent": 1.549928665534872
+      }
+    },
+    {
+      "group": "legacy-text",
+      "outputs_identical": true,
+      "wall_seconds": {
+        "candidate": 2.951169045001734,
+        "parent": 2.9184602739987895,
+        "change_percent": 1.1207543681287735
+      },
+      "peak_rss_kib": {
+        "candidate": 2348,
+        "parent": 2376,
+        "change_percent": -1.1784511784511786
+      },
+      "mean_query_ms": {
+        "candidate": 0.0404441353315558,
+        "parent": 0.040067462021573706,
+        "change_percent": 0.9400977525835907
+      },
+      "p95_query_ms": {
+        "candidate": 0.13471399870468304,
+        "parent": 0.13443400166579522,
+        "change_percent": 0.20827843805757418
+      }
+    },
+    {
+      "group": "hybrid-text",
+      "outputs_identical": true,
+      "wall_seconds": {
+        "candidate": 2.333014589999948,
+        "parent": 2.3238287399981346,
+        "change_percent": 0.39528945673599214
+      },
+      "peak_rss_kib": {
+        "candidate": 2636,
+        "parent": 2664,
+        "change_percent": -1.0510510510510551
+      },
+      "mean_query_ms": {
+        "candidate": 0.031404726866844,
+        "parent": 0.03126055895484202,
+        "change_percent": 0.46118149138101305
+      },
+      "p95_query_ms": {
+        "candidate": 0.04345199704403058,
+        "parent": 0.04355300188763067,
+        "change_percent": -0.23191247267110304
+      }
+    },
+    {
+      "group": "public-raw",
+      "outputs_identical": true,
+      "wall_seconds": {
+        "candidate": 1.3921124769985909
+      },
+      "peak_rss_kib": {
+        "candidate": 2312
+      },
+      "mean_query_ms": {
+        "candidate": 0.015794086910918406
+      },
+      "p95_query_ms": {
+        "candidate": 0.022031999833416194
+      }
+    },
+    {
+      "group": "public-text",
+      "outputs_identical": true,
+      "wall_seconds": {
+        "candidate": 1.4001149260002421
+      },
+      "peak_rss_kib": {
+        "candidate": 2340
+      },
+      "mean_query_ms": {
+        "candidate": 0.015900921434195102
+      },
+      "p95_query_ms": {
+        "candidate": 0.02204100019298494
+      }
+    }
+  ],
+  "binary_sha256": {
+    "parent": "fcab3c0b7bfd36ca7a1642d25f9ef8870ab461df77f8bf8632b7645fe26c99c7",
+    "candidate": "f8e8f9f280ecf77b8614c16ff3e194b954a5d5220becb6f6db2800af2eb90feb"
+  },
+  "solver_sha256": {
+    "parent": "cbf3e6d106d4a0bb11ceac5f272dde2657e67baba06424dd1efab8b7929df424",
+    "candidate": "cbf3e6d106d4a0bb11ceac5f272dde2657e67baba06424dd1efab8b7929df424"
+  },
+  "corpora": {
+    "legacy": [
+      {
+        "player": 0,
+        "phase": "grande",
+        "hand": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          4
+        ],
+        "previous_strengths": [],
+        "match_scores": [
+          10,
+          12
+        ],
+        "hand_start_scores": [
+          10,
+          12
+        ],
+        "pending_wager_total": 0,
+        "legal_actions": [
+          {
+            "type": "pass"
+          },
+          {
+            "type": "ordago"
+          },
+          {
+            "type": "raise",
+            "amount": 2
+          },
+          {
+            "type": "raise",
+            "amount": 4
+          },
+          {
+            "type": "raise",
+            "amount": 7
+          },
+          {
+            "type": "raise",
+            "amount": 10
+          }
+        ]
+      },
+      {
+        "player": 0,
+        "phase": "chica",
+        "hand": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          4
+        ],
+        "previous_strengths": [
+          0
+        ],
+        "match_scores": [
+          10,
+          12
+        ],
+        "hand_start_scores": [
+          10,
+          12
+        ],
+        "pending_wager_total": 0,
+        "legal_actions": [
+          {
+            "type": "pass"
+          },
+          {
+            "type": "ordago"
+          },
+          {
+            "type": "raise",
+            "amount": 2
+          },
+          {
+            "type": "raise",
+            "amount": 4
+          },
+          {
+            "type": "raise",
+            "amount": 7
+          },
+          {
+            "type": "raise",
+            "amount": 10
+          }
+        ]
+      },
+      {
+        "player": 0,
+        "phase": "pares",
+        "hand": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          4
+        ],
+        "previous_strengths": [
+          0,
+          0
+        ],
+        "match_scores": [
+          10,
+          12
+        ],
+        "hand_start_scores": [
+          10,
+          12
+        ],
+        "pending_wager_total": 0,
+        "legal_actions": [
+          {
+            "type": "pass"
+          },
+          {
+            "type": "ordago"
+          },
+          {
+            "type": "raise",
+            "amount": 2
+          },
+          {
+            "type": "raise",
+            "amount": 4
+          },
+          {
+            "type": "raise",
+            "amount": 7
+          },
+          {
+            "type": "raise",
+            "amount": 10
+          }
+        ]
+      },
+      {
+        "player": 0,
+        "phase": "juego",
+        "hand": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          4
+        ],
+        "previous_strengths": [
+          0,
+          0,
+          0
+        ],
+        "match_scores": [
+          10,
+          12
+        ],
+        "hand_start_scores": [
+          10,
+          12
+        ],
+        "pending_wager_total": 0,
+        "legal_actions": [
+          {
+            "type": "pass"
+          },
+          {
+            "type": "ordago"
+          },
+          {
+            "type": "raise",
+            "amount": 2
+          },
+          {
+            "type": "raise",
+            "amount": 4
+          },
+          {
+            "type": "raise",
+            "amount": 7
+          },
+          {
+            "type": "raise",
+            "amount": 10
+          }
+        ]
+      },
+      {
+        "player": 0,
+        "phase": "punto",
+        "hand": [
+          4,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "previous_strengths": [
+          0,
+          0,
+          0
+        ],
+        "match_scores": [
+          10,
+          12
+        ],
+        "hand_start_scores": [
+          10,
+          12
+        ],
+        "pending_wager_total": 0,
+        "legal_actions": [
+          {
+            "type": "pass"
+          },
+          {
+            "type": "ordago"
+          },
+          {
+            "type": "raise",
+            "amount": 2
+          },
+          {
+            "type": "raise",
+            "amount": 4
+          },
+          {
+            "type": "raise",
+            "amount": 7
+          },
+          {
+            "type": "raise",
+            "amount": 10
+          }
+        ]
+      },
+      {
+        "player": 0,
+        "phase": "mus",
+        "hand": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          4
+        ],
+        "previous_strengths": [],
+        "match_scores": [
+          10,
+          12
+        ],
+        "hand_start_scores": [
+          10,
+          12
+        ],
+        "pending_wager_total": 0,
+        "legal_actions": [
+          {
+            "type": "mus"
+          },
+          {
+            "type": "no_mus"
+          }
+        ]
+      },
+      {
+        "player": 0,
+        "phase": "discard",
+        "hand": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          4
+        ],
+        "previous_strengths": [],
+        "match_scores": [
+          10,
+          12
+        ],
+        "hand_start_scores": [
+          10,
+          12
+        ],
+        "pending_wager_total": 0,
+        "legal_actions": [
+          {
+            "type": "discard",
+            "mask": 1
+          },
+          {
+            "type": "discard",
+            "mask": 3
+          },
+          {
+            "type": "discard",
+            "mask": 7
+          },
+          {
+            "type": "discard",
+            "mask": 15
+          }
+        ]
+      },
+      {
+        "player": 0,
+        "phase": "grande",
+        "hand": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          4
+        ],
+        "previous_strengths": [],
+        "match_scores": [
+          10,
+          12
+        ],
+        "hand_start_scores": [
+          10,
+          12
+        ],
+        "pending_wager_total": 0,
+        "legal_actions": [
+          {
+            "type": "reject"
+          },
+          {
+            "type": "accept"
+          },
+          {
+            "type": "ordago"
+          },
+          {
+            "type": "raise",
+            "amount": 4
+          }
+        ],
+        "history": [
+          {
+            "player": 0,
+            "type": "pass"
+          },
+          {
+            "player": 1,
+            "type": "raise",
+            "amount": 2
+          }
+        ]
+      },
+      {
+        "player": 0,
+        "phase": "grande",
+        "hand": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          4
+        ],
+        "previous_strengths": [],
+        "match_scores": [
+          10,
+          12
+        ],
+        "hand_start_scores": [
+          10,
+          12
+        ],
+        "pending_wager_total": 0,
+        "legal_actions": [
+          {
+            "type": "reject"
+          },
+          {
+            "type": "accept"
+          },
+          {
+            "type": "ordago"
+          },
+          {
+            "type": "raise",
+            "amount": 4
+          }
+        ],
+        "history": [
+          {
+            "player": 0,
+            "type": "pass"
+          },
+          {
+            "player": 1,
+            "type": "raise",
+            "amount": 3
+          }
+        ]
+      },
+      {
+        "player": 0,
+        "phase": "grande",
+        "hand": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          4
+        ],
+        "previous_strengths": [],
+        "match_scores": [
+          10,
+          12
+        ],
+        "hand_start_scores": [
+          10,
+          12
+        ],
+        "pending_wager_total": 0,
+        "legal_actions": [
+          {
+            "type": "reject"
+          },
+          {
+            "type": "accept"
+          },
+          {
+            "type": "ordago"
+          },
+          {
+            "type": "raise",
+            "amount": 4
+          }
+        ],
+        "history": [
+          {
+            "player": 0,
+            "type": "pass"
+          },
+          {
+            "player": 1,
+            "type": "raise",
+            "amount": 4
+          }
+        ]
+      },
+      {
+        "player": 0,
+        "phase": "grande",
+        "hand": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          4
+        ],
+        "previous_strengths": [],
+        "match_scores": [
+          10,
+          12
+        ],
+        "hand_start_scores": [
+          10,
+          12
+        ],
+        "pending_wager_total": 0,
+        "legal_actions": [
+          {
+            "type": "reject"
+          },
+          {
+            "type": "accept"
+          },
+          {
+            "type": "ordago"
+          },
+          {
+            "type": "raise",
+            "amount": 4
+          }
+        ],
+        "history": [
+          {
+            "player": 0,
+            "type": "pass"
+          },
+          {
+            "player": 1,
+            "type": "raise",
+            "amount": 6
+          }
+        ]
+      },
+      {
+        "player": 0,
+        "phase": "grande",
+        "hand": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          4
+        ],
+        "previous_strengths": [],
+        "match_scores": [
+          10,
+          12
+        ],
+        "hand_start_scores": [
+          10,
+          12
+        ],
+        "pending_wager_total": 0,
+        "legal_actions": [
+          {
+            "type": "reject"
+          },
+          {
+            "type": "accept"
+          },
+          {
+            "type": "ordago"
+          },
+          {
+            "type": "raise",
+            "amount": 4
+          }
+        ],
+        "history": [
+          {
+            "player": 0,
+            "type": "pass"
+          },
+          {
+            "player": 1,
+            "type": "raise",
+            "amount": 9
+          }
+        ]
+      },
+      {
+        "player": 0,
+        "phase": "grande",
+        "hand": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          4
+        ],
+        "previous_strengths": [],
+        "match_scores": [
+          10,
+          12
+        ],
+        "hand_start_scores": [
+          10,
+          12
+        ],
+        "pending_wager_total": 0,
+        "legal_actions": [
+          {
+            "type": "reject"
+          },
+          {
+            "type": "accept"
+          },
+          {
+            "type": "ordago"
+          },
+          {
+            "type": "raise",
+            "amount": 4
+          }
+        ],
+        "history": [
+          {
+            "player": 0,
+            "type": "pass"
+          },
+          {
+            "player": 1,
+            "type": "raise",
+            "amount": 40
+          }
+        ]
+      },
+      {
+        "player": 0,
+        "phase": "grande",
+        "hand": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          4
+        ],
+        "previous_strengths": [],
+        "match_scores": [
+          10,
+          12
+        ],
+        "hand_start_scores": [
+          10,
+          12
+        ],
+        "pending_wager_total": 0,
+        "legal_actions": [
+          {
+            "type": "reject"
+          },
+          {
+            "type": "accept"
+          },
+          {
+            "type": "ordago"
+          },
+          {
+            "type": "raise",
+            "amount": 4
+          }
+        ],
+        "history": [
+          {
+            "player": 0,
+            "type": "pass"
+          },
+          {
+            "player": 1,
+            "type": "raise",
+            "amount": 2
+          },
+          {
+            "player": 0,
+            "type": "raise",
+            "amount": 2
+          },
+          {
+            "player": 1,
+            "type": "raise",
+            "amount": 2
+          }
+        ]
+      }
+    ],
+    "legacy-hybrid": [
+      {
+        "player": 0,
+        "phase": "grande",
+        "hand": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          4
+        ],
+        "previous_strengths": [],
+        "match_scores": [
+          30,
+          30
+        ],
+        "hand_start_scores": [
+          30,
+          30
+        ],
+        "pending_wager_total": 0,
+        "legal_actions": [
+          {
+            "type": "pass"
+          },
+          {
+            "type": "ordago"
+          },
+          {
+            "type": "raise",
+            "amount": 2
+          },
+          {
+            "type": "raise",
+            "amount": 4
+          },
+          {
+            "type": "raise",
+            "amount": 7
+          },
+          {
+            "type": "raise",
+            "amount": 10
+          }
+        ]
+      },
+      {
+        "player": 0,
+        "phase": "chica",
+        "hand": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          4
+        ],
+        "previous_strengths": [
+          0
+        ],
+        "match_scores": [
+          30,
+          39
+        ],
+        "hand_start_scores": [
+          30,
+          39
+        ],
+        "pending_wager_total": 0,
+        "legal_actions": [
+          {
+            "type": "pass"
+          },
+          {
+            "type": "ordago"
+          },
+          {
+            "type": "raise",
+            "amount": 2
+          },
+          {
+            "type": "raise",
+            "amount": 4
+          },
+          {
+            "type": "raise",
+            "amount": 7
+          },
+          {
+            "type": "raise",
+            "amount": 10
+          }
+        ]
+      },
+      {
+        "player": 0,
+        "phase": "pares",
+        "hand": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          4
+        ],
+        "previous_strengths": [
+          0,
+          0
+        ],
+        "match_scores": [
+          30,
+          30
+        ],
+        "hand_start_scores": [
+          30,
+          30
+        ],
+        "pending_wager_total": 0,
+        "legal_actions": [
+          {
+            "type": "pass"
+          },
+          {
+            "type": "ordago"
+          },
+          {
+            "type": "raise",
+            "amount": 2
+          },
+          {
+            "type": "raise",
+            "amount": 4
+          },
+          {
+            "type": "raise",
+            "amount": 7
+          },
+          {
+            "type": "raise",
+            "amount": 10
+          }
+        ]
+      },
+      {
+        "player": 0,
+        "phase": "juego",
+        "hand": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          4
+        ],
+        "previous_strengths": [
+          0,
+          0,
+          0
+        ],
+        "match_scores": [
+          30,
+          39
+        ],
+        "hand_start_scores": [
+          30,
+          39
+        ],
+        "pending_wager_total": 0,
+        "legal_actions": [
+          {
+            "type": "pass"
+          },
+          {
+            "type": "ordago"
+          },
+          {
+            "type": "raise",
+            "amount": 2
+          },
+          {
+            "type": "raise",
+            "amount": 4
+          },
+          {
+            "type": "raise",
+            "amount": 7
+          },
+          {
+            "type": "raise",
+            "amount": 10
+          }
+        ]
+      },
+      {
+        "player": 0,
+        "phase": "punto",
+        "hand": [
+          4,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "previous_strengths": [
+          0,
+          0,
+          0
+        ],
+        "match_scores": [
+          30,
+          30
+        ],
+        "hand_start_scores": [
+          30,
+          30
+        ],
+        "pending_wager_total": 0,
+        "legal_actions": [
+          {
+            "type": "pass"
+          },
+          {
+            "type": "ordago"
+          },
+          {
+            "type": "raise",
+            "amount": 2
+          },
+          {
+            "type": "raise",
+            "amount": 4
+          },
+          {
+            "type": "raise",
+            "amount": 7
+          },
+          {
+            "type": "raise",
+            "amount": 10
+          }
+        ]
+      },
+      {
+        "player": 0,
+        "phase": "mus",
+        "hand": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          4
+        ],
+        "previous_strengths": [],
+        "match_scores": [
+          30,
+          39
+        ],
+        "hand_start_scores": [
+          30,
+          39
+        ],
+        "pending_wager_total": 0,
+        "legal_actions": [
+          {
+            "type": "mus"
+          },
+          {
+            "type": "no_mus"
+          }
+        ]
+      },
+      {
+        "player": 0,
+        "phase": "discard",
+        "hand": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          4
+        ],
+        "previous_strengths": [],
+        "match_scores": [
+          30,
+          30
+        ],
+        "hand_start_scores": [
+          30,
+          30
+        ],
+        "pending_wager_total": 0,
+        "legal_actions": [
+          {
+            "type": "discard",
+            "mask": 1
+          },
+          {
+            "type": "discard",
+            "mask": 3
+          },
+          {
+            "type": "discard",
+            "mask": 7
+          },
+          {
+            "type": "discard",
+            "mask": 15
+          }
+        ]
+      },
+      {
+        "player": 0,
+        "phase": "grande",
+        "hand": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          4
+        ],
+        "previous_strengths": [],
+        "match_scores": [
+          30,
+          39
+        ],
+        "hand_start_scores": [
+          30,
+          39
+        ],
+        "pending_wager_total": 0,
+        "legal_actions": [
+          {
+            "type": "reject"
+          },
+          {
+            "type": "accept"
+          },
+          {
+            "type": "ordago"
+          },
+          {
+            "type": "raise",
+            "amount": 4
+          }
+        ],
+        "history": [
+          {
+            "player": 0,
+            "type": "pass"
+          },
+          {
+            "player": 1,
+            "type": "raise",
+            "amount": 2
+          }
+        ]
+      },
+      {
+        "player": 0,
+        "phase": "grande",
+        "hand": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          4
+        ],
+        "previous_strengths": [],
+        "match_scores": [
+          30,
+          30
+        ],
+        "hand_start_scores": [
+          30,
+          30
+        ],
+        "pending_wager_total": 0,
+        "legal_actions": [
+          {
+            "type": "reject"
+          },
+          {
+            "type": "accept"
+          },
+          {
+            "type": "ordago"
+          },
+          {
+            "type": "raise",
+            "amount": 4
+          }
+        ],
+        "history": [
+          {
+            "player": 0,
+            "type": "pass"
+          },
+          {
+            "player": 1,
+            "type": "raise",
+            "amount": 3
+          }
+        ]
+      },
+      {
+        "player": 0,
+        "phase": "grande",
+        "hand": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          4
+        ],
+        "previous_strengths": [],
+        "match_scores": [
+          30,
+          39
+        ],
+        "hand_start_scores": [
+          30,
+          39
+        ],
+        "pending_wager_total": 0,
+        "legal_actions": [
+          {
+            "type": "reject"
+          },
+          {
+            "type": "accept"
+          },
+          {
+            "type": "ordago"
+          },
+          {
+            "type": "raise",
+            "amount": 4
+          }
+        ],
+        "history": [
+          {
+            "player": 0,
+            "type": "pass"
+          },
+          {
+            "player": 1,
+            "type": "raise",
+            "amount": 4
+          }
+        ]
+      },
+      {
+        "player": 0,
+        "phase": "grande",
+        "hand": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          4
+        ],
+        "previous_strengths": [],
+        "match_scores": [
+          30,
+          30
+        ],
+        "hand_start_scores": [
+          30,
+          30
+        ],
+        "pending_wager_total": 0,
+        "legal_actions": [
+          {
+            "type": "reject"
+          },
+          {
+            "type": "accept"
+          },
+          {
+            "type": "ordago"
+          },
+          {
+            "type": "raise",
+            "amount": 4
+          }
+        ],
+        "history": [
+          {
+            "player": 0,
+            "type": "pass"
+          },
+          {
+            "player": 1,
+            "type": "raise",
+            "amount": 6
+          }
+        ]
+      },
+      {
+        "player": 0,
+        "phase": "grande",
+        "hand": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          4
+        ],
+        "previous_strengths": [],
+        "match_scores": [
+          30,
+          39
+        ],
+        "hand_start_scores": [
+          30,
+          39
+        ],
+        "pending_wager_total": 0,
+        "legal_actions": [
+          {
+            "type": "reject"
+          },
+          {
+            "type": "accept"
+          },
+          {
+            "type": "ordago"
+          },
+          {
+            "type": "raise",
+            "amount": 4
+          }
+        ],
+        "history": [
+          {
+            "player": 0,
+            "type": "pass"
+          },
+          {
+            "player": 1,
+            "type": "raise",
+            "amount": 9
+          }
+        ]
+      },
+      {
+        "player": 0,
+        "phase": "grande",
+        "hand": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          4
+        ],
+        "previous_strengths": [],
+        "match_scores": [
+          30,
+          30
+        ],
+        "hand_start_scores": [
+          30,
+          30
+        ],
+        "pending_wager_total": 0,
+        "legal_actions": [
+          {
+            "type": "reject"
+          },
+          {
+            "type": "accept"
+          },
+          {
+            "type": "ordago"
+          },
+          {
+            "type": "raise",
+            "amount": 4
+          }
+        ],
+        "history": [
+          {
+            "player": 0,
+            "type": "pass"
+          },
+          {
+            "player": 1,
+            "type": "raise",
+            "amount": 40
+          }
+        ]
+      },
+      {
+        "player": 0,
+        "phase": "grande",
+        "hand": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          4
+        ],
+        "previous_strengths": [],
+        "match_scores": [
+          30,
+          39
+        ],
+        "hand_start_scores": [
+          30,
+          39
+        ],
+        "pending_wager_total": 0,
+        "legal_actions": [
+          {
+            "type": "reject"
+          },
+          {
+            "type": "accept"
+          },
+          {
+            "type": "ordago"
+          },
+          {
+            "type": "raise",
+            "amount": 4
+          }
+        ],
+        "history": [
+          {
+            "player": 0,
+            "type": "pass"
+          },
+          {
+            "player": 1,
+            "type": "raise",
+            "amount": 2
+          },
+          {
+            "player": 0,
+            "type": "raise",
+            "amount": 2
+          },
+          {
+            "player": 1,
+            "type": "raise",
+            "amount": 2
+          }
+        ]
+      }
+    ],
+    "public": [
+      {
+        "player": 0,
+        "phase": "grande",
+        "hand": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          4
+        ],
+        "previous_strengths": [],
+        "match_scores": [
+          10,
+          12
+        ],
+        "hand_start_scores": [
+          10,
+          12
+        ],
+        "pending_wager_total": 0,
+        "legal_actions": [
+          {
+            "type": "pass"
+          },
+          {
+            "type": "ordago"
+          },
+          {
+            "type": "raise",
+            "amount": 2
+          },
+          {
+            "type": "raise",
+            "amount": 4
+          },
+          {
+            "type": "raise",
+            "amount": 7
+          },
+          {
+            "type": "raise",
+            "amount": 10
+          }
+        ]
+      },
+      {
+        "player": 0,
+        "phase": "chica",
+        "hand": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          4
+        ],
+        "previous_strengths": [
+          3
+        ],
+        "match_scores": [
+          10,
+          12
+        ],
+        "hand_start_scores": [
+          10,
+          12
+        ],
+        "pending_wager_total": 2,
+        "legal_actions": [
+          {
+            "type": "pass"
+          },
+          {
+            "type": "ordago"
+          },
+          {
+            "type": "raise",
+            "amount": 2
+          },
+          {
+            "type": "raise",
+            "amount": 4
+          },
+          {
+            "type": "raise",
+            "amount": 7
+          },
+          {
+            "type": "raise",
+            "amount": 10
+          }
+        ]
+      },
+      {
+        "player": 0,
+        "phase": "pares",
+        "hand": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          4
+        ],
+        "previous_strengths": [
+          3,
+          1
+        ],
+        "match_scores": [
+          11,
+          12
+        ],
+        "hand_start_scores": [
+          10,
+          12
+        ],
+        "pending_wager_total": 2,
+        "legal_actions": [
+          {
+            "type": "pass"
+          },
+          {
+            "type": "ordago"
+          },
+          {
+            "type": "raise",
+            "amount": 2
+          },
+          {
+            "type": "raise",
+            "amount": 4
+          },
+          {
+            "type": "raise",
+            "amount": 7
+          },
+          {
+            "type": "raise",
+            "amount": 10
+          }
+        ]
+      },
+      {
+        "player": 0,
+        "phase": "juego",
+        "hand": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          4
+        ],
+        "previous_strengths": [
+          3,
+          1,
+          3
+        ],
+        "match_scores": [
+          11,
+          14
+        ],
+        "hand_start_scores": [
+          10,
+          12
+        ],
+        "pending_wager_total": 2,
+        "legal_actions": [
+          {
+            "type": "pass"
+          },
+          {
+            "type": "ordago"
+          },
+          {
+            "type": "raise",
+            "amount": 2
+          },
+          {
+            "type": "raise",
+            "amount": 4
+          },
+          {
+            "type": "raise",
+            "amount": 7
+          },
+          {
+            "type": "raise",
+            "amount": 10
+          }
+        ]
+      },
+      {
+        "player": 0,
+        "phase": "punto",
+        "hand": [
+          4,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "previous_strengths": [
+          3,
+          1,
+          3
+        ],
+        "match_scores": [
+          11,
+          14
+        ],
+        "hand_start_scores": [
+          10,
+          12
+        ],
+        "pending_wager_total": 2,
+        "legal_actions": [
+          {
+            "type": "pass"
+          },
+          {
+            "type": "ordago"
+          },
+          {
+            "type": "raise",
+            "amount": 2
+          },
+          {
+            "type": "raise",
+            "amount": 4
+          },
+          {
+            "type": "raise",
+            "amount": 7
+          },
+          {
+            "type": "raise",
+            "amount": 10
+          }
+        ]
+      },
+      {
+        "player": 0,
+        "phase": "mus",
+        "hand": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          4
+        ],
+        "previous_strengths": [],
+        "match_scores": [
+          10,
+          12
+        ],
+        "hand_start_scores": [
+          10,
+          12
+        ],
+        "pending_wager_total": 0,
+        "legal_actions": [
+          {
+            "type": "mus"
+          },
+          {
+            "type": "no_mus"
+          }
+        ]
+      },
+      {
+        "player": 0,
+        "phase": "discard",
+        "hand": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          4
+        ],
+        "previous_strengths": [],
+        "match_scores": [
+          10,
+          12
+        ],
+        "hand_start_scores": [
+          10,
+          12
+        ],
+        "pending_wager_total": 0,
+        "legal_actions": [
+          {
+            "type": "discard",
+            "mask": 1
+          },
+          {
+            "type": "discard",
+            "mask": 3
+          },
+          {
+            "type": "discard",
+            "mask": 7
+          },
+          {
+            "type": "discard",
+            "mask": 15
+          }
+        ]
+      },
+      {
+        "player": 0,
+        "phase": "grande",
+        "hand": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          4
+        ],
+        "previous_strengths": [],
+        "match_scores": [
+          10,
+          12
+        ],
+        "hand_start_scores": [
+          10,
+          12
+        ],
+        "pending_wager_total": 0,
+        "legal_actions": [
+          {
+            "type": "reject"
+          },
+          {
+            "type": "accept"
+          },
+          {
+            "type": "ordago"
+          },
+          {
+            "type": "raise",
+            "amount": 4
+          }
+        ],
+        "history": [
+          {
+            "player": 0,
+            "type": "pass"
+          },
+          {
+            "player": 1,
+            "type": "raise",
+            "amount": 2
+          }
+        ]
+      },
+      {
+        "player": 0,
+        "phase": "grande",
+        "hand": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          4
+        ],
+        "previous_strengths": [],
+        "match_scores": [
+          10,
+          12
+        ],
+        "hand_start_scores": [
+          10,
+          12
+        ],
+        "pending_wager_total": 0,
+        "legal_actions": [
+          {
+            "type": "reject"
+          },
+          {
+            "type": "accept"
+          },
+          {
+            "type": "ordago"
+          },
+          {
+            "type": "raise",
+            "amount": 4
+          }
+        ],
+        "history": [
+          {
+            "player": 0,
+            "type": "pass"
+          },
+          {
+            "player": 1,
+            "type": "raise",
+            "amount": 3
+          }
+        ]
+      },
+      {
+        "player": 0,
+        "phase": "grande",
+        "hand": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          4
+        ],
+        "previous_strengths": [],
+        "match_scores": [
+          10,
+          12
+        ],
+        "hand_start_scores": [
+          10,
+          12
+        ],
+        "pending_wager_total": 0,
+        "legal_actions": [
+          {
+            "type": "reject"
+          },
+          {
+            "type": "accept"
+          },
+          {
+            "type": "ordago"
+          },
+          {
+            "type": "raise",
+            "amount": 4
+          }
+        ],
+        "history": [
+          {
+            "player": 0,
+            "type": "pass"
+          },
+          {
+            "player": 1,
+            "type": "raise",
+            "amount": 4
+          }
+        ]
+      },
+      {
+        "player": 0,
+        "phase": "grande",
+        "hand": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          4
+        ],
+        "previous_strengths": [],
+        "match_scores": [
+          10,
+          12
+        ],
+        "hand_start_scores": [
+          10,
+          12
+        ],
+        "pending_wager_total": 0,
+        "legal_actions": [
+          {
+            "type": "reject"
+          },
+          {
+            "type": "accept"
+          },
+          {
+            "type": "ordago"
+          },
+          {
+            "type": "raise",
+            "amount": 4
+          }
+        ],
+        "history": [
+          {
+            "player": 0,
+            "type": "pass"
+          },
+          {
+            "player": 1,
+            "type": "raise",
+            "amount": 6
+          }
+        ]
+      },
+      {
+        "player": 0,
+        "phase": "grande",
+        "hand": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          4
+        ],
+        "previous_strengths": [],
+        "match_scores": [
+          10,
+          12
+        ],
+        "hand_start_scores": [
+          10,
+          12
+        ],
+        "pending_wager_total": 0,
+        "legal_actions": [
+          {
+            "type": "reject"
+          },
+          {
+            "type": "accept"
+          },
+          {
+            "type": "ordago"
+          },
+          {
+            "type": "raise",
+            "amount": 4
+          }
+        ],
+        "history": [
+          {
+            "player": 0,
+            "type": "pass"
+          },
+          {
+            "player": 1,
+            "type": "raise",
+            "amount": 9
+          }
+        ]
+      },
+      {
+        "player": 0,
+        "phase": "grande",
+        "hand": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          4
+        ],
+        "previous_strengths": [],
+        "match_scores": [
+          10,
+          12
+        ],
+        "hand_start_scores": [
+          10,
+          12
+        ],
+        "pending_wager_total": 0,
+        "legal_actions": [
+          {
+            "type": "reject"
+          },
+          {
+            "type": "accept"
+          },
+          {
+            "type": "ordago"
+          },
+          {
+            "type": "raise",
+            "amount": 4
+          }
+        ],
+        "history": [
+          {
+            "player": 0,
+            "type": "pass"
+          },
+          {
+            "player": 1,
+            "type": "raise",
+            "amount": 40
+          }
+        ]
+      },
+      {
+        "player": 0,
+        "phase": "grande",
+        "hand": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          4
+        ],
+        "previous_strengths": [],
+        "match_scores": [
+          10,
+          12
+        ],
+        "hand_start_scores": [
+          10,
+          12
+        ],
+        "pending_wager_total": 0,
+        "legal_actions": [
+          {
+            "type": "reject"
+          },
+          {
+            "type": "accept"
+          },
+          {
+            "type": "ordago"
+          },
+          {
+            "type": "raise",
+            "amount": 4
+          }
+        ],
+        "history": [
+          {
+            "player": 0,
+            "type": "pass"
+          },
+          {
+            "player": 1,
+            "type": "raise",
+            "amount": 2
+          },
+          {
+            "player": 0,
+            "type": "raise",
+            "amount": 2
+          },
+          {
+            "player": 1,
+            "type": "raise",
+            "amount": 2
+          }
+        ]
+      }
+    ]
+  },
+  "benchmark_script": "import collections,hashlib,json,os,re,statistics,subprocess,tempfile,time\nfrom pathlib import Path\nos.sched_setaffinity(0,{0})\nbinaries={'parent':'build/review-j01-preload/release/mus-bot','candidate':'build/review-j01-adapter/release/mus-bot'}\ndata={'method':'Three alternating paired runs on CPU0. 64000 sequential JSON queries per run; include all lances, mus, discard and off-abstraction responses. RSS is the process VmHWM sampled during queries. Public backends are new optional paths, measured absolutely. No concurrent own tests or builds.','parent_commit':'f62ad27','runs':[],'summary':[]}\ndata['binary_sha256']={k:hashlib.sha256(Path(v).read_bytes()).hexdigest() for k,v in binaries.items()}\ndata['solver_sha256']={k:hashlib.sha256(Path(v.replace('mus-bot','mus-solver')).read_bytes()).hexdigest() for k,v in binaries.items()}\nassert len(set(data['solver_sha256'].values()))==1\noutput=Path('/tmp/mus-review-j01-adapter-performance.json')\ndef save():output.write_text(json.dumps(data,indent=2)+'\\n')\ndef query(phase='grande',public=False):\n prior={'grande':0,'chica':1,'pares':2,'juego':3,'punto':3,'mus':0,'discard':0}[phase]\n q={'player':0,'phase':phase,'hand':[0]*7+[4],'previous_strengths':([3,1,3] if public else [0,0,0])[:prior],\n    'match_scores':[10+(public and prior>=2),12+2*(public and prior==3)],'hand_start_scores':[10,12],\n    'pending_wager_total':2 if public and prior else 0,'legal_actions':[{'type':'pass'},{'type':'ordago'}]+[{'type':'raise','amount':i} for i in [2,4,7,10]]}\n if phase=='punto':q['hand']=[4]+[0]*7\n if phase=='mus':q['legal_actions']=[{'type':'mus'},{'type':'no_mus'}]\n if phase=='discard':q['legal_actions']=[{'type':'discard','mask':i} for i in [1,3,7,15]]\n return q\ndef corpus(public=False,hybrid=False):\n qs=[query(p,public) for p in ['grande','chica','pares','juego','punto','mus','discard']]\n for amount in [2,3,4,6,9,40]:\n  q=query('grande',public);q['history']=[{'player':0,'type':'pass'},{'player':1,'type':'raise','amount':amount}]\n  q['legal_actions']=[{'type':'reject'},{'type':'accept'},{'type':'ordago'},{'type':'raise','amount':4}];qs.append(q)\n q=query('grande',public);q['history']=[{'player':0,'type':'pass'},{'player':1,'type':'raise','amount':2},{'player':0,'type':'raise','amount':2},{'player':1,'type':'raise','amount':2}]\n q['legal_actions']=[{'type':'reject'},{'type':'accept'},{'type':'ordago'},{'type':'raise','amount':4}];qs.append(q)\n if hybrid:\n  for i,q in enumerate(qs):\n   q['match_scores']=q['hand_start_scores']=[30,30] if i%2==0 else [30,39]\n data.setdefault('corpora',{})[('public' if public else 'legacy')+('-hybrid' if hybrid else '')]=qs\n return [json.dumps(q,separators=(',',':'))+'\\n' for q in qs]\ndef run(group,version,extra,queries,repeat):\n command=[binaries[version],*extra,'--seed','123','--no-score-adjustment']\n start=time.perf_counter();p=subprocess.Popen(command,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)\n digest=hashlib.sha256();latencies=[];rss=0;methods=collections.Counter()\n for i in range(64000):\n  begin=time.perf_counter();p.stdin.write(queries[i%len(queries)]);p.stdin.flush();line=p.stdout.readline();elapsed=time.perf_counter()-begin\n  if not line:raise RuntimeError((command,p.poll(),p.stderr.read()))\n  result=json.loads(line);assert result['ok'],result\n  methods[result['diagnostic']['method']]+=1;latencies.append(elapsed);digest.update(line.encode())\n  if i%50==0:\n   status=Path(f'/proc/{p.pid}/status').read_text();rss=max(rss,int(re.search(r'VmHWM:\\s+(\\d+)',status)[1]))\n p.stdin.close();err=p.stderr.read();assert p.wait()==0 and not err,err\n row={'group':group,'version':version,'repeat':repeat,'command':command,'wall_seconds':time.perf_counter()-start,'peak_rss_kib':rss,'mean_query_ms':1000*statistics.mean(latencies[1:]),'p95_query_ms':1000*sorted(latencies[1:])[int(.95*(len(latencies)-1))],'output_sha256':digest.hexdigest(),'methods':dict(methods)}\n data['runs'].append(row);save();print(json.dumps(row),flush=True)\ndef summary(group,paired=True):\n rows=[r for r in data['runs'] if r['group']==group];assert len({r['output_sha256'] for r in rows})==1\n result={'group':group,'outputs_identical':True}\n for metric in ['wall_seconds','peak_rss_kib','mean_query_ms','p95_query_ms']:\n  b=statistics.median(r[metric] for r in rows if r['version']=='candidate');result[metric]={'candidate':b}\n  if paired:\n   a=statistics.median(r[metric] for r in rows if r['version']=='parent');result[metric].update(parent=a,change_percent=100*(b/a-1))\n data['summary'].append(result);save();print('SUMMARY',json.dumps(result),flush=True)\n if paired and (result['wall_seconds']['change_percent']>=20 or result['peak_rss_kib']['change_percent']>=25):raise RuntimeError('Five confirmation pairs required')\nwith tempfile.TemporaryDirectory(prefix='mus-review-j01-adapter-') as tmp:\n root=Path(tmp);legacy=root/'legacy.cfr';public=root/'public.cfr';scores=root/'scores';scores.mkdir()\n subprocess.run(['build/debug/mus_adapter_tests',str(legacy),str(scores)],check=True,stdout=subprocess.DEVNULL)\n subprocess.run(['build/debug/mus_adapter_tests','--public-fixture',str(public)],check=True,stdout=subprocess.DEVNULL)\n for group,extra,qs in [('legacy-raw',['--load',str(legacy)],corpus()),('legacy-text',['--strategy',str(legacy)+'.txt'],corpus()),('hybrid-text',['--strategy',str(legacy)+'.txt','--score-table',str(scores/'values.txt'),'--score-strategies',str(scores)],corpus(hybrid=True))]:\n  for repeat in range(3):\n   for version in (['parent','candidate'] if repeat%2==0 else ['candidate','parent']):run(group,version,extra,qs,repeat+1)\n  summary(group)\n for flag,suffix in [('--load',''),('--strategy','.txt')]:\n  group='public-'+('raw' if not suffix else 'text')\n  for repeat in range(3):run(group,'candidate',[flag,str(public)+suffix],corpus(public=True),repeat+1)\n  summary(group,False)\nprint('ALL_CHECKS_PASSED',flush=True)\n",
+  "build_command": "make -j4 BUILD_DIR=build/review-j01-adapter CFR_BUILD_DIR=build/review-baseline RELEASE_LTO_FLAGS= RELEASE_LINK_FLAGS= all",
+  "validation": {
+    "full_suite": "make -j4 test passed",
+    "asan_ubsan": "adapter C and new public JSON suites passed",
+    "two_muses": "adapter configuration rejection tests passed",
+    "review_suggested_test": "score adjustment cases passed normally and with ASan/UBSan"
+  },
+  "limitations": [
+    "Small deterministic fixture files and a repeated corpus; these measurements do not estimate cold seeks in multi-gigabyte text policies or deployed match quality.",
+    "Public and historical fixture policies differ. Absolute public timings are not a speedup comparison.",
+    "The preliminary 1600-query run was too short; final conclusions use 64000 queries."
+  ]
+}

@@ -24,8 +24,13 @@ int main(void) {
 #if MUS_GAME_MAX_MUSES == 1
     CHECK(status == CFR_STATUS_SUCCESS && adapter != NULL);
     mus_adapter_destroy(adapter);
+    adapter = NULL;
+    CHECK(mus_adapter_create_public(&store, NULL, 7, &adapter) == CFR_STATUS_SUCCESS);
+    mus_adapter_destroy(adapter);
 #else
     CHECK(status == CFR_STATUS_INCOMPATIBLE_GAME && adapter == sentinel);
+    CHECK(mus_adapter_create_public(&store, NULL, 7, &adapter) == CFR_STATUS_INCOMPATIBLE_GAME);
+    CHECK(adapter == sentinel);
     /* Configuration rejection precedes file access and preserves the output. */
     const char *path = "/mus-adapter-unsupported-configuration.cfr";
     for (int compressed = 0; compressed < 2; ++compressed) {

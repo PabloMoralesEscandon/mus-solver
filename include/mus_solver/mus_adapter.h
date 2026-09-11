@@ -44,12 +44,14 @@ typedef struct {
     int known_hand_scores[2]; /* Public points from this hand only, capped at 40. */
     bool hand_scores_complete;
     int match_scores[2]; /* Public current match scores, including awarded points. */
-    /* Required when score tables are enabled. Fixed until the next hand. */
+    /* Required with score tables or an ordago-public generic policy.
+     * Fixed until the next hand. */
     bool has_hand_start_scores;
     int hand_start_scores[2];
     /* Accepted numeric wagers still pending from earlier lances. Excludes
      * dejes, intrinsic points, passed lances, and the current lance's offer.
-     * Required for betting decisions in a trained score cell. */
+     * Required for betting decisions in a trained score cell or with an
+     * ordago-public generic policy. */
     bool has_pending_wager_total;
     int64_t pending_wager_total;
     const MusBotEvent *history; /* Current lance only. No hidden cards. */
@@ -90,6 +92,7 @@ typedef struct {
     const char *reason; /* Static string, or NULL. */
     bool score_proxy;
     bool score_strategy;
+    bool public_strategy; /* Generic ordago-public, without a trained score cell. */
     int strategy_scores[2]; /* Initial cell scores; meaningful with score_strategy. */
     const char *strategy_reason; /* Static routing diagnostic. */
     double ordago_factor;
@@ -117,7 +120,8 @@ MusAdapterConfig mus_adapter_default_config(void);
  * Other compiled limits return CFR_STATUS_INCOMPATIBLE_GAME without creating
  * an adapter; the output pointer is unchanged. The core solver can still be
  * built and used with two muses. */
-/* On success, the adapter owns the loaded checkpoint. No training occurs. */
+/* Accept historical ordago and ordago-public schemas. On success, the adapter
+ * owns the loaded checkpoint. No training occurs. */
 Status mus_adapter_load(const char *path, bool compressed,
                         const MusAdapterConfig *config, uint64_t seed,
                         MusAdapter **adapter_out);
@@ -132,9 +136,13 @@ Status mus_adapter_open_text(const char *path, const MusAdapterConfig *config,
  * Call once, before queries. An error preserves the adapter configuration. */
 Status mus_adapter_enable_score_text(MusAdapter *adapter, const char *values_path,
                                       const char *strategies_directory);
-/* The caller must keep store alive and must not modify it during a query. */
+/* The caller must keep store alive and must not modify it during a query.
+ * This entry point uses the historical ordago schema. A bare store does not
+ * identify its format; use create_public for ordago-public keys. */
 Status mus_adapter_create(const InfoStore *store, const MusAdapterConfig *config,
                           uint64_t seed, MusAdapter **adapter_out);
+Status mus_adapter_create_public(const InfoStore *store, const MusAdapterConfig *config,
+                                 uint64_t seed, MusAdapter **adapter_out);
 void mus_adapter_destroy(MusAdapter *adapter);
 /* Queries are sequential. Errors preserve decision and the random stream. */
 Status mus_adapter_decide(MusAdapter *adapter, const MusAdapterObservation *observation,

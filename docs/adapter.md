@@ -1,6 +1,6 @@
 # Adaptador para partidas de dos jugadores
 
-`mus-bot` utiliza una estrategia genérica `ordago` y puede añadir estrategias
+`mus-bot` utiliza una estrategia genérica `ordago` u `ordago-public` y puede añadir estrategias
 `ordago-score/v4` para los marcadores ya entrenados. Recibe
 observaciones de un motor de partida y devuelve una distribución y una acción.
 El motor conserva el estado real, determina las acciones legales, resuelve los
@@ -34,11 +34,22 @@ build/release/mus-bot --strategy mus-ordago-100m.txt \
 ```
 
 Las dos opciones `--score-*` se utilizan juntas. Sin ellas se conserva el
-comportamiento genérico anterior y no hacen falta campos nuevos en las peticiones.
+comportamiento genérico anterior cuando se carga `ordago` histórico.
 Con ellas, `hand_start_scores` es obligatorio en cada petición. Las decisiones
 de apuestas en un marcador entrenado también requieren `pending_wager_total`.
 La [guía de integración](adapter-integration.md) explica cómo producir estos
 datos desde el motor y cómo mantenerlos durante una mano.
+
+Con una genérica `ordago-public`, `hand_start_scores` es obligatorio también
+sin tabla, y `pending_wager_total` lo es en cada decisión de apuestas. Los
+cobros de la mano se calculan como `match_scores − hand_start_scores` para
+cada jugador. Se mantienen fijos al interpolar o buscar un envite cercano.
+No se utilizan `prior_wager_total`, `known_hand_scores` ni
+`hand_scores_complete` para formar la clave pública; se conservan como campos
+del protocolo histórico y siguen sujetos a su validación básica. La genérica
+pública conserva el ajuste heurístico de órdago por marcador, que puede
+desactivarse con `--no-score-adjustment`, y el límite de cantidades de la
+genérica. El origen se identifica por su esquema, sin reinterpretar v9.
 
 Se elige la estrategia por el **marcador al inicio de la mano**, usando las
 celdas publicadas en `values.txt`. La tabla entrenada hasta 30–30 incluye
@@ -77,8 +88,9 @@ de exportaciones produce un error; no se sustituye silenciosamente por la
 genérica. Los archivos deben permanecer inmutables durante el uso. La comprobación
 de filas sigue siendo bajo demanda, no una validación integral de todos los TXT.
 
-El TXT genérico debe proceder de `mus_ordago_strategy_write_text` o del CLI del
-solver con `--format ordago --export-strategy`, tener claves en orden creciente
+El TXT genérico debe proceder de `mus_ordago_strategy_write_text`,
+`mus_ordago_public_strategy_write_text` o del CLI del solver con el formato
+correspondiente y `--export-strategy`, tener claves en orden creciente
 y permanecer inmutable mientras esté abierto. Se comprueban la cabecera, las
 filas consultadas, sus acciones y probabilidades. El texto no tiene checksum;
 no se hace una validación completa del archivo al abrirlo. Una fila no puede
@@ -94,7 +106,7 @@ El límite es 1 MiB por línea. Los errores de una petición no terminan el
 proceso. Los errores de carga se escriben en stderr y terminan con código 1;
 los argumentos incorrectos terminan con código 2. `--help` describe el comando.
 
-El adaptador corresponde al esquema `v9-muses-1` y debe compilarse con el límite
+El adaptador admite `ordago/v9-muses-1` y `ordago-public/v1-muses-1`, y debe compilarse con el límite
 predeterminado de un mus. Las partidas pueden alternar la mano: normalizar todas
 las posiciones, marcadores e historiales a **0 = mano, 1 = postre** en cada mano.
 No se mantienen identidades de jugadores entre peticiones.
@@ -127,8 +139,8 @@ repetidos. El historial admite importes que no pertenezcan a la lista actual.
 | `known_hand_scores` | Tantos públicamente resueltos **de esta mano**, limitados a 40 por jugador; predeterminado `[0,0]`. No incluir resultados calculados mirando cartas ocultas. |
 | `hand_scores_complete` | Si todos los tantos de los lances anteriores ya son públicos; predeterminado false. No autoriza usar información oculta. |
 | `match_scores` | Marcador público actual `[mano, postre]`, incluidos los tantos ya anotados; predeterminado `[0,0]`. Cada valor debe estar entre 0 y 39. |
-| `hand_start_scores` | Marcador `[mano, postre]` al inicio de esta mano, entre 0 y 39. Obligatorio con tablas de marcador. No se cambia al cobrar un deje. Ningún valor puede superar el marcador actual; en mus, descartes y grande debe coincidir con él. |
-| `pending_wager_total` | Suma de envites numéricos **aceptados y todavía pendientes** de los lances anteriores. Obligatorio al decidir apuestas con una estrategia de marcador. Excluye dejes cobrados, tantos de lances al paso, tantos intrínsecos y la oferta del lance actual. En mus, descartes y grande es cero. |
+| `hand_start_scores` | Marcador `[mano, postre]` al inicio de esta mano, entre 0 y 39. Obligatorio con tablas de marcador o una genérica `ordago-public`. No se cambia al cobrar un deje. Ningún valor puede superar el marcador actual; en mus, descartes y grande debe coincidir con él. |
+| `pending_wager_total` | Suma de envites numéricos **aceptados y todavía pendientes** de los lances anteriores. Obligatorio al decidir apuestas con una estrategia de marcador o una genérica `ordago-public`. Excluye dejes cobrados, tantos de lances al paso, tantos intrínsecos y la oferta del lance actual. En mus, descartes y grande es cero. |
 | `history` | Acciones públicas **del lance actual**, desde su inicio; predeterminado `[]`. Cada evento añade `player` a una acción. Conservar también las acciones del bot. |
 | `legal_actions` | Obligatorio: lista no vacía de acciones autorizadas por el motor real. |
 
@@ -169,7 +181,7 @@ misma semilla producen las mismas acciones. Un error no avanza ese generador.
 `diagnostic` contiene:
 
 - `method`: `exact`, `interpolated`, `nearest`, `fallback` o `mus_limit`.
-- `strategy`: `ordago` o `ordago-score`.
+- `strategy`: `ordago`, `ordago-public` u `ordago-score`.
 - `strategy_scores`: marcador inicial de la celda consultada, o null para la genérica.
 - `strategy_reason`: `score_table_disabled`, `untrained_start_score` o `trained_start_score`.
 - `sources`: hasta dos claves del checkpoint, sus pesos, distancias y cantidades
@@ -180,7 +192,8 @@ misma semilla producen las mismas acciones. Un error no avanza ese generador.
   en una apuesta de 40.
 - `score_proxy`: indica que los tanteos de lances anteriores no son totalmente
   públicos. `exact` significa que se encontró la clave consultada; con esta
-  marca, su componente de tanteo sigue siendo una aproximación.
+  marca, su componente de tanteo sigue siendo una aproximación. Siempre es
+  false con `ordago-public` y `ordago-score`.
 - `lookup_count`: número de consultas al almacén, como máximo 64.
 - `ordago_factor`: multiplicador aplicado por el marcador; siempre 1 al utilizar
   `ordago-score`, incluso con interpolación, proximidad o respaldo.
@@ -214,7 +227,9 @@ esos estados entre ambos modos.
 3. Una repetición prohibida, una disminución del incremento o una secuencia
    demasiado larga activa la búsqueda de estados próximos. Se conserva lance,
    posición, mano abstracta, mus, fuerza anterior y clase de respuesta. La
-   distancia es `|Δtotal| + |Δdeje| + |Δacumulado| + |Δtanteo|`. Se desempata por
+   distancia histórica es `|Δtotal| + |Δdeje| + |Δacumulado| + |Δtanteo|`.
+   Con `ordago-public` solo es `|Δtotal| + |Δdeje|`: los dos cobros y los
+   envites pendientes deben coincidir. Se desempata por
    diferencia en número de apuestas y bits de incrementos usados, después por
    menor número de apuestas y clave. La búsqueda no impone una distancia máxima.
    Los pesos son inversos a la distancia; una distancia cero absorbe el peso
@@ -236,7 +251,7 @@ esos estados entre ambos modos.
 
 No se infiere la fuerza del rival ni se optimiza la probabilidad de ganar una
 partida. El filtro de cantidades ignora tantos pendientes; el proxy de tanteo
-ignora ganadores desconocidos. La consulta de estados cercanos puede perder
+histórico ignora ganadores desconocidos. La consulta de estados cercanos puede perder
 información sobre la insistencia del rival. Estas aproximaciones son parte del
 contrato, no una garantía de equilibrio ni de mejora sobre otro traductor.
 
@@ -247,7 +262,7 @@ acciones sobre la lista legal del motor y normalizar. No se aplica el factor
 por marcador; `score_proxy` es false porque las claves usan los dos marcadores
 cobrados y los envites pendientes explícitos. `known_hand_scores`,
 `hand_scores_complete` y `prior_wager_total` siguen siendo los datos de la ruta
-genérica; no sustituyen a `pending_wager_total` en esta ruta.
+genérica histórica; no sustituyen a `pending_wager_total` en esta ruta.
 
 Los envites arbitrarios conservan la interpolación de la última cantidad y la
 búsqueda de hasta 64 candidatos. En esta búsqueda **no se cambian las
@@ -280,6 +295,9 @@ La API está en `include/mus_solver/mus_adapter.h`:
 - `mus_adapter_create`: utilizar un `InfoStore` prestado, útil para integración
   y pruebas. El llamador conserva el almacén vivo y no lo modifica durante las
   consultas. Debe pertenecer al mismo esquema `ordago`.
+- `mus_adapter_create_public`: utilizar un `InfoStore` prestado con claves
+  `ordago-public`. El almacén solo no identifica su esquema; el llamador debe
+  elegir la función correspondiente al modelo que lo creó.
 - `mus_adapter_decide`: recibir un `MusAdapterObservation` y producir un
   `MusAdapterDecision`. No modifica la observación ni el checkpoint.
 - `mus_adapter_destroy`: liberar el adaptador y su almacén, si lo posee.

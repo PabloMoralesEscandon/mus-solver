@@ -128,9 +128,10 @@ ocultos descrita en la revisión J01. No se reinterpretan esos checkpoints.
 Las tablas `ordago-score/v4` conservan su identidad y su contabilidad pública.
 Se admite entrenar, reanudar, exportar, precargar tablas con marcador y ejecutar el
 diagnóstico `bounded-final-lances` de `ordago-public`. Ese diagnóstico fija las
-dos manos; no mide la explotabilidad desde la raíz. La conexión de esta nueva
-política con el adaptador se realiza en un bloque posterior;
-sus lectores actuales rechazan el esquema nuevo.
+dos manos; no mide la explotabilidad desde la raíz. El bot admite la política
+nueva en binario y TXT, también como genérica del modo híbrido. Para consultarla
+requiere `hand_start_scores` y, al apostar, `pending_wager_total`; véase el
+[contrato del adaptador](docs/adapter.md).
 
 ```sh
 ./build/release/mus-solver --format ordago-public --iterations 10000 --seed 7 \

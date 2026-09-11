@@ -36,7 +36,7 @@ rendimiento del bot desplegado son métricas diferentes.
 
 | Bloque | Trabajo | Estado |
 |---|---|---|
-| J01 | Modelo genérico sin información oculta y compatibilidad histórica | Núcleo/CLI y precarga completados; coste del modelo aceptado; adaptador pendiente |
+| J01 | Modelo genérico sin información oculta y compatibilidad histórica | Completado: núcleo/CLI, precarga y bot; coste del modelo aceptado |
 | J02 | Recuento diferido en el simulador de dos/cuatro jugadores | Completado |
 | J03 | Reintento tras fallo al guardar una diagonal | Completado |
 | J04 | Rechazar TXT truncado a su cabecera | Completado |
@@ -435,3 +435,58 @@ mensaje `msg_3c5d5ae78461`. [Informe final](review-performance/J01-preload-claud
 La identidad persistida del prior queda para J08/J17; la documentación ya
 advierte que `values.txt` no conserva esa configuración. El adaptador sigue
 pendiente y conserva el límite original para cualquier regresión adicional.
+
+## J01: conexión de la política pública con el bot
+
+El adaptador admite `ordago-public` en checkpoints normales, comprimidos y
+TXT, incluidos los cambios entre genérica y tablas de marcador. Los almacenes
+prestados se identifican explícitamente con `mus_adapter_create_public()`;
+la API anterior mantiene su interpretación histórica. Los cobros públicos se
+calculan como marcador actual menos marcador inicial. Las consultas de apuestas
+requieren el acumulado pendiente explícito. Ambos cobros y ese acumulado se
+mantienen fijos incluso al buscar un envite parecido. El diagnóstico identifica
+`ordago-public` y no marca `score_proxy` en esa ruta.
+
+Las celdas entrenadas siguen teniendo prioridad y conservan sus reglas de
+consulta y su caché propia. La genérica pública mantiene el ajuste heurístico
+por marcador y la proyección de cantidades de la genérica; se documenta esta
+limitación. No se alteran las reglas ni el entrenamiento de ningún modelo.
+
+Validación: batería completa; pruebas C de ambos jugadores y todos los lances,
+mus y descartes; identidad de claves y probabilidades; interpolación, proximidad,
+respaldo sin cambiar cobros ni pendientes; errores que conservan la decisión y
+el RNG. Las pruebas JSON comparan los tres formatos de archivo, cambios de celda
+y vuelta a genérica, errores de entrada, corrupción, límite de mus y conservación
+de archivos de origen. Pasan normalmente y con ASan/UBSan. La configuración de
+dos muses rechaza también el nuevo constructor. Se añadió la prueba sugerida
+por Claude para el ajuste de órdago público y su ausencia en celdas entrenadas.
+
+[Rendimiento y script](review-performance/J01-adapter.json): el ejecutable del
+solver es idéntico byte a byte al padre `f62ad27` (SHA256
+`cbf3e6d106d4a0bb11ceac5f272dde2657e67baba06424dd1efab8b7929df424`).
+Este bloque no añade coste al algoritmo de entrenamiento. Se amplió el sondeo
+inicial a 64.000 consultas JSON por ejecución, tres pares alternados, CPU0:
+
+| Ruta existente | Antes | Después | Tiempo | Pico RSS |
+|---|---:|---:|---:|---:|
+| Genérica histórica, binario | 1,6909 s | 1,6908 s | −0,01 % | +1,80 % |
+| Genérica histórica, TXT | 2,9185 s | 2,9512 s | +1,12 % | −1,18 % |
+| Híbrido, TXT | 2,3238 s | 2,3330 s | +0,40 % | −1,05 % |
+
+Las respuestas JSON son idénticas byte a byte entre padre y candidato.
+La latencia media por consulta varía +0,55 %, +0,94 % y +0,46 %, respectivamente.
+No se activa el límite de regresión. En la ruta pública nueva, las 64.000
+consultas tardan 1,3921 s en binario y 1,4001 s en TXT: medias de 0,01579 y
+0,01590 ms por consulta, RSS 2.312 y 2.340 KiB con estos archivos pequeños.
+Son cifras absolutas de una carga repetida; no representan latencia de lectura
+fría de archivos enormes ni una comparación de calidad entre políticas.
+
+Claude aprobó la implementación en `task_0bef531f41f9`, dispatch
+`ctx_6d053a440928`, mensaje `msg_03c322e96c32`. La comprobación de la prueba
+adicional y la medición ampliada recibió **APPROVE** en `task_b8aeb48d0680`,
+dispatch `ctx_798be744111e`, mensaje `msg_3e7ffcc8daaa`.
+[Revisión de implementación](review-performance/J01-adapter-claude.md) y
+[comprobación final](review-performance/J01-adapter-claude-final.md).
+Se conserva `score_table_disabled` como motivo de ruta porque `strategy` ya
+identifica la política pública. No se añade una inferencia de esquema a los
+almacenes prestados: deben usar el constructor explícito documentado.
