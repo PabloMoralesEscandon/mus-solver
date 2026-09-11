@@ -397,7 +397,7 @@ int main(int argc, char **argv) {
             const char *arg = argv[++i];
             errno = 0;
             unsigned long long parsed = strtoull(arg, &end, 10);
-            if (!*arg || *arg == '-' || *arg == '+' || *end || errno ||
+            if (*arg < '0' || *arg > '9' || *end || errno ||
                 parsed > UINT64_MAX) {
                 fputs("error: invalid_seed\n", stderr);
                 return 2;

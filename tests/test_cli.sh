@@ -21,6 +21,39 @@ grep -q -- 'ordago' "$tmp_dir/help.txt"
     >"$tmp_dir/combined-help.txt"
 grep -q -- '--evaluate' "$tmp_dir/combined-help.txt"
 
+# --help still parses each option, without starting oversized workloads.
+for option in --iterations --report-every --threads --threads-per-cell \
+              --reserve-information-sets --evaluation-samples --target --seed; do
+    for value in '-1' ' -1' '+1' ' 1' '1 ' '1x' '184467440737095516160' ''; do
+        if "$solver" --help "$option" "$value" >"$tmp_dir/unsigned.out" 2>"$tmp_dir/unsigned.err"; then
+            echo "$option acepto un entero sin signo invalido: [$value]" >&2
+            exit 1
+        else
+            [ "$?" -eq 2 ]
+        fi
+    done
+    "$solver" --help "$option" 01 >"$tmp_dir/unsigned-valid.out"
+    if [ "$option" != --seed ]; then
+        if "$solver" --help "$option" 0 >"$tmp_dir/unsigned-zero.out" 2>"$tmp_dir/unsigned-zero.err"; then
+            echo "$option acepto cero para una cantidad positiva" >&2
+            exit 1
+        else
+            [ "$?" -eq 2 ]
+        fi
+    fi
+done
+"$solver" --help --seed 0 >"$tmp_dir/zero-seed.out"
+"$solver" --help --seed 18446744073709551615 >"$tmp_dir/maximum-seed.out"
+"$solver" --help --score 00:39 >"$tmp_dir/valid-score.out"
+for score in ' 1:2' '1: 2' '+1:2' '1:+2' '40:0' '1:184467440737095516160'; do
+    if "$solver" --help --score "$score" >"$tmp_dir/unsigned-score.out" 2>"$tmp_dir/unsigned-score.err"; then
+        echo "--score acepto un marcador invalido: [$score]" >&2
+        exit 1
+    else
+        [ "$?" -eq 2 ]
+    fi
+done
+
 if "$solver" >"$tmp_dir/no-args.out" 2>"$tmp_dir/no-args.err"; then
     echo "el solver sin argumentos debio fallar" >&2
     exit 1

@@ -592,6 +592,12 @@ a resolver exhaustivamente el juego completo de información imperfecta.
 
 ## Entrenamiento
 
+Los enteros sin signo del CLI se escriben solo con dígitos decimales, sin signo
+ni espacios. Se admiten ceros iniciales. Los tamaños y cantidades de trabajo
+deben ser positivos; la semilla también admite cero. Se rechazan los valores
+que desborden el tipo correspondiente. La misma gramática se aplica a cada
+componente de `--score A:B`.
+
 Entrenamiento nuevo, reproducible y con informes periódicos:
 
 ```sh

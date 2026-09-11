@@ -136,6 +136,8 @@ with tempfile.TemporaryDirectory(prefix="mus-adapter-") as directory:
     corrupt.write_bytes(incompatible)
     bad = subprocess.run([bot, "--load", str(corrupt)], text=True, capture_output=True)
     assert bad.returncode != 0 and "incompatible_checkpoint" in bad.stderr
-    for seed in ["-1", "x", "18446744073709551616"]:
-        assert subprocess.run(command[:-1] + [seed], capture_output=True).returncode != 0
+    for seed in ["-1", " -1", "+1", " +1", " 1", "1 ", "", "x", "18446744073709551616"]:
+        assert subprocess.run(command[:-1] + [seed], input=b'', capture_output=True).returncode != 0
+    for seed in ["0", "01", "18446744073709551615"]:
+        assert subprocess.run(command[:-1] + [seed], input=b'', capture_output=True).returncode == 0
 print("All adapter CLI checks passed.")

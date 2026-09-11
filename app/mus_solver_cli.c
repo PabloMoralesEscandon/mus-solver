@@ -136,11 +136,21 @@ static bool print_usage(FILE *stream, const char *program) {
                program, program, program, program) >= 0;
 }
 
+static bool is_unsigned_decimal(const char *text) {
+    if (text == NULL || *text == '\0')
+        return false;
+    for (; *text != '\0'; ++text) {
+        if (*text < '0' || *text > '9')
+            return false;
+    }
+    return true;
+}
+
 static bool parse_size(const char *text, size_t *value_out) {
     char *end = NULL;
     uintmax_t value;
 
-    if (text == NULL || text[0] == '\0' || text[0] == '-')
+    if (!is_unsigned_decimal(text))
         return false;
     errno = 0;
     value = strtoumax(text, &end, 10);
@@ -156,7 +166,7 @@ static bool parse_seed(const char *text, uint64_t *value_out) {
     char *end = NULL;
     uintmax_t value;
 
-    if (text == NULL || text[0] == '\0' || text[0] == '-')
+    if (!is_unsigned_decimal(text))
         return false;
     errno = 0;
     value = strtoumax(text, &end, 10);

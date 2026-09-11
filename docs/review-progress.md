@@ -51,7 +51,7 @@ rendimiento del bot desplegado son métricas diferentes.
 | J13 | Conservar disponibilidad de política en TXT | Pendiente |
 | J14 | Rechazar explícitamente el adaptador incompatible con dos muses | Pendiente |
 | J15 | Rechazar fases de azar/terminal en la clave rápida | Completado |
-| J16 | Gramática explícita para opciones enteras sin signo | Pendiente |
+| J16 | Gramática explícita para opciones enteras sin signo | Completado |
 | J17 | Bloqueo ligado al proceso y contrato de durabilidad | Pendiente |
 | J18 | Reducir el coste de codificación y generación de candidatos | Pendiente |
 | J19 | Distribución y memoria de trabajadores por diagonal | Pendiente |
@@ -166,3 +166,37 @@ de RSS es +1,56 %. En las cuatro cargas de score no aparece aumento de tiempo
 de entrenamiento; se conservan los checkpoints, valores y contadores.
 No se activa el límite de regresión. Estas diferencias pequeñas no prueban una
 aceleración causada por la comprobación añadida.
+
+## J16: enteros sin signo del CLI
+
+La gramática requiere uno o más dígitos ASCII antes de convertir. Así no se
+aceptan signos ocultos tras espacios ni signos positivos. Se conservan los
+límites, los ceros iniciales, la semilla cero y las cantidades de trabajo
+estrictamente positivas. También se aplica a los componentes de `--score`.
+
+Las pruebas usan `--help` para validar entradas sin iniciar trabajos enormes.
+Cubren las ocho opciones que comparten los parsers, signos, blancos, caracteres
+no numéricos, vacío, desbordamiento y límites válidos de semilla. La primera
+reproducción falló con `--iterations ' -1'` antes de corregir el parser.
+Al inspeccionar el parser del bot se encontró el mismo defecto en `--seed`.
+Se exige un dígito inicial y consumo completo de la cadena, preservando el
+intervalo 0..UINT64_MAX. La prueba adicional también falló antes de corregirlo.
+La modificación del bot no cambia el ejecutable del solver ya medido.
+Revisión Orca: tarea `task_578c0096685d`, dispatch `ctx_e4da62aa3d94`.
+Esa primera aprobación cubrió el solver. La revisión ampliada
+`task_1601fdec441a` / `ctx_b6ce7b5e9855` pidió cerrar stdin en las pruebas de
+semillas válidas del bot, para evitar bloqueos desde una terminal interactiva.
+Se corrigió con `input=b''` y se comprobó que la batería termina manteniendo
+abierta su propia entrada. Claude dio **APPROVE** en la verificación final
+`task_ae173bc4919b` / `ctx_e73ec63937c9`, mensaje `msg_e754d3b4cf0b`.
+También se incorporaron los casos sugeridos de cero en tamaños y límites de
+marcador. Pasan la batería completa y las pruebas finales de ambos CLIs.
+
+[Rendimiento](review-performance/J16.json): tiempo genérico −0,57 % / −0,35 % /
++1,58 % para single-bet / raises-to-eight / ordago, con contadores iguales.
+La tabla score mantiene archivos idénticos y pasa de 3,8793 a 3,7095 s (−4,38 %).
+En el diagnóstico del bot ampliado a 3.000 repartos: +5,35 % de tiempo total,
++12,76 % de latencia mediana y −0,17 % de RSS. Se conservan cobertura y valores
+del diagnóstico. Se registra el aumento observado, que no alcanza el umbral de
+regresión grave; no se atribuye una mejora o empeoramiento de política a estos
+tiempos. El diagnóstico no mide partidas completas.

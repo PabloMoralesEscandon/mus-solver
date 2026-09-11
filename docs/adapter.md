@@ -157,6 +157,8 @@ adicionales, cartas del rival ni peticiones de fases terminales.
 con `probability`. Se combinan las cantidades que terminen en la misma acción.
 El muestreo utiliza una semilla local: mismas peticiones en el mismo orden y
 misma semilla producen las mismas acciones. Un error no avanza ese generador.
+`--seed` acepta solo dígitos decimales sin signo ni espacios, entre 0 y
+18446744073709551615, incluidos ambos extremos. Admite ceros iniciales.
 
 `diagnostic` contiene:
 

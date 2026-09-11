@@ -1,0 +1,1046 @@
+{
+  "item": "J16",
+  "parent_commit": "812ab0e7de31f85a5a4f3460554ecfca4a0fcf8d",
+  "generic": {
+    "runs": [
+      {
+        "format": "single-bet",
+        "variant": "j15",
+        "repeat": 1,
+        "seconds": 0.984290974999567,
+        "peak_rss_kib": 17920,
+        "command": [
+          "build/review-j15/release/mus-solver",
+          "--format",
+          "single-bet",
+          "--iterations",
+          "100000",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "stdout": "report iterations=100000 threads=1 information_sets=165694 traversals=200000 visited_nodes=11223357 seconds=0.982271\n"
+      },
+      {
+        "format": "single-bet",
+        "variant": "j16",
+        "repeat": 1,
+        "seconds": 0.9712011850006093,
+        "peak_rss_kib": 17708,
+        "command": [
+          "build/review-j16/release/mus-solver",
+          "--format",
+          "single-bet",
+          "--iterations",
+          "100000",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "stdout": "report iterations=100000 threads=1 information_sets=165694 traversals=200000 visited_nodes=11223357 seconds=0.969691\n"
+      },
+      {
+        "format": "single-bet",
+        "variant": "j16",
+        "repeat": 2,
+        "seconds": 0.9761977759999354,
+        "peak_rss_kib": 17940,
+        "command": [
+          "build/review-j16/release/mus-solver",
+          "--format",
+          "single-bet",
+          "--iterations",
+          "100000",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "stdout": "report iterations=100000 threads=1 information_sets=165694 traversals=200000 visited_nodes=11223357 seconds=0.974373\n"
+      },
+      {
+        "format": "single-bet",
+        "variant": "j15",
+        "repeat": 2,
+        "seconds": 0.9767450979998102,
+        "peak_rss_kib": 18196,
+        "command": [
+          "build/review-j15/release/mus-solver",
+          "--format",
+          "single-bet",
+          "--iterations",
+          "100000",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "stdout": "report iterations=100000 threads=1 information_sets=165694 traversals=200000 visited_nodes=11223357 seconds=0.975263\n"
+      },
+      {
+        "format": "single-bet",
+        "variant": "j15",
+        "repeat": 3,
+        "seconds": 0.9284647940003197,
+        "peak_rss_kib": 18276,
+        "command": [
+          "build/review-j15/release/mus-solver",
+          "--format",
+          "single-bet",
+          "--iterations",
+          "100000",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "stdout": "report iterations=100000 threads=1 information_sets=165694 traversals=200000 visited_nodes=11223357 seconds=0.926766\n"
+      },
+      {
+        "format": "single-bet",
+        "variant": "j16",
+        "repeat": 3,
+        "seconds": 0.909933710999212,
+        "peak_rss_kib": 18244,
+        "command": [
+          "build/review-j16/release/mus-solver",
+          "--format",
+          "single-bet",
+          "--iterations",
+          "100000",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "stdout": "report iterations=100000 threads=1 information_sets=165694 traversals=200000 visited_nodes=11223357 seconds=0.908248\n"
+      },
+      {
+        "format": "raises-to-eight",
+        "variant": "j15",
+        "repeat": 1,
+        "seconds": 1.3724821249998058,
+        "peak_rss_kib": 138088,
+        "command": [
+          "build/review-j15/release/mus-solver",
+          "--format",
+          "raises-to-eight",
+          "--iterations",
+          "30000",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "stdout": "report iterations=30000 threads=1 information_sets=1313500 traversals=60000 visited_nodes=9494753 seconds=1.367522\n"
+      },
+      {
+        "format": "raises-to-eight",
+        "variant": "j16",
+        "repeat": 1,
+        "seconds": 1.4293434680002974,
+        "peak_rss_kib": 137800,
+        "command": [
+          "build/review-j16/release/mus-solver",
+          "--format",
+          "raises-to-eight",
+          "--iterations",
+          "30000",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "stdout": "report iterations=30000 threads=1 information_sets=1313500 traversals=60000 visited_nodes=9494753 seconds=1.424085\n"
+      },
+      {
+        "format": "raises-to-eight",
+        "variant": "j16",
+        "repeat": 2,
+        "seconds": 1.4234715270004017,
+        "peak_rss_kib": 138320,
+        "command": [
+          "build/review-j16/release/mus-solver",
+          "--format",
+          "raises-to-eight",
+          "--iterations",
+          "30000",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "stdout": "report iterations=30000 threads=1 information_sets=1313500 traversals=60000 visited_nodes=9494753 seconds=1.416516\n"
+      },
+      {
+        "format": "raises-to-eight",
+        "variant": "j15",
+        "repeat": 2,
+        "seconds": 1.430486739999651,
+        "peak_rss_kib": 138212,
+        "command": [
+          "build/review-j15/release/mus-solver",
+          "--format",
+          "raises-to-eight",
+          "--iterations",
+          "30000",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "stdout": "report iterations=30000 threads=1 information_sets=1313500 traversals=60000 visited_nodes=9494753 seconds=1.425994\n"
+      },
+      {
+        "format": "raises-to-eight",
+        "variant": "j15",
+        "repeat": 3,
+        "seconds": 1.4747013320002225,
+        "peak_rss_kib": 137716,
+        "command": [
+          "build/review-j15/release/mus-solver",
+          "--format",
+          "raises-to-eight",
+          "--iterations",
+          "30000",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "stdout": "report iterations=30000 threads=1 information_sets=1313500 traversals=60000 visited_nodes=9494753 seconds=1.468786\n"
+      },
+      {
+        "format": "raises-to-eight",
+        "variant": "j16",
+        "repeat": 3,
+        "seconds": 1.425453546999961,
+        "peak_rss_kib": 137632,
+        "command": [
+          "build/review-j16/release/mus-solver",
+          "--format",
+          "raises-to-eight",
+          "--iterations",
+          "30000",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "stdout": "report iterations=30000 threads=1 information_sets=1313500 traversals=60000 visited_nodes=9494753 seconds=1.419447\n"
+      },
+      {
+        "format": "ordago",
+        "variant": "j15",
+        "repeat": 1,
+        "seconds": 1.8799266089999946,
+        "peak_rss_kib": 595964,
+        "command": [
+          "build/review-j15/release/mus-solver",
+          "--format",
+          "ordago",
+          "--iterations",
+          "500",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "stdout": "report iterations=500 threads=1 information_sets=3492885 traversals=1000 visited_nodes=20174542 seconds=1.850598\n"
+      },
+      {
+        "format": "ordago",
+        "variant": "j16",
+        "repeat": 1,
+        "seconds": 1.9448782459994618,
+        "peak_rss_kib": 595960,
+        "command": [
+          "build/review-j16/release/mus-solver",
+          "--format",
+          "ordago",
+          "--iterations",
+          "500",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "stdout": "report iterations=500 threads=1 information_sets=3492885 traversals=1000 visited_nodes=20174542 seconds=1.914892\n"
+      },
+      {
+        "format": "ordago",
+        "variant": "j16",
+        "repeat": 2,
+        "seconds": 1.8924668300005578,
+        "peak_rss_kib": 596692,
+        "command": [
+          "build/review-j16/release/mus-solver",
+          "--format",
+          "ordago",
+          "--iterations",
+          "500",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "stdout": "report iterations=500 threads=1 information_sets=3492885 traversals=1000 visited_nodes=20174542 seconds=1.865383\n"
+      },
+      {
+        "format": "ordago",
+        "variant": "j15",
+        "repeat": 2,
+        "seconds": 1.8630528250005227,
+        "peak_rss_kib": 596684,
+        "command": [
+          "build/review-j15/release/mus-solver",
+          "--format",
+          "ordago",
+          "--iterations",
+          "500",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "stdout": "report iterations=500 threads=1 information_sets=3492885 traversals=1000 visited_nodes=20174542 seconds=1.835172\n"
+      },
+      {
+        "format": "ordago",
+        "variant": "j15",
+        "repeat": 3,
+        "seconds": 1.8186704330000794,
+        "peak_rss_kib": 597512,
+        "command": [
+          "build/review-j15/release/mus-solver",
+          "--format",
+          "ordago",
+          "--iterations",
+          "500",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "stdout": "report iterations=500 threads=1 information_sets=3492885 traversals=1000 visited_nodes=20174542 seconds=1.793468\n"
+      },
+      {
+        "format": "ordago",
+        "variant": "j16",
+        "repeat": 3,
+        "seconds": 1.813912593999703,
+        "peak_rss_kib": 597636,
+        "command": [
+          "build/review-j16/release/mus-solver",
+          "--format",
+          "ordago",
+          "--iterations",
+          "500",
+          "--seed",
+          "7",
+          "--threads",
+          "1"
+        ],
+        "stdout": "report iterations=500 threads=1 information_sets=3492885 traversals=1000 visited_nodes=20174542 seconds=1.785873\n"
+      }
+    ],
+    "median": {
+      "single-bet": {
+        "j15": {
+          "seconds": 0.9767450979998102,
+          "peak_rss_kib": 18196
+        },
+        "j16": {
+          "seconds": 0.9712011850006093,
+          "peak_rss_kib": 17940
+        },
+        "candidate_over_parent": {
+          "seconds": 0.9943240943716494,
+          "peak_rss_kib": 0.9859309738404045
+        },
+        "same_counters": true
+      },
+      "raises-to-eight": {
+        "j15": {
+          "seconds": 1.430486739999651,
+          "peak_rss_kib": 138088
+        },
+        "j16": {
+          "seconds": 1.425453546999961,
+          "peak_rss_kib": 137800
+        },
+        "candidate_over_parent": {
+          "seconds": 0.9964814822403099,
+          "peak_rss_kib": 0.9979143734430218
+        },
+        "same_counters": true
+      },
+      "ordago": {
+        "j15": {
+          "seconds": 1.8630528250005227,
+          "peak_rss_kib": 596684
+        },
+        "j16": {
+          "seconds": 1.8924668300005578,
+          "peak_rss_kib": 596692
+        },
+        "candidate_over_parent": {
+          "seconds": 1.01578806816711,
+          "peak_rss_kib": 1.0000134074317395
+        },
+        "same_counters": true
+      }
+    }
+  },
+  "score_table_command": "python3 tests/benchmark_score_table.py build/review-j16/release/mus-solver --baseline build/review-j15/release/mus-solver --threads 1 --repeats 3",
+  "score_table": [
+    {
+      "variant": "baseline-1",
+      "repeat": 1,
+      "seconds": 3.879288783999982,
+      "files_equal": true
+    },
+    {
+      "variant": "current-1",
+      "repeat": 1,
+      "seconds": 3.7348791499998697,
+      "files_equal": true
+    },
+    {
+      "variant": "current-1",
+      "repeat": 2,
+      "seconds": 3.690600725999502,
+      "files_equal": true
+    },
+    {
+      "variant": "baseline-1",
+      "repeat": 2,
+      "seconds": 3.871791898000083,
+      "files_equal": true
+    },
+    {
+      "variant": "baseline-1",
+      "repeat": 3,
+      "seconds": 3.9022277979993305,
+      "files_equal": true
+    },
+    {
+      "variant": "current-1",
+      "repeat": 3,
+      "seconds": 3.7094990639998286,
+      "files_equal": true
+    },
+    {
+      "score": "35:35",
+      "cells": 45,
+      "iterations_per_cell": 1000,
+      "samples_per_cell": 10000,
+      "seed": 7,
+      "repeats": 3,
+      "files_equal": true,
+      "baseline-1": {
+        "seconds": 3.879288783999982,
+        "iterations_per_second": 11600.06447202416
+      },
+      "current-1": {
+        "seconds": 3.7094990639998286,
+        "iterations_per_second": 12131.018022546152
+      }
+    }
+  ],
+  "bot_short_probe": [
+    {
+      "variant": "j15",
+      "repeat": 1,
+      "seconds": 0.061714739999843005,
+      "command": [
+        "python3",
+        "tests/benchmark_adapter.py",
+        "build/review-j15/release/mus-bot",
+        "/tmp/mus-review-j04/generic.cfr.txt",
+        "--text",
+        "--deals",
+        "30"
+      ],
+      "result": {
+        "scope": "scripted_grande_lances_from_fixed_repeated_raise_history",
+        "source": "text",
+        "bot_peak_rss_kib": 2292,
+        "bot_resident_rss_kib": 2292,
+        "deals_per_script": 30,
+        "load_and_first_query_seconds": 0.0011509949999890523,
+        "unique_queries": 111,
+        "coverage": {
+          "exact": 4,
+          "fallback": 107
+        },
+        "latency_ms_median": 0.12153999978181673,
+        "latency_ms_max": 0.689131999934034,
+        "child_peak_rss_kib": 19280,
+        "mean_points": {
+          "mixture": {
+            "accept": -4,
+            "repeat_2": -4,
+            "repeat_3": -4
+          },
+          "round_up": {
+            "accept": -4,
+            "repeat_2": -4,
+            "repeat_3": -4
+          },
+          "last_valid": {
+            "accept": -4,
+            "repeat_2": -4,
+            "repeat_3": -4
+          }
+        }
+      }
+    },
+    {
+      "variant": "j16",
+      "repeat": 1,
+      "seconds": 0.06640356899970357,
+      "command": [
+        "python3",
+        "tests/benchmark_adapter.py",
+        "build/review-j16/release/mus-bot",
+        "/tmp/mus-review-j04/generic.cfr.txt",
+        "--text",
+        "--deals",
+        "30"
+      ],
+      "result": {
+        "scope": "scripted_grande_lances_from_fixed_repeated_raise_history",
+        "source": "text",
+        "bot_peak_rss_kib": 2252,
+        "bot_resident_rss_kib": 2252,
+        "deals_per_script": 30,
+        "load_and_first_query_seconds": 0.0013134620003256714,
+        "unique_queries": 111,
+        "coverage": {
+          "exact": 4,
+          "fallback": 107
+        },
+        "latency_ms_median": 0.11097950027760817,
+        "latency_ms_max": 0.4277180005374248,
+        "child_peak_rss_kib": 19520,
+        "mean_points": {
+          "mixture": {
+            "accept": -4,
+            "repeat_2": -4,
+            "repeat_3": -4
+          },
+          "round_up": {
+            "accept": -4,
+            "repeat_2": -4,
+            "repeat_3": -4
+          },
+          "last_valid": {
+            "accept": -4,
+            "repeat_2": -4,
+            "repeat_3": -4
+          }
+        }
+      }
+    },
+    {
+      "variant": "j16",
+      "repeat": 2,
+      "seconds": 0.06285130700052832,
+      "command": [
+        "python3",
+        "tests/benchmark_adapter.py",
+        "build/review-j16/release/mus-bot",
+        "/tmp/mus-review-j04/generic.cfr.txt",
+        "--text",
+        "--deals",
+        "30"
+      ],
+      "result": {
+        "scope": "scripted_grande_lances_from_fixed_repeated_raise_history",
+        "source": "text",
+        "bot_peak_rss_kib": 2252,
+        "bot_resident_rss_kib": 2252,
+        "deals_per_script": 30,
+        "load_and_first_query_seconds": 0.0009702929992272402,
+        "unique_queries": 111,
+        "coverage": {
+          "exact": 4,
+          "fallback": 107
+        },
+        "latency_ms_median": 0.07762650011500227,
+        "latency_ms_max": 0.31027600016386714,
+        "child_peak_rss_kib": 19416,
+        "mean_points": {
+          "mixture": {
+            "accept": -4,
+            "repeat_2": -4,
+            "repeat_3": -4
+          },
+          "round_up": {
+            "accept": -4,
+            "repeat_2": -4,
+            "repeat_3": -4
+          },
+          "last_valid": {
+            "accept": -4,
+            "repeat_2": -4,
+            "repeat_3": -4
+          }
+        }
+      }
+    },
+    {
+      "variant": "j15",
+      "repeat": 2,
+      "seconds": 0.05646117400010553,
+      "command": [
+        "python3",
+        "tests/benchmark_adapter.py",
+        "build/review-j15/release/mus-bot",
+        "/tmp/mus-review-j04/generic.cfr.txt",
+        "--text",
+        "--deals",
+        "30"
+      ],
+      "result": {
+        "scope": "scripted_grande_lances_from_fixed_repeated_raise_history",
+        "source": "text",
+        "bot_peak_rss_kib": 2292,
+        "bot_resident_rss_kib": 2292,
+        "deals_per_script": 30,
+        "load_and_first_query_seconds": 0.0012540699999590288,
+        "unique_queries": 111,
+        "coverage": {
+          "exact": 4,
+          "fallback": 107
+        },
+        "latency_ms_median": 0.06793849979658262,
+        "latency_ms_max": 0.589983999816468,
+        "child_peak_rss_kib": 19336,
+        "mean_points": {
+          "mixture": {
+            "accept": -4,
+            "repeat_2": -4,
+            "repeat_3": -4
+          },
+          "round_up": {
+            "accept": -4,
+            "repeat_2": -4,
+            "repeat_3": -4
+          },
+          "last_valid": {
+            "accept": -4,
+            "repeat_2": -4,
+            "repeat_3": -4
+          }
+        }
+      }
+    },
+    {
+      "variant": "j15",
+      "repeat": 3,
+      "seconds": 0.06794150399946375,
+      "command": [
+        "python3",
+        "tests/benchmark_adapter.py",
+        "build/review-j15/release/mus-bot",
+        "/tmp/mus-review-j04/generic.cfr.txt",
+        "--text",
+        "--deals",
+        "30"
+      ],
+      "result": {
+        "scope": "scripted_grande_lances_from_fixed_repeated_raise_history",
+        "source": "text",
+        "bot_peak_rss_kib": 2304,
+        "bot_resident_rss_kib": 2304,
+        "deals_per_script": 30,
+        "load_and_first_query_seconds": 0.0014336080002976814,
+        "unique_queries": 111,
+        "coverage": {
+          "exact": 4,
+          "fallback": 107
+        },
+        "latency_ms_median": 0.08668350028528948,
+        "latency_ms_max": 0.7450880002579652,
+        "child_peak_rss_kib": 19064,
+        "mean_points": {
+          "mixture": {
+            "accept": -4,
+            "repeat_2": -4,
+            "repeat_3": -4
+          },
+          "round_up": {
+            "accept": -4,
+            "repeat_2": -4,
+            "repeat_3": -4
+          },
+          "last_valid": {
+            "accept": -4,
+            "repeat_2": -4,
+            "repeat_3": -4
+          }
+        }
+      }
+    },
+    {
+      "variant": "j16",
+      "repeat": 3,
+      "seconds": 0.0687735760002397,
+      "command": [
+        "python3",
+        "tests/benchmark_adapter.py",
+        "build/review-j16/release/mus-bot",
+        "/tmp/mus-review-j04/generic.cfr.txt",
+        "--text",
+        "--deals",
+        "30"
+      ],
+      "result": {
+        "scope": "scripted_grande_lances_from_fixed_repeated_raise_history",
+        "source": "text",
+        "bot_peak_rss_kib": 2264,
+        "bot_resident_rss_kib": 2264,
+        "deals_per_script": 30,
+        "load_and_first_query_seconds": 0.001040256000123918,
+        "unique_queries": 111,
+        "coverage": {
+          "exact": 4,
+          "fallback": 107
+        },
+        "latency_ms_median": 0.08197499982998124,
+        "latency_ms_max": 0.6096010001783725,
+        "child_peak_rss_kib": 19476,
+        "mean_points": {
+          "mixture": {
+            "accept": -4,
+            "repeat_2": -4,
+            "repeat_3": -4
+          },
+          "round_up": {
+            "accept": -4,
+            "repeat_2": -4,
+            "repeat_3": -4
+          },
+          "last_valid": {
+            "accept": -4,
+            "repeat_2": -4,
+            "repeat_3": -4
+          }
+        }
+      }
+    }
+  ],
+  "bot": {
+    "runs": [
+      {
+        "variant": "j15",
+        "repeat": 1,
+        "seconds": 0.8118561380006213,
+        "command": [
+          "python3",
+          "tests/benchmark_adapter.py",
+          "build/review-j15/release/mus-bot",
+          "/tmp/mus-review-j04/generic.cfr.txt",
+          "--text",
+          "--deals",
+          "3000"
+        ],
+        "result": {
+          "scope": "scripted_grande_lances_from_fixed_repeated_raise_history",
+          "source": "text",
+          "bot_peak_rss_kib": 2304,
+          "bot_resident_rss_kib": 2304,
+          "deals_per_script": 3000,
+          "load_and_first_query_seconds": 0.0013208860000304412,
+          "unique_queries": 1614,
+          "coverage": {
+            "exact": 4,
+            "fallback": 1610
+          },
+          "latency_ms_median": 0.06410100013454212,
+          "latency_ms_max": 0.7096200006344588,
+          "child_peak_rss_kib": 19332,
+          "mean_points": {
+            "mixture": {
+              "accept": -4,
+              "repeat_2": -4,
+              "repeat_3": -4
+            },
+            "round_up": {
+              "accept": -4,
+              "repeat_2": -4,
+              "repeat_3": -4
+            },
+            "last_valid": {
+              "accept": -4,
+              "repeat_2": -4,
+              "repeat_3": -4
+            }
+          }
+        }
+      },
+      {
+        "variant": "j16",
+        "repeat": 1,
+        "seconds": 0.8553048069998113,
+        "command": [
+          "python3",
+          "tests/benchmark_adapter.py",
+          "build/review-j16/release/mus-bot",
+          "/tmp/mus-review-j04/generic.cfr.txt",
+          "--text",
+          "--deals",
+          "3000"
+        ],
+        "result": {
+          "scope": "scripted_grande_lances_from_fixed_repeated_raise_history",
+          "source": "text",
+          "bot_peak_rss_kib": 2316,
+          "bot_resident_rss_kib": 2316,
+          "deals_per_script": 3000,
+          "load_and_first_query_seconds": 0.0011466460000519874,
+          "unique_queries": 1614,
+          "coverage": {
+            "exact": 4,
+            "fallback": 1610
+          },
+          "latency_ms_median": 0.0711739994585514,
+          "latency_ms_max": 0.6819079999331734,
+          "child_peak_rss_kib": 19108,
+          "mean_points": {
+            "mixture": {
+              "accept": -4,
+              "repeat_2": -4,
+              "repeat_3": -4
+            },
+            "round_up": {
+              "accept": -4,
+              "repeat_2": -4,
+              "repeat_3": -4
+            },
+            "last_valid": {
+              "accept": -4,
+              "repeat_2": -4,
+              "repeat_3": -4
+            }
+          }
+        }
+      },
+      {
+        "variant": "j16",
+        "repeat": 2,
+        "seconds": 0.853068520999841,
+        "command": [
+          "python3",
+          "tests/benchmark_adapter.py",
+          "build/review-j16/release/mus-bot",
+          "/tmp/mus-review-j04/generic.cfr.txt",
+          "--text",
+          "--deals",
+          "3000"
+        ],
+        "result": {
+          "scope": "scripted_grande_lances_from_fixed_repeated_raise_history",
+          "source": "text",
+          "bot_peak_rss_kib": 2276,
+          "bot_resident_rss_kib": 2276,
+          "deals_per_script": 3000,
+          "load_and_first_query_seconds": 0.0012759800001731492,
+          "unique_queries": 1614,
+          "coverage": {
+            "exact": 4,
+            "fallback": 1610
+          },
+          "latency_ms_median": 0.06929099981789477,
+          "latency_ms_max": 0.7602460000271094,
+          "child_peak_rss_kib": 19520,
+          "mean_points": {
+            "mixture": {
+              "accept": -4,
+              "repeat_2": -4,
+              "repeat_3": -4
+            },
+            "round_up": {
+              "accept": -4,
+              "repeat_2": -4,
+              "repeat_3": -4
+            },
+            "last_valid": {
+              "accept": -4,
+              "repeat_2": -4,
+              "repeat_3": -4
+            }
+          }
+        }
+      },
+      {
+        "variant": "j15",
+        "repeat": 2,
+        "seconds": 0.8369896359999984,
+        "command": [
+          "python3",
+          "tests/benchmark_adapter.py",
+          "build/review-j15/release/mus-bot",
+          "/tmp/mus-review-j04/generic.cfr.txt",
+          "--text",
+          "--deals",
+          "3000"
+        ],
+        "result": {
+          "scope": "scripted_grande_lances_from_fixed_repeated_raise_history",
+          "source": "text",
+          "bot_peak_rss_kib": 2296,
+          "bot_resident_rss_kib": 2296,
+          "deals_per_script": 3000,
+          "load_and_first_query_seconds": 0.0014452810000875616,
+          "unique_queries": 1614,
+          "coverage": {
+            "exact": 4,
+            "fallback": 1610
+          },
+          "latency_ms_median": 0.06311899960564915,
+          "latency_ms_max": 0.6366229999912321,
+          "child_peak_rss_kib": 19336,
+          "mean_points": {
+            "mixture": {
+              "accept": -4,
+              "repeat_2": -4,
+              "repeat_3": -4
+            },
+            "round_up": {
+              "accept": -4,
+              "repeat_2": -4,
+              "repeat_3": -4
+            },
+            "last_valid": {
+              "accept": -4,
+              "repeat_2": -4,
+              "repeat_3": -4
+            }
+          }
+        }
+      },
+      {
+        "variant": "j15",
+        "repeat": 3,
+        "seconds": 0.7777071050004452,
+        "command": [
+          "python3",
+          "tests/benchmark_adapter.py",
+          "build/review-j15/release/mus-bot",
+          "/tmp/mus-review-j04/generic.cfr.txt",
+          "--text",
+          "--deals",
+          "3000"
+        ],
+        "result": {
+          "scope": "scripted_grande_lances_from_fixed_repeated_raise_history",
+          "source": "text",
+          "bot_peak_rss_kib": 2320,
+          "bot_resident_rss_kib": 2320,
+          "deals_per_script": 3000,
+          "load_and_first_query_seconds": 0.0009157790000244859,
+          "unique_queries": 1614,
+          "coverage": {
+            "exact": 4,
+            "fallback": 1610
+          },
+          "latency_ms_median": 0.06106500040914398,
+          "latency_ms_max": 0.47509700016235,
+          "child_peak_rss_kib": 19440,
+          "mean_points": {
+            "mixture": {
+              "accept": -4,
+              "repeat_2": -4,
+              "repeat_3": -4
+            },
+            "round_up": {
+              "accept": -4,
+              "repeat_2": -4,
+              "repeat_3": -4
+            },
+            "last_valid": {
+              "accept": -4,
+              "repeat_2": -4,
+              "repeat_3": -4
+            }
+          }
+        }
+      },
+      {
+        "variant": "j16",
+        "repeat": 3,
+        "seconds": 0.9153189369999382,
+        "command": [
+          "python3",
+          "tests/benchmark_adapter.py",
+          "build/review-j16/release/mus-bot",
+          "/tmp/mus-review-j04/generic.cfr.txt",
+          "--text",
+          "--deals",
+          "3000"
+        ],
+        "result": {
+          "scope": "scripted_grande_lances_from_fixed_repeated_raise_history",
+          "source": "text",
+          "bot_peak_rss_kib": 2300,
+          "bot_resident_rss_kib": 2300,
+          "deals_per_script": 3000,
+          "load_and_first_query_seconds": 0.0015221359999486594,
+          "unique_queries": 1614,
+          "coverage": {
+            "exact": 4,
+            "fallback": 1610
+          },
+          "latency_ms_median": 0.0784679996286286,
+          "latency_ms_max": 0.8060820000537205,
+          "child_peak_rss_kib": 19676,
+          "mean_points": {
+            "mixture": {
+              "accept": -4,
+              "repeat_2": -4,
+              "repeat_3": -4
+            },
+            "round_up": {
+              "accept": -4,
+              "repeat_2": -4,
+              "repeat_3": -4
+            },
+            "last_valid": {
+              "accept": -4,
+              "repeat_2": -4,
+              "repeat_3": -4
+            }
+          }
+        }
+      }
+    ],
+    "median": {
+      "j15": {
+        "seconds": 0.8118561380006213,
+        "bot_peak_rss_kib": 2304,
+        "latency_ms_median": 0.06311899960564915
+      },
+      "j16": {
+        "seconds": 0.8553048069998113,
+        "bot_peak_rss_kib": 2300,
+        "latency_ms_median": 0.0711739994585514
+      },
+      "candidate_over_parent": {
+        "seconds": 1.0535176947804965,
+        "bot_peak_rss_kib": 0.9982638888888888,
+        "latency_ms_median": 1.1276160887090696
+      }
+    },
+    "same_diagnostic_results": true
+  },
+  "decision": "No severe regression. Training counters and persisted score-table files match. Bot diagnostic coverage and values match.",
+  "limitations": [
+    "The bot workload has 3000 scripted deals after a 30-deal probe was too short to assess timing. It is a coverage/latency diagnostic, not full matches or exploitability.",
+    "Startup-only parser changes do not alter the training or policy-query algorithms."
+  ]
+}
