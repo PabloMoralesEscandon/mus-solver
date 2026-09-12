@@ -123,8 +123,9 @@ termina de inmediato y sustituye todos los pagos anteriores por 40:0 o 0:40.
 Este contrato es distinto de la utilidad de partida de `ordago-score`.
 
 El esquema nuevo exige reentrenar. `ordago` mantiene su esquema histórico v9,
-sus lectores y su comportamiento, incluida la dependencia de resultados
-ocultos descrita en la revisión J01. No se reinterpretan esos checkpoints.
+sus lectores y su comportamiento: sus claves y límites de envite dependen de
+resultados de cartas ocultas que aún no están disponibles para quien decide.
+No se reinterpretan esos checkpoints como políticas de información pública.
 Las tablas `ordago-score/v4` conservan su identidad y su contabilidad pública.
 Se admite entrenar, reanudar, exportar, precargar tablas con marcador y ejecutar el
 diagnóstico `bounded-final-lances` de `ordago-public`. Ese diagnóstico fija las
@@ -247,7 +248,8 @@ un rival de control; admite genéricas y tablas híbridas. Véanse los
 
 ## Variante con marcador: `ordago-score`
 
-Implementa el diseño de [TABLA_DE_CONTINUACION_CFR.md](TABLA_DE_CONTINUACION_CFR.md).
+La [tabla de continuación](docs/continuation-table.md) explica cómo se valora
+el resto de la partida desde cada marcador.
 Cada celda `a–b` tiene su propio almacén CFR. El árbol conserva una sola mano,
 con mus, descartes y los envites de `ordago`. El jugador 0 representa siempre
 la mano y el jugador 1 el postre.
@@ -674,10 +676,7 @@ Un sistema que rechace esa operación produce un error; no se continúa sin bloq
 
 Una señal termina el trabajo en curso; el bloqueo se libera sin ejecutar código
 desde un manejador de señales. La recuperación parte de las diagonales publicadas
-y puede reutilizar celdas terminadas de la siguiente diagonal. Este bloqueo
-entre procesos no cambia el contrato de persistencia
-ante un corte de energía: la sincronización de archivos y directorios se trata
-por separado.
+y puede reutilizar celdas terminadas de la siguiente diagonal.
 
 Repetir el comando del coordinador con el mismo directorio conserva las diagonales terminadas
 y completa las pendientes. Una celda recuperada conserva el checkpoint y su
@@ -693,7 +692,9 @@ en ampliaciones, del checkpoint de origen de esa celda. Los archivos de origen
 deben permanecer inmutables durante la ejecución. Las huellas FNV detectan
 cambios accidentales; no autentican los archivos. El lector de checkpoints
 comprueba además el formato y su checksum. Esta recuperación cubre interrupciones
-del proceso; no incorpora la sincronización de disco pendiente de J17.
+del proceso. Los archivos y directorios no se sincronizan explícitamente con el
+disco, por lo que no se garantiza conservar las últimas escrituras ante un corte
+de energía.
 
 El registro conserva como máximo una entrada por marcador en memoria y se lee
 una vez al iniciar la escritura. Las entradas antiguas permanecen en el archivo.

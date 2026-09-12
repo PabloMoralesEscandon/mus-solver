@@ -1,19 +1,13 @@
 # Rendimiento de `ordago-score`
 
-Las optimizaciones conservan las acciones legales y su orden, las claves de
-información, la abstracción `mus.ordago-score/v4`, el muestreo MCCFR y los formatos
-de persistencia. No se reducen las iteraciones ni las muestras de evaluación.
+Esta guía permite medir el entrenamiento, la evaluación y el consumo de memoria
+de `ordago-score`, y comparar configuraciones de hilos. Incluye resultados de
+referencia con su carga, fecha y entorno; las cifras no describen necesariamente
+el rendimiento de la versión actual ni el de otro equipo.
 
-El tanteo actualiza los cobros de cada lance y resuelve los contratos pendientes
-al final. La validación conserva el cálculo completo como referencia
-independiente. Los descartes canónicos y las condiciones comunes de las apuestas
-se calculan una vez por menú. La evaluación restaura el estado activo sin borrar
-todo el historial de undo en cada muestra.
-
-C-CFR conserva una caché de nodos durante cada llamada de entrenamiento,
-reutiliza divisiones de la normalización de regrets y evita escrituras
-innecesarias en las consultas y en las acciones muestreadas. Estos cambios están
-en el submódulo `C-CFR`, además de los cambios del repositorio principal.
+Para comparar versiones, mantenga las mismas reglas, abstracción, iteraciones,
+muestras de evaluación y semillas. Los benchmarks con un hilo por estrategia
+comprueban también que las políticas y los valores coincidan.
 
 ## Medición de una celda
 
@@ -173,7 +167,7 @@ otros marcadores o presupuestos de entrenamiento.
 
 ## Hilos sobre un mismo marcador: 2026-09-08
 
-Se ha medido la implementación nueva con 1, 2, 4, 8 y 14 hilos que comparten
+Se midió el entrenamiento con 1, 2, 4, 8 y 14 hilos que comparten
 un único almacén. Son medianas de tres procesos nuevos por configuración,
 ejecutados de uno en uno y alternando el orden de los hilos entre repeticiones.
 La máquina es el mismo Ryzen AI 7 350: 8 núcleos físicos y 16 procesadores
@@ -246,9 +240,9 @@ El programa también permite medir una configuración individual con
 
 ## Verificación
 
-El 2026-09-08 se han compilado y ejecutado las tres suites siguientes con
-`-j2`, incluido el soporte nuevo de hilos por estrategia. Todas han terminado
-correctamente, sin errores de ASan/UBSan ni avisos de ThreadSanitizer.
+Antes de comparar rendimiento, compruebe el funcionamiento y el acceso
+concurrente con las suites normales, AddressSanitizer/UndefinedBehaviorSanitizer
+y ThreadSanitizer:
 
 ```sh
 make test
@@ -256,12 +250,10 @@ make test-sanitize
 make test-tsan
 ```
 
-Las pruebas cubren los 330 multiconjuntos de cartas para los descartes, recorridos
-con validación de cada hijo y undo en todos los marcadores a objetivos 3, 5 y 40,
-y la igualdad byte a byte de tablas y checkpoints con distintos números de
-celdas simultáneas y un hilo por estrategia. También cubren precarga,
-reanudación, orden de callbacks y fallo antes de publicar una diagonal. Para
-una estrategia compartida, comprueban el reparto de iteraciones, los contadores
-acumulados, la cancelación, los bloques incompletos, el exceso de hilos y la
-persistencia de checkpoints. Las pruebas de C-CFR comprueban la caché con 2, 8 y 64
-acciones, los menús incompatibles y la recuperación ante fallos de asignación.
+Las pruebas comprueban el modelo de juego, la precarga, la reanudación y la
+persistencia. Con un hilo por estrategia, verifican la igualdad de tablas y
+checkpoints al cambiar el número de celdas simultáneas. Con varios hilos por
+estrategia, comprueban el reparto de iteraciones y los contadores acumulados;
+ese modo no garantiza resultados idénticos entre ejecuciones.
+
+Espere a que terminen las compilaciones y las pruebas antes de medir tiempos.

@@ -370,9 +370,9 @@ Tantos medios del bot por lance en los repartos programados:
 
 La mezcla rindió peor en este diagnóstico. Los historiales iniciales son
 forzados, los rivales siguen guiones y siempre quieren los órdagos: esta prueba
-no establece qué traductor ganará más partidas contra humanos. La implementación
-mantiene la mezcla acordada, y expone las fuentes y ajustes para facilitar
-comparaciones posteriores. No se afirma una mejora de calidad estratégica.
+no establece qué traductor ganará más partidas contra humanos. El adaptador
+expone las fuentes y los ajustes para facilitar comparaciones entre métodos.
+No se afirma una mejora de calidad estratégica.
 
 ### Consulta directa del texto
 
