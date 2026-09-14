@@ -123,10 +123,12 @@ with tempfile.TemporaryDirectory(prefix='mus-recovery-tests-') as tmp:
     # Two muses generate substantially more work per iteration in debug.
     signal_iterations=100 if 'muses-2' in (top/'values.txt').read_text() else 500
     command=args(killed,'1:1',iterations=signal_iterations,samples=1000)
+    # Both the first cell and recovery can be slow under ASan/TSan.
+    interrupted_run_timeout=180
     child=subprocess.Popen([solver,*command],stdout=subprocess.PIPE,stderr=subprocess.PIPE,
                            bufsize=0,start_new_session=True)
     try:
-        deadline=time.monotonic()+30
+        deadline=time.monotonic()+interrupted_run_timeout
         while time.monotonic()<deadline:
             if select.select([child.stdout],[],[],1)[0]:
                 line=child.stdout.readline()
@@ -140,9 +142,7 @@ with tempfile.TemporaryDirectory(prefix='mus-recovery-tests-') as tmp:
         if child.poll() is None:child.kill();child.wait()
         child.stdout.close();child.stderr.close()
     checkpoint=killed/'score-01-02.cfr.zst';before=(digest(checkpoint),checkpoint.stat().st_mtime_ns)
-    # Completing the deliberately long interrupted run is much slower under
-    # ASan/TSan than the small recovery fixtures above.
-    output=run(command,timeout=180)
+    output=run(command,timeout=interrupted_run_timeout)
     assert 'score-recovered score=1:2' in output
     assert (digest(checkpoint),checkpoint.stat().st_mtime_ns)==before
 print('All completed-cell recovery checks passed.')
