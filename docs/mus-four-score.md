@@ -145,8 +145,6 @@ make -j4 benchmark-training
 build/release/benchmark-training ordago-score-four 3000 4 7 35 35
 ```
 
-[Mediciones y validación de la integración](performance-four-merge-20260914/report.md).
-
 Entrenar cuatro políticas descentralizadas con utilidad compartida no convierte
 el problema en un juego de dos jugadores con acceso conjunto a las cartas.
 Las garantías de convergencia de CFR para dos jugadores no se extienden
