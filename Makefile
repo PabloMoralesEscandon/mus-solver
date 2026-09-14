@@ -54,7 +54,7 @@ DEPENDENCY_FILES := $(RELEASE_OBJECTS:.o=.d) $(DEBUG_OBJECTS:.o=.d) \
 
 .PHONY: all lto debug test test-core test-tsan test-sanitize dependencies cfr-release \
 	cfr-debug clean clean-all solver bot match-eval \
-	benchmark-score benchmark-score-threads benchmark-evaluation
+	benchmark-score benchmark-score-threads benchmark-training benchmark-evaluation
 
 all: $(RELEASE_BINARY) $(RELEASE_DIR)/mus-bot $(RELEASE_DIR)/mus-match-eval
 
@@ -91,6 +91,15 @@ benchmark-score: $(RELEASE_DIR)/benchmark-score
 benchmark-evaluation: $(RELEASE_DIR)/benchmark-evaluation
 
 benchmark-score-threads: $(RELEASE_DIR)/benchmark-score-threads
+
+benchmark-training: $(RELEASE_DIR)/benchmark-training
+
+$(RELEASE_DIR)/benchmark-training: $(RELEASE_DIR)/tests/benchmark_training.o \
+		$(RELEASE_LIBRARY) $(RELEASE_CFR_LIBRARY)
+	$(CC) $(LDFLAGS) $(RELEASE_LINK_FLAGS) $(THREAD_FLAGS) $< \
+		$(RELEASE_LIBRARY) $(RELEASE_CFR_LIBRARY) $(LDLIBS) -o $@
+
+-include $(RELEASE_DIR)/tests/benchmark_training.d
 
 $(RELEASE_DIR)/benchmark-score-threads: $(RELEASE_DIR)/tests/benchmark_score_threads.o \
 		$(RELEASE_LIBRARY) $(RELEASE_CFR_LIBRARY)
@@ -287,7 +296,7 @@ $(DEBUG_DIR)/app/mus_bot_cli.o: $(DEBUG_DIR)/.mus-json-config
 
 $(RELEASE_BINARY) $(RELEASE_DIR)/mus-bot $(RELEASE_DIR)/mus-match-eval \
 	$(RELEASE_DIR)/benchmark-score $(RELEASE_DIR)/benchmark-score-threads \
-	$(RELEASE_DIR)/benchmark-evaluation: $(RELEASE_DIR)/.mus-link-config
+	$(RELEASE_DIR)/benchmark-training $(RELEASE_DIR)/benchmark-evaluation: $(RELEASE_DIR)/.mus-link-config
 $(DEBUG_BINARY) $(TEST_BINARY) $(DEBUG_DIR)/mus-bot $(DEBUG_DIR)/mus-match-eval \
 	$(DEBUG_DIR)/mus_match_tests $(DEBUG_DIR)/mus_hotpaths_tests \
 	$(DEBUG_DIR)/mus_adapter_tests $(DEBUG_DIR)/mus_adapter_candidates_tests \
