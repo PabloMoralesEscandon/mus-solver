@@ -6,9 +6,9 @@
 #define MUS_FOUR_PLAYER_COUNT 4
 #define MUS_FOUR_UNDO_CAPACITY 256
 #if MUS_GAME_MAX_MUSES == 1
-#define MUS_FOUR_STRATEGY_SCHEMA_ID "mus.four-partnership-score/v1-muses-1"
+#define MUS_FOUR_STRATEGY_SCHEMA_ID "mus.four-partnership-score/v3-muses-1"
 #else
-#define MUS_FOUR_STRATEGY_SCHEMA_ID "mus.four-partnership-score/v1-muses-2"
+#define MUS_FOUR_STRATEGY_SCHEMA_ID "mus.four-partnership-score/v3-muses-2"
 #endif
 
 typedef enum {
@@ -24,9 +24,21 @@ typedef enum {
     MUS_FOUR_PHASE_TERMINAL
 } MusFourPhase;
 
+/* Ordered team proposals. Only the winning numeric proposal consumes a
+ * wager action. Equal proposals select the first responding seat. */
+typedef enum {
+    MUS_FOUR_RESPONSE_NONE,
+    MUS_FOUR_RESPONSE_REJECT,
+    MUS_FOUR_RESPONSE_ACCEPT,
+    MUS_FOUR_RESPONSE_BET_TWO,
+    MUS_FOUR_RESPONSE_BET_FOUR,
+    MUS_FOUR_RESPONSE_BET_TEN,
+    MUS_FOUR_RESPONSE_ORDAGO
+} MusFourResponse;
+
 /* Seats 0 and 2 form team 0. Seats 1 and 3 form team 1. Seat 0 is mano.
- * Numeric wagers are increments. A team rejects only when every eligible
- * member rejects. An acceptance or raise binds the team immediately. */
+ * Numeric wagers are increments. Every eligible teammate responds to the
+ * original offer; the greater proposal becomes the team's action. */
 typedef struct {
     uint8_t phase;
     uint8_t current_player;
@@ -46,7 +58,15 @@ typedef struct {
     uint8_t prior_wager_total;
     uint8_t eligible_mask;
     uint8_t passed_mask;
-    uint8_t rejected_mask;
+    /* The first teammate's public proposal, while current_player responds.
+     * Its author is current_player's teammate. The offer stays unchanged. */
+    uint8_t pending_response;
+    /* Most recent resolved reply, retained across lances until another reply
+     * resolves. The second proposal belongs to the first player's teammate;
+     * NONE means that only the first player was eligible. Both NONE means
+     * no reply has resolved. Earlier resolved replies are abstracted away. */
+    uint8_t last_response_player;
+    uint8_t last_responses[2];
     uint8_t bettor;
     uint8_t current_wager;
     uint8_t previous_wager;
@@ -89,7 +109,9 @@ typedef struct {
     uint8_t current_wager;
     uint8_t previous_wager;
     bool current_wager_is_ordago;
-    bool teammate_rejected;
+    uint8_t pending_response;
+    uint8_t last_response_player;
+    uint8_t last_responses[2];
     uint8_t used_wager_action_masks[MUS_FOUR_PLAYER_COUNT];
 } MusFourInformationSet;
 

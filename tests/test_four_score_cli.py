@@ -6,10 +6,14 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import zlib
 
 SOLVER = str(Path(sys.argv[1]).resolve())
 BOT = str(Path(sys.argv[2]).resolve()) if len(sys.argv) > 2 else None
 FORMAT = 'ordago-score-four'
+RULES_SCHEMA = b'mus.four-partnership-score/v3-muses-'
+PREVIOUS_RULES_SCHEMAS = (b'mus.four-partnership-score/v1-muses-',
+                          b'mus.four-partnership-score/v2-muses-')
 
 
 def run(args, success=True):
@@ -53,6 +57,7 @@ with tempfile.TemporaryDirectory(prefix='mus-four-cli-') as temporary:
                if line.startswith(('score-report ', 'score-table ')))
     header = (scores / 'values.txt').read_text().splitlines()[0]
     assert 'four' in header and 'statistics=sample-variance-v1' in header, header
+    assert RULES_SCHEMA.decode() in header, header
     assert len(rows(scores)) == 6
     for row in rows(scores).values():
         assert -1 <= float(row[0]) <= 1
@@ -90,8 +95,40 @@ with tempfile.TemporaryDirectory(prefix='mus-four-cli-') as temporary:
     assert resumed.read_bytes() == whole.read_bytes()
     exported = root / 'strategy.txt'
     run(read(scores, ['--load', resumed, '--export-strategy', exported]))
-    assert 'four' in exported.read_text().splitlines()[0]
-    assert len(exported.read_text().splitlines()) > 1
+    exported_lines = exported.read_text().splitlines()
+    assert RULES_SCHEMA.decode() in exported_lines[0]
+    assert len(exported_lines) > 1
+    response_actions = {'no_querer', 'querer', 'envidar_2', 'envidar_4',
+                        'envidar_10', 'ordago'}
+    response_pairs = 0
+    for line in exported_lines[1:]:
+        fields = dict(token.split('=', 1) for token in line.split()[1:])
+        history = fields['ultima_respuesta']
+        if history == 'ninguna':
+            continue
+        proposals = [proposal.split(':', 1) for proposal in history.split('/')]
+        assert len(proposals) in (1, 2), history
+        for seat, action in proposals:
+            assert 0 <= int(seat) < 4 and action in response_actions, history
+        if len(proposals) == 2:
+            assert int(proposals[1][0]) == (int(proposals[0][0]) + 2) % 4, history
+            response_pairs += 1
+    assert response_pairs > 0, 'No resolved partnership responses were exported'
+
+    # Checkpoints with either previous four-player rule have a valid checksum,
+    # but its exact game schema must prevent loading it under the new rules.
+    checkpoint_bytes = resumed.read_bytes()
+    assert checkpoint_bytes.count(RULES_SCHEMA) == 1
+    assert zlib.crc32(checkpoint_bytes[:-4]) == int.from_bytes(checkpoint_bytes[-4:], 'little')
+    for version, previous_schema in enumerate(PREVIOUS_RULES_SCHEMAS, start=1):
+        previous_payload = checkpoint_bytes[:-4].replace(RULES_SCHEMA, previous_schema)
+        previous_checkpoint = root / f'previous-four-v{version}-rules.cfr'
+        previous_checkpoint.write_bytes(previous_payload + zlib.crc32(previous_payload).to_bytes(4, 'little'))
+        result = subprocess.run([SOLVER, *map(str, read(scores, [
+            '--load', previous_checkpoint, '--evaluate', '--evaluation-samples', '20']))],
+            capture_output=True, text=True, timeout=120)
+        assert result.returncode != 0 and 'incompatible game' in result.stderr, result
+        assert artifacts(scores) == before
 
     # Regions and extensions retain the same two TEAM score dimensions.
     region = root / 'region'
@@ -105,6 +142,23 @@ with tempfile.TemporaryDirectory(prefix='mus-four-cli-') as temporary:
     assert all(int(row[1]) == 4 for row in rows(extension).values())
     run(train(extension, ['--extend-continuation', region]))
 
+    # The table container version stays v1. Its base rules identity rejects
+    # previous four-player tables in both full-table and region workflows.
+    for current in (scores, region):
+        for version, previous_schema in enumerate(PREVIOUS_RULES_SCHEMAS, start=1):
+            previous_table = root / f'previous-v{version}-{current.name}'
+            shutil.copytree(current, previous_table)
+            values = previous_table / 'values.txt'
+            current_values = values.read_bytes()
+            assert current_values.count(RULES_SCHEMA) == 1
+            values.write_bytes(current_values.replace(RULES_SCHEMA, previous_schema))
+            previous_before = artifacts(previous_table)
+            run(read(previous_table, ['--evaluate']), False)
+            run(train(previous_table, ['--seed', '7']), False)
+            run(train(root / ('extend-' + previous_table.name),
+                      ['--extend-continuation', previous_table]), False)
+            assert artifacts(previous_table) == previous_before
+
     # Recover a saved cell after a later cell prevents diagonal publication.
     recovery = root / 'recovery'
     run(train(recovery, ['--seed', '7'], score='2:2'))
@@ -114,6 +168,31 @@ with tempfile.TemporaryDirectory(prefix='mus-four-cli-') as temporary:
     saved = recovery / 'score-01-02.cfr.zst'
     stamp = (saved.read_bytes(), saved.stat().st_mtime_ns)
     obstacle.rmdir()
+
+    # A correctly checksummed recovery record from the previous rules must
+    # not mark an unpublished cell as completed under the current rules.
+    for version, previous_schema in enumerate(PREVIOUS_RULES_SCHEMAS, start=1):
+        previous_recovery = root / f'previous-v{version}-recovery'
+        shutil.copytree(recovery, previous_recovery)
+        journal = previous_recovery / 'recovery.txt'
+        records = []
+        for line in journal.read_bytes().splitlines():
+            if not line:
+                continue
+            payload, checksum = line.rsplit(b'\t', 1)
+            assert payload.count(RULES_SCHEMA) == 1
+            payload = payload.replace(RULES_SCHEMA, previous_schema)
+            digest = 14695981039346656037
+            for byte in payload:
+                digest = ((digest ^ byte) * 1099511628211) & ((1 << 64) - 1)
+            records.append(payload + f'\t{digest:016x}\n'.encode())
+        assert records
+        journal.write_bytes(b''.join(records))
+        output = run(train(previous_recovery, ['--seed', '7']))
+        assert 'score-recovered score=1:2 ' not in output, output
+        assert 'score-cell score=1:2 ' in output, output
+        assert rows(previous_recovery) == rows(scores)
+
     output = run(train(recovery, ['--seed', '7']))
     assert 'score-recovered score=1:2 ' in output, output
     assert stamp == (saved.read_bytes(), saved.stat().st_mtime_ns)

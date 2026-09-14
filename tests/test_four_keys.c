@@ -18,7 +18,68 @@ static InfoSetKey exact_keys[330 * 4 * 2];
 static size_t exact_key_count;
 static size_t hand_count;
 static size_t betting_observations;
+static size_t betting_expansions;
+static size_t largest_betting_walk;
 static bool wager_masks[65536];
+
+typedef struct {
+    uint64_t hash;
+    MusFourGameModel model;
+} BettingModelEntry;
+
+typedef struct {
+    BettingModelEntry *entries;
+    size_t capacity;
+    size_t count;
+} BettingModels;
+
+static uint64_t betting_model_hash(const MusFourGameModel *model) {
+    const unsigned char *bytes = (const unsigned char *)model;
+    uint64_t hash = UINT64_C(14695981039346656037);
+    for (size_t i = 0; i < sizeof(*model); ++i) {
+        hash ^= bytes[i];
+        hash *= UINT64_C(1099511628211);
+    }
+    return hash == 0 ? 1 : hash;
+}
+
+static size_t betting_model_slot(const BettingModels *models,
+                                  const MusFourGameModel *model, uint64_t hash) {
+    size_t slot = (size_t)hash & (models->capacity - 1);
+    while (models->entries[slot].hash != 0) {
+        if (models->entries[slot].hash == hash &&
+            memcmp(&models->entries[slot].model, model, sizeof(*model)) == 0)
+            break;
+        slot = (slot + 1) & (models->capacity - 1);
+    }
+    return slot;
+}
+
+static bool betting_model_seen(BettingModels *models, const MusFourGameModel *model) {
+    if (models->capacity == 0 || models->count >= models->capacity / 2) {
+        const size_t previous_capacity = models->capacity;
+        BettingModelEntry *previous = models->entries;
+        models->capacity = previous_capacity == 0 ? 1024 : previous_capacity * 2;
+        models->entries = calloc(models->capacity, sizeof(*models->entries));
+        CHECK(models->entries != NULL);
+        for (size_t i = 0; i < previous_capacity; ++i) {
+            if (previous[i].hash == 0)
+                continue;
+            const size_t slot = betting_model_slot(models, &previous[i].model,
+                                                    previous[i].hash);
+            models->entries[slot] = previous[i];
+        }
+        free(previous);
+    }
+    const uint64_t hash = betting_model_hash(model);
+    const size_t slot = betting_model_slot(models, model, hash);
+    if (models->entries[slot].hash != 0)
+        return true;
+    models->entries[slot].hash = hash;
+    models->entries[slot].model = *model;
+    models->count += 1;
+    return false;
+}
 
 static GameState *raw(MusFourGameState *state) {
     return (GameState *)state;
@@ -39,7 +100,9 @@ static void compare_observations(const MusFourInformationSet *a,
     CHECK(a->eligible_mask == b->eligible_mask && a->bettor == b->bettor);
     CHECK(a->current_wager == b->current_wager && a->previous_wager == b->previous_wager);
     CHECK(a->current_wager_is_ordago == b->current_wager_is_ordago);
-    CHECK(a->teammate_rejected == b->teammate_rejected);
+    CHECK(a->pending_response == b->pending_response);
+    CHECK(a->last_response_player == b->last_response_player);
+    CHECK(memcmp(a->last_responses, b->last_responses, sizeof(a->last_responses)) == 0);
     CHECK(memcmp(a->used_wager_action_masks, b->used_wager_action_masks,
                   sizeof(a->used_wager_action_masks)) == 0);
 }
@@ -115,7 +178,7 @@ static void deal(const MusScoreGame *game, MusFourGameState *state,
 }
 
 static void walk_betting_phase(const MusScoreGame *game, MusFourGameState *state,
-                               unsigned int phase) {
+                               unsigned int phase, BettingModels *models) {
     if (state->model.phase != phase)
         return;
     CHECK(cfr_game_validate_state(&game->game, raw(state)) == CFR_STATUS_SUCCESS);
@@ -140,15 +203,209 @@ static void walk_betting_phase(const MusScoreGame *game, MusFourGameState *state
     CHECK(mask < sizeof(wager_masks) / sizeof(wager_masks[0]));
     wager_masks[mask] = true;
     betting_observations += 1;
+    /* Check every arrival before deduplicating successors. In particular,
+     * distinct models with colliding information-set keys must both be checked.
+     * Undo history is deliberately excluded; this set belongs to one fixture
+     * and one phase, so equal complete models have equal future transitions. */
+    CHECK(betting_observations <= 1000000);
+    if (betting_model_seen(models, &state->model))
+        return;
+    betting_expansions += 1;
+    CHECK(betting_expansions <= 750000);
+    CHECK(models->count <= 100000);
     for (size_t i = 0; i < count; ++i) {
         const MusFourGameModel before = state->model;
         const size_t undo_count = state->undo_count;
         apply(game, state, actions[i]);
-        walk_betting_phase(game, state, phase);
+        walk_betting_phase(game, state, phase, models);
         CHECK(cfr_game_undo_action(&game->game, raw(state)) == CFR_STATUS_SUCCESS);
         CHECK(state->undo_count == undo_count);
         CHECK(memcmp(&state->model, &before, sizeof(before)) == 0);
     }
+}
+
+static void test_public_response_keys(void) {
+    static const uint8_t hands[4][8] = {
+        {4,0,0,0,0,0,0,0}, {0,0,0,0,0,0,0,4},
+        {0,4,0,0,0,0,0,0}, {0,0,4,0,0,0,0,0}};
+    static const Action responses[] = {MUS_ACTION_REJECT, MUS_ACTION_ACCEPT,
+        MUS_ACTION_BET_TWO, MUS_ACTION_BET_FOUR, MUS_ACTION_BET_TEN, MUS_ACTION_ORDAGO};
+    static const uint8_t proposals[] = {MUS_FOUR_RESPONSE_REJECT, MUS_FOUR_RESPONSE_ACCEPT,
+        MUS_FOUR_RESPONSE_BET_TWO, MUS_FOUR_RESPONSE_BET_FOUR,
+        MUS_FOUR_RESPONSE_BET_TEN, MUS_FOUR_RESPONSE_ORDAGO};
+    MusScoreTable *table = malloc(sizeof(*table));
+    MusFourGameState *state = malloc(sizeof(*state));
+    CHECK(table != NULL && state != NULL);
+    CHECK(mus_score_table_init(table, 40) == CFR_STATUS_SUCCESS);
+    table->four_player = true;
+    MusScoreGame game;
+    CHECK(mus_score_game_init(&game, table, 0, 0) == CFR_STATUS_SUCCESS);
+    deal(&game, state, hands);
+    apply(&game, state, MUS_ACTION_BET_TWO);
+    const MusFourGameModel original = state->model;
+    InfoSetKey keys[6];
+    for (unsigned int r = 0; r < 6; ++r) {
+        apply(&game, state, responses[r]);
+        MusFourInformationSet observed, decoded;
+        CHECK(mus_four_score_game_observe(state, &observed) == CFR_STATUS_SUCCESS);
+        CHECK(observed.player == 3 && observed.pending_response == proposals[r]);
+        CHECK(cfr_game_information_set_key(&game.game, raw(state), &keys[r]) == CFR_STATUS_SUCCESS);
+        CHECK(mus_four_score_information_set_decode(keys[r], &decoded) == CFR_STATUS_SUCCESS);
+        compare_observations(&observed, &decoded);
+        for (unsigned int previous = 0; previous < r; ++previous)
+            CHECK(keys[r] != keys[previous]);
+        CHECK(cfr_game_undo_action(&game.game, raw(state)) == CFR_STATUS_SUCCESS);
+        CHECK(memcmp(&state->model, &original, sizeof(original)) == 0);
+    }
+    /* A proposal is valid only for the second eligible teammate, and must
+     * have been legal for the first teammate against the unchanged offer. */
+    MusFourInformationSet invalid;
+    CHECK(mus_four_score_game_observe(state, &invalid) == CFR_STATUS_SUCCESS);
+    invalid.pending_response = MUS_FOUR_RESPONSE_ACCEPT;
+    InfoSetKey untouched = 123;
+    CHECK(mus_four_score_information_set_encode(&invalid, &untouched) == CFR_STATUS_INVALID_ARGUMENT);
+    CHECK(untouched == 123);
+    CHECK(cfr_game_undo_action(&game.game, raw(state)) == CFR_STATUS_SUCCESS);
+    apply(&game, state, MUS_ACTION_BET_FOUR);
+    apply(&game, state, MUS_ACTION_ACCEPT);
+    CHECK(mus_four_score_game_observe(state, &invalid) == CFR_STATUS_SUCCESS);
+    invalid.pending_response = MUS_FOUR_RESPONSE_BET_TWO;
+    CHECK(mus_four_score_information_set_encode(&invalid, &untouched) == CFR_STATUS_INVALID_ARGUMENT);
+    CHECK(untouched == 123);
+    CHECK(cfr_game_undo_action(&game.game, raw(state)) == CFR_STATUS_SUCCESS);
+    CHECK(cfr_game_undo_action(&game.game, raw(state)) == CFR_STATUS_SUCCESS);
+    apply(&game, state, MUS_ACTION_ORDAGO);
+    apply(&game, state, MUS_ACTION_ACCEPT);
+    CHECK(mus_four_score_game_observe(state, &invalid) == CFR_STATUS_SUCCESS);
+    invalid.pending_response = MUS_FOUR_RESPONSE_BET_TEN;
+    CHECK(mus_four_score_information_set_encode(&invalid, &untouched) == CFR_STATUS_INVALID_ARGUMENT);
+    CHECK(untouched == 123);
+    invalid.pending_response = UINT8_MAX;
+    CHECK(mus_four_score_information_set_encode(&invalid, &untouched) == CFR_STATUS_INVALID_ARGUMENT);
+    CHECK(untouched == 123);
+    state->model.pending_response = UINT8_MAX;
+    const MusFourGameModel malformed = state->model;
+    const size_t undo_count = state->undo_count;
+    CHECK(cfr_game_apply_action(&game.game, raw(state), MUS_ACTION_ACCEPT) == CFR_STATUS_INVALID_ARGUMENT);
+    CHECK(memcmp(&state->model, &malformed, sizeof(malformed)) == 0);
+    CHECK(state->undo_count == undo_count);
+    free(state);
+    free(table);
+}
+
+static InfoSetKey checked_key(const MusScoreGame *game, MusFourGameState *state) {
+    InfoSetKey key;
+    MusFourInformationSet observed, decoded;
+    CHECK(cfr_game_validate_state(&game->game, raw(state)) == CFR_STATUS_SUCCESS);
+    CHECK(mus_four_score_game_observe(state, &observed) == CFR_STATUS_SUCCESS);
+    CHECK(cfr_game_information_set_key(&game->game, raw(state), &key) == CFR_STATUS_SUCCESS);
+    CHECK(mus_four_score_information_set_decode(key, &decoded) == CFR_STATUS_SUCCESS);
+    compare_observations(&observed, &decoded);
+    return key;
+}
+
+static void test_resolved_response_memory(void) {
+    static const uint8_t hands[4][8] = {
+        {4,0,0,0,0,0,0,0}, {0,0,0,0,0,0,0,4},
+        {0,4,0,0,0,0,0,0}, {0,0,4,0,0,0,0,0}};
+    static const Action proposals[] = {MUS_ACTION_REJECT, MUS_ACTION_ACCEPT, MUS_ACTION_BET_FOUR};
+    static const uint8_t ranks[] = {MUS_FOUR_RESPONSE_REJECT, MUS_FOUR_RESPONSE_ACCEPT,
+                                   MUS_FOUR_RESPONSE_BET_FOUR};
+    MusScoreTable *table = malloc(sizeof(*table));
+    MusFourGameState *state = malloc(sizeof(*state));
+    CHECK(table != NULL && state != NULL);
+    CHECK(mus_score_table_init(table, 40) == CFR_STATUS_SUCCESS);
+    table->four_player = true;
+    MusScoreGame game;
+    CHECK(mus_score_game_init(&game, table, 0, 0) == CFR_STATUS_SUCCESS);
+    InfoSetKey resolved[3], pending[3], replaced[3];
+    for (unsigned int r = 0; r < 3; ++r) {
+        deal(&game, state, hands);
+        for (unsigned int seat = 0; seat < 3; ++seat) apply(&game, state, MUS_ACTION_PASS);
+        apply(&game, state, MUS_ACTION_BET_TWO);  /* 3 opens; 0 and 2 respond. */
+        apply(&game, state, proposals[r]);
+        const MusFourGameModel before_resolution = state->model;
+        apply(&game, state, MUS_ACTION_BET_TEN);
+        CHECK(state->model.current_player == 3 && state->model.bettor == 2);
+        CHECK(state->model.current_wager == 12);
+        CHECK(state->model.last_response_player == 0);
+        CHECK(state->model.last_responses[0] == ranks[r]);
+        CHECK(state->model.last_responses[1] == MUS_FOUR_RESPONSE_BET_TEN);
+        resolved[r] = checked_key(&game, state);
+        CHECK(cfr_game_undo_action(&game.game, raw(state)) == CFR_STATUS_SUCCESS);
+        CHECK(memcmp(&state->model, &before_resolution, sizeof(before_resolution)) == 0);
+        apply(&game, state, MUS_ACTION_BET_TEN);
+        CHECK(checked_key(&game, state) == resolved[r]);
+
+        /* The next pair's first proposal must not erase the resolved pair. */
+        apply(&game, state, MUS_ACTION_ACCEPT);
+        CHECK(state->model.current_player == 1);
+        CHECK(state->model.last_responses[0] == ranks[r]);
+        pending[r] = checked_key(&game, state);
+        for (unsigned int earlier = 0; earlier < r; ++earlier) {
+            CHECK(resolved[r] != resolved[earlier]);
+            CHECK(pending[r] != pending[earlier]);
+        }
+        apply(&game, state, MUS_ACTION_REJECT);
+        CHECK(state->model.phase == MUS_FOUR_PHASE_CHICA);
+        CHECK(state->model.last_response_player == 3);
+        CHECK(state->model.last_responses[0] == MUS_FOUR_RESPONSE_ACCEPT);
+        CHECK(state->model.last_responses[1] == MUS_FOUR_RESPONSE_REJECT);
+        replaced[r] = checked_key(&game, state);
+        if (r != 0) CHECK(replaced[r] == replaced[0]);
+    }
+
+    /* Three ways of accepting the same offer remain distinct in the next
+     * lance, including after opening passes and an opening numeric wager. */
+    InfoSetKey next_lance[3], after_pass[3], after_open[3];
+    static const Action accepted[3][2] = {
+        {MUS_ACTION_REJECT, MUS_ACTION_ACCEPT},
+        {MUS_ACTION_ACCEPT, MUS_ACTION_REJECT},
+        {MUS_ACTION_ACCEPT, MUS_ACTION_ACCEPT}};
+    for (unsigned int r = 0; r < 3; ++r) {
+        deal(&game, state, hands);
+        apply(&game, state, MUS_ACTION_BET_TWO);
+        apply(&game, state, accepted[r][0]);
+        apply(&game, state, accepted[r][1]);
+        CHECK(state->model.phase == MUS_FOUR_PHASE_CHICA);
+        next_lance[r] = checked_key(&game, state);
+        apply(&game, state, MUS_ACTION_PASS);
+        after_pass[r] = checked_key(&game, state);
+        apply(&game, state, MUS_ACTION_BET_FOUR);
+        after_open[r] = checked_key(&game, state);
+        for (unsigned int earlier = 0; earlier < r; ++earlier) {
+            CHECK(next_lance[r] != next_lance[earlier]);
+            CHECK(after_pass[r] != after_pass[earlier]);
+            CHECK(after_open[r] != after_open[earlier]);
+        }
+        MusFourInformationSet invalid;
+        CHECK(mus_four_score_game_observe(state, &invalid) == CFR_STATUS_SUCCESS);
+        invalid.last_response_player = 4;
+        InfoSetKey untouched = 123;
+        CHECK(mus_four_score_information_set_encode(&invalid, &untouched) == CFR_STATUS_INVALID_ARGUMENT);
+        CHECK(untouched == 123);
+    }
+    /* An opening ordago rejection can make public scores plus accepted
+     * wagers reach 40 before those wagers are counted. Empty masks must
+     * retain the full score range in the compact board encoding. */
+    CHECK(mus_score_game_init(&game, table, 29, 29) == CFR_STATUS_SUCCESS);
+    deal(&game, state, hands);
+    apply(&game, state, MUS_ACTION_BET_TEN);
+    apply(&game, state, MUS_ACTION_ACCEPT);
+    apply(&game, state, MUS_ACTION_REJECT);
+    CHECK(state->model.phase == MUS_FOUR_PHASE_CHICA);
+    CHECK(state->model.prior_wager_total == 10);
+    apply(&game, state, MUS_ACTION_ORDAGO);
+    apply(&game, state, MUS_ACTION_REJECT);
+    apply(&game, state, MUS_ACTION_REJECT);
+    CHECK(state->model.phase == MUS_FOUR_PHASE_PARES);
+    CHECK(state->model.initial_scores[0] + state->model.paid_scores[0] +
+          state->model.prior_wager_total == 40);
+    (void)checked_key(&game, state);
+    apply(&game, state, MUS_ACTION_ORDAGO);
+    (void)checked_key(&game, state);
+    free(state);
+    free(table);
 }
 
 static void test_reachable_betting_keys(void) {
@@ -178,7 +435,11 @@ static void test_reachable_betting_keys(void) {
                 deal(&game, state, hands[h]);
                 while (state->model.phase < phase)
                     apply(&game, state, MUS_ACTION_PASS);
-                walk_betting_phase(&game, state, phase);
+                BettingModels models = {0};
+                walk_betting_phase(&game, state, phase, &models);
+                if (models.count > largest_betting_walk)
+                    largest_betting_walk = models.count;
+                free(models.entries);
             }
         }
     }
@@ -187,8 +448,10 @@ static void test_reachable_betting_keys(void) {
         masks += wager_masks[mask] ? 1U : 0U;
     CHECK(masks == 755);
     CHECK(betting_observations > 60000);
-    printf("Four-player keys passed: %zu exact hands, %zu betting observations, %zu wager masks.\n",
-           hand_count, betting_observations, masks);
+    CHECK(betting_expansions < betting_observations);
+    printf("Four-player keys passed: %zu exact hands, %zu betting observations, "
+           "%zu distinct models expanded (largest walk %zu), %zu wager masks.\n",
+           hand_count, betting_observations, betting_expansions, largest_betting_walk, masks);
     free(state);
     free(table);
 }
@@ -200,6 +463,8 @@ int main(void) {
     qsort(exact_keys, exact_key_count, sizeof(exact_keys[0]), compare_keys);
     for (size_t i = 1; i < exact_key_count; ++i)
         CHECK(exact_keys[i - 1] != exact_keys[i]);
+    test_public_response_keys();
+    test_resolved_response_memory();
     test_reachable_betting_keys();
     return EXIT_SUCCESS;
 }

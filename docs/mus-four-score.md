@@ -34,13 +34,30 @@ mano de cada lance determina la pareja ganadora; un empate favorece al
 jugador más próximo a mano. La pareja ganadora suma los valores intrínsecos
 de pares o juego de sus dos miembros.
 
-Ante un envite, un rechazo individual permite responder al otro miembro
-elegible de la pareja. El rechazo del equipo se produce cuando rechazan todos
-sus miembros elegibles. Querer o subir obliga a la pareja inmediatamente.
-Esta negociación permite que el compañero quiera después de un rechazo.
-El negociador actual de `Simulador-Mus` resuelve el rechazo con la primera
-respuesta; sus funciones de comparación de manos y tanteo se usan como
-referencia independiente para las pruebas del nuevo solver.
+Ante un envite, responden los dos miembros elegibles de la pareja en orden de
+turno. La primera respuesta es pública y queda pendiente hasta que responde
+el compañero, incluso si el primero quiere, sube o propone órdago. Se ejecuta
+la mayor de las dos respuestas: no quiero < quiero < subida numérica < órdago.
+Entre subidas numéricas gana la de mayor incremento. Por ejemplo, si 0 quiere
+y 2 propone órdago, la pareja lanza órdago.
+
+Al resolver la respuesta, se conservan públicamente las dos propuestas y sus
+autores, incluida la propuesta que no se ejecutó. Esta memoria pasa al siguiente
+lance y se sustituye únicamente cuando se resuelve otra respuesta de pareja.
+La primera propuesta pendiente de un nuevo envite no borra la respuesta anterior.
+Si solo hay un miembro elegible, se conserva su única propuesta y su autor.
+La abstracción recuerda solo esta última respuesta completa: no conserva todo
+el historial de propuestas ni ofrece memoria perfecta.
+
+Ambos responden al mismo envite activo; una propuesta pendiente no aumenta
+todavía la apuesta ni consume un incremento. Solo la respuesta ejecutada
+consume el incremento del jugador que la propuso y cuenta para el límite de
+cinco envites numéricos. Si las respuestas empatan, prevalece la del primero.
+Cada jugador conserva sus propias restricciones de incrementos usados. Si solo
+un miembro de la pareja es elegible para el lance, su respuesta se ejecuta
+inmediatamente. Las aperturas mantienen su funcionamiento anterior.
+Las funciones de comparación de manos y tanteo de `Simulador-Mus` se usan como
+referencia independiente; su negociador no implementa esta regla de respuestas.
 
 Los dejes y las cantidades cubiertas rechazadas se cobran inmediatamente.
 Los envites aceptados y los tantos intrínsecos esperan al recuento final,
@@ -94,11 +111,16 @@ build/release/mus-solver --format ordago-score-four --score 39:39 \
 ```
 
 Los esquemas de tabla son `mus.ordago-score-four/v1` y
-`mus.ordago-score-four-region/v1`. Los checkpoints incluyen la variante,
+`mus.ordago-score-four-region/v1`, con la identidad de reglas
+`mus.four-partnership-score/v3-muses-1` o `v3-muses-2`. Los checkpoints incluyen la variante,
 el número de muses, el objetivo, el marcador y la identidad de la continuación.
 Se rechazan tablas, checkpoints y extensiones de otra variante. Las estrategias
 de dos jugadores tampoco sirven como precarga de cuatro jugadores.
-Los comandos y checkpoints históricos siguen usando sus esquemas anteriores.
+Los archivos de cuatro jugadores con reglas `v1` o `v2` son incompatibles y se
+rechazan: `v1` usaba otra negociación y `v2` olvidaba las propuestas al resolver
+la respuesta. Deben conservarse para usarlos con la versión correspondiente
+del solver. El cambio no afecta a los comandos ni a los checkpoints de las
+variantes de dos jugadores, que siguen usando sus esquemas anteriores.
 `single-bet` sigue siendo el formato predeterminado.
 
 ## C-CFR y API
@@ -123,8 +145,14 @@ la observación pública, la codificación y decodificación de claves y los men
 de acciones. La abstracción mantiene las cartas propias exactas durante mus
 y descartes, y las categorías por lance de score durante los envites. También
 conserva los descartes públicos, la fuerza anterior por equipo, las declaraciones
-actuales, los marcadores públicos y los límites de apuestas. Las claves se
-codifican sin colisiones mediante rangos de estados alcanzables.
+actuales, los marcadores públicos, los límites de apuestas y la respuesta
+pendiente del compañero, además de la última respuesta completa con sus autores.
+Las claves compactan conjuntamente los incrementos usados, el presupuesto de
+apuesta y esa memoria pública mediante rangos de estados alcanzables. Se conserva
+el tipo de clave de 64 bits de C-CFR sin cambiar su API.
+La exportación muestra esta memoria como
+`ultima_respuesta=0:querer/2:ordago`, una única propuesta si solo respondió un
+miembro, o `ultima_respuesta=ninguna` antes de la primera respuesta completa.
 
 Para usar la infraestructura de marcador:
 
@@ -181,9 +209,11 @@ del reparto, la igualdad de
 utilidades dentro del equipo, el signo de continuación, la ausencia de cartas
 ajenas en las observaciones, las claves y menús y la restauración al deshacer.
 Incluyen rechazos de un solo miembro, aceptación del compañero, prioridad
-del órdago y del recuento a `39:39`. Una prueba adicional recorre las 330
-manos posibles, 66.600 observaciones de envites y las 755 combinaciones
-alcanzables de incrementos usados, con ambos límites de mus.
+del órdago y del recuento a `39:39`. Las pruebas de claves recorren las 330
+manos posibles, las respuestas pendientes y resueltas, y las combinaciones
+alcanzables de incrementos usados, con ambos límites de mus. Comprueban que las
+propuestas perdedoras siguen distinguiendo observaciones después de resolver
+el envite y al cambiar de lance.
 Las pruebas del CLI cubren las tablas,
 regiones, hilos, exportación, recuperación, extensiones y reanudación exacta
 con un hilo. Las pruebas de API conservan el contrato de los callbacks y estados
