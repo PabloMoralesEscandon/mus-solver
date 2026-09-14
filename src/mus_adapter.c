@@ -300,7 +300,7 @@ Status mus_adapter_enable_score_text(MusAdapter *a, const char *values_path,
                                   : mus_score_table_read(stream, table);
     if (fclose(stream) != 0 && status == CFR_STATUS_SUCCESS)
         status = CFR_STATUS_IO_ERROR;
-    if (status == CFR_STATUS_SUCCESS && table->target != 40)
+    if (status == CFR_STATUS_SUCCESS && (table->target != 40 || table->four_player))
         status = CFR_STATUS_INCOMPATIBLE_GAME;
     for (int x = 0; x < 40 && status == CFR_STATUS_SUCCESS; ++x) {
         for (int y = 0; y < 40 && status == CFR_STATUS_SUCCESS; ++y) {

@@ -6,6 +6,7 @@
 #include "cfr/info_store.h"
 #include "mus_solver/mus_game.h"
 #include "mus_solver/mus_score.h"
+#include "mus_solver/mus_four.h"
 #include "mus_solver/mus_strategy.h"
 
 typedef struct {
@@ -526,8 +527,10 @@ Status mus_strategy_write_text(FILE *stream, const Trainer *trainer) {
 
 Status mus_score_strategy_write_text(FILE *stream, const Trainer *trainer) {
     if (stream == NULL || trainer == NULL ||
-        !mus_score_game_matches(trainer->game) || trainer->state == NULL ||
+        !mus_score_game_matches_any(trainer->game) || trainer->state == NULL ||
         cfr_game_validate_state(trainer->game, trainer->state) != CFR_STATUS_SUCCESS)
         return CFR_STATUS_INVALID_ARGUMENT;
+    if (mus_four_score_game_matches(trainer->game))
+        return mus_four_score_strategy_write_text(stream, trainer);
     return write_strategy(stream, trainer, trainer->game, false, true);
 }

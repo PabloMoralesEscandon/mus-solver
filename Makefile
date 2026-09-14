@@ -25,7 +25,7 @@ LTO_BUILD_DIR ?= build/lto
 RELEASE_DIR := $(BUILD_DIR)/release
 DEBUG_DIR := $(BUILD_DIR)/debug
 
-MUS_SOURCES := src/mus_game.c src/mus_evaluation.c src/mus_strategy.c src/mus_score.c \
+MUS_SOURCES := src/mus_game.c src/mus_four.c src/mus_evaluation.c src/mus_strategy.c src/mus_score.c \
 	src/mus_preload.c src/mus_adapter.c src/mus_text_strategy.c src/mus_training.c
 SIMULATOR_SOURCES := Simulador-Mus/src/cartas.c \
 	Simulador-Mus/src/baraja_espanola.c Simulador-Mus/src/mus.c
@@ -112,15 +112,23 @@ lto:
 
 debug: $(DEBUG_BINARY) $(TEST_BINARY) $(DEBUG_DIR)/mus-bot $(DEBUG_DIR)/mus_adapter_tests \
 	$(DEBUG_DIR)/mus_hotpaths_tests $(DEBUG_DIR)/mus_adapter_configuration_tests \
-	$(DEBUG_DIR)/mus_ordago_public_tests $(DEBUG_DIR)/mus-match-eval $(DEBUG_DIR)/mus_match_tests
+	$(DEBUG_DIR)/mus_ordago_public_tests $(DEBUG_DIR)/mus-match-eval $(DEBUG_DIR)/mus_match_tests \
+	$(DEBUG_DIR)/mus_four_properties_tests $(DEBUG_DIR)/mus_four_keys_tests \
+	$(DEBUG_DIR)/mus_score_api_tests
 
 test-core: $(TEST_BINARY) $(DEBUG_BINARY) $(DEBUG_DIR)/mus_hotpaths_tests \
-	$(DEBUG_DIR)/mus_ordago_public_tests $(DEBUG_DIR)/mus_adapter_configuration_tests
+	$(DEBUG_DIR)/mus_ordago_public_tests $(DEBUG_DIR)/mus_adapter_configuration_tests \
+	$(DEBUG_DIR)/mus_four_properties_tests $(DEBUG_DIR)/mus_four_keys_tests \
+	$(DEBUG_DIR)/mus_score_api_tests
 	./$(TEST_BINARY)
 	./$(DEBUG_DIR)/mus_hotpaths_tests
 	./$(DEBUG_DIR)/mus_ordago_public_tests
 	./$(DEBUG_DIR)/mus_adapter_configuration_tests
+	./$(DEBUG_DIR)/mus_four_properties_tests
+	./$(DEBUG_DIR)/mus_four_keys_tests
+	./$(DEBUG_DIR)/mus_score_api_tests
 	./tests/test_cli.sh ./$(DEBUG_BINARY)
+	python3 tests/test_four_score_cli.py ./$(DEBUG_BINARY)
 
 test: test-core $(DEBUG_DIR)/mus-bot $(DEBUG_DIR)/mus_adapter_tests \
 	$(DEBUG_DIR)/mus_hotpaths_tests $(DEBUG_DIR)/mus_adapter_configuration_tests \
@@ -137,6 +145,7 @@ test: test-core $(DEBUG_DIR)/mus-bot $(DEBUG_DIR)/mus_adapter_tests \
 	python3 tests/test_adapter_cli.py ./$(DEBUG_DIR)/mus-bot ./$(DEBUG_DIR)/mus_adapter_tests
 	python3 tests/test_hybrid_adapter_cli.py ./$(DEBUG_DIR)/mus-bot ./$(DEBUG_DIR)/mus_adapter_tests
 	python3 tests/test_public_adapter_cli.py ./$(DEBUG_DIR)/mus-bot ./$(DEBUG_DIR)/mus_adapter_tests
+	python3 tests/test_four_score_cli.py ./$(DEBUG_BINARY) ./$(DEBUG_DIR)/mus-bot
 
 test-tsan:
 	$(MAKE) BUILD_DIR=$(BUILD_DIR)/test-tsan \
@@ -205,6 +214,27 @@ $(DEBUG_DIR)/mus_hotpaths_tests: $(DEBUG_DIR)/tests/test_mus_hotpaths.o \
 		$(DEBUG_CFR_LIBRARY) $(LDLIBS) -o $@
 
 -include $(DEBUG_DIR)/tests/test_mus_hotpaths.d
+
+$(DEBUG_DIR)/mus_four_properties_tests: $(DEBUG_DIR)/tests/test_four_properties.o \
+		$(DEBUG_SIMULATOR_OBJECTS) $(DEBUG_LIBRARY) $(DEBUG_CFR_LIBRARY)
+	$(CC) $(LDFLAGS) $(THREAD_FLAGS) $< $(DEBUG_SIMULATOR_OBJECTS) \
+		$(DEBUG_LIBRARY) $(DEBUG_CFR_LIBRARY) $(LDLIBS) -o $@
+
+-include $(DEBUG_DIR)/tests/test_four_properties.d
+
+$(DEBUG_DIR)/mus_four_keys_tests: $(DEBUG_DIR)/tests/test_four_keys.o \
+		$(DEBUG_LIBRARY) $(DEBUG_CFR_LIBRARY)
+	$(CC) $(LDFLAGS) $(THREAD_FLAGS) $< $(DEBUG_LIBRARY) \
+		$(DEBUG_CFR_LIBRARY) $(LDLIBS) -o $@
+
+-include $(DEBUG_DIR)/tests/test_four_keys.d
+
+$(DEBUG_DIR)/mus_score_api_tests: $(DEBUG_DIR)/tests/test_score_api.o \
+		$(DEBUG_LIBRARY) $(DEBUG_CFR_LIBRARY)
+	$(CC) $(LDFLAGS) $(THREAD_FLAGS) $< $(DEBUG_LIBRARY) \
+		$(DEBUG_CFR_LIBRARY) $(LDLIBS) -o $@
+
+-include $(DEBUG_DIR)/tests/test_score_api.d
 
 $(RELEASE_DIR)/%.o: %.c $(RELEASE_DIR)/.mus-compile-config
 	@mkdir -p $(dir $@)
@@ -291,5 +321,7 @@ $(RELEASE_BINARY) $(RELEASE_DIR)/mus-bot $(RELEASE_DIR)/mus-match-eval \
 $(DEBUG_BINARY) $(TEST_BINARY) $(DEBUG_DIR)/mus-bot $(DEBUG_DIR)/mus-match-eval \
 	$(DEBUG_DIR)/mus_match_tests $(DEBUG_DIR)/mus_hotpaths_tests \
 	$(DEBUG_DIR)/mus_adapter_tests $(DEBUG_DIR)/mus_adapter_candidates_tests \
-	$(DEBUG_DIR)/mus_adapter_configuration_tests $(DEBUG_DIR)/mus_ordago_public_tests: \
+	$(DEBUG_DIR)/mus_adapter_configuration_tests $(DEBUG_DIR)/mus_ordago_public_tests \
+	$(DEBUG_DIR)/mus_four_properties_tests $(DEBUG_DIR)/mus_four_keys_tests \
+	$(DEBUG_DIR)/mus_score_api_tests: \
 	$(DEBUG_DIR)/.mus-link-config

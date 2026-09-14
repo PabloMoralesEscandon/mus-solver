@@ -36,7 +36,7 @@ def main():
         run(base + ["solver", "build/debug/mus-solver"])
         assert not log.exists(), "A solver build queried json-c"
         assert not (root / "Simulador-Mus").exists()
-        assert len(members()) == 8 and not {"cartas.o", "baraja_espanola.o", "mus.o"} & set(members())
+        assert len(members()) == 9 and not {"cartas.o", "baraja_espanola.o", "mus.o"} & set(members())
         run(["build/release/mus-solver", "--help"])
         run(base + ["bot"], success=False)
         assert log.exists(), "The bot did not request its json-c dependency"
@@ -64,7 +64,7 @@ def main():
                     "build/release/libmus_solver.a"])
         assert {"cartas.o", "baraja_espanola.o", "mus.o"} <= set(members())
         run(base + ["solver"])
-        assert len(members()) == 8 and "mus.o" not in members()
+        assert len(members()) == 9 and "mus.o" not in members()
 
         # A failing archiver must preserve the previously published library.
         archive = root / "build/release/libmus_solver.a"

@@ -1,14 +1,18 @@
-# Solver simplificado de mus para dos jugadores
+# Solver de mus para dos jugadores y para cuatro por parejas
 
-Solver en C17 de mus para dos jugadores. Entrena estrategias mediante
+Solver en C17 de mus para dos jugadores o cuatro por parejas. Entrena estrategias mediante
 external-sampling MCCFR y guarda checkpoints reanudables. Los formatos
 históricos y `ordago-public` resuelven una mano aislada; `ordago-score` incorpora el marcador de
 la partida mediante una tabla de continuación. Las métricas disponibles
-dependen del formato.
+dependen del formato. `ordago-score-four` añade la variante con marcador para
+cuatro jugadores: 0 y 2 contra 1 y 3. Conserva disponibles los cinco formatos
+anteriores y sus checkpoints. La [guía de cuatro jugadores](docs/mus-four-score.md)
+describe las reglas, el entrenamiento y las API nuevas.
 
 ## Formatos de reglas
 
-- El jugador 0 siempre es mano y el jugador 1 es postre.
+- En los formatos de dos jugadores, el jugador 0 siempre es mano y el jugador 1 es postre.
+  En `ordago-score-four`, los turnos son 0, 1, 2, 3 y el jugador 0 es mano.
 - Se usa la baraja española de 40 cartas, con ochos reyes y ocho ases según las
   equivalencias del mus: tres = rey y dos = as.
 - Se juegan en orden grande, chica, pares y juego o punto.
@@ -173,8 +177,8 @@ normales.
 `make test-tsan` comprueba con ThreadSanitizer tanto el acceso concurrente al
 almacén de C-CFR como el entrenamiento paralelo del CLI.
 
-El workflow del repositorio ejecuta los cinco formatos (`single-bet`,
-`raises-to-eight`, `ordago`, `ordago-public`, `ordago-score`) con uno y dos muses,
+El workflow del repositorio ejecuta los seis formatos (`single-bet`,
+`raises-to-eight`, `ordago`, `ordago-public`, `ordago-score`, `ordago-score-four`) con uno y dos muses,
 en modo normal, ASan/UBSan y TSan. `test-core` comprueba el núcleo, las claves,
 el modelo público, el CLI y la guarda del adaptador; `test` añade las pruebas de
 persistencia, estadísticas, bots genérico/público/híbrido y partidas desplegadas.
@@ -1074,6 +1078,8 @@ Los encabezados públicos bajo `include/mus_solver/` exponen:
 - el formato original mediante el prefijo `mus_single_bet_`;
 - el formato con subidas mediante el prefijo `mus_raises_to_eight_`;
 - el formato con mus y órdago mediante el prefijo `mus_ordago_`;
+- el formato con marcador para cuatro jugadores mediante `mus_four_score_`
+  y los inicializadores genéricos de estado de `mus_score_`;
 - el adaptador `Game`, el estado reversible y el exportador etiquetado para
   cada formato;
 - el evaluador exacto incremental para los formatos históricos y la evaluación
@@ -1090,8 +1096,9 @@ lectura en orden de clave utilizada por el exportador.
 
 Los formatos históricos no incluyen partidas completas a 40 tantos ni rotación
 de la mano. `ordago-score` incorpora el marcador y la continuación con cambio
-de mano descritos arriba. No se incluyen parejas, señas ni un motor de partida
-interactivo. La consulta de decisiones y su integración con un motor externo
+de mano descritos arriba. `ordago-score-four` añade parejas y cuatro decisiones
+privadas. No se incluyen señas ni un motor de partida interactivo.
+La consulta de decisiones de dos jugadores y su integración con un motor externo
 se describen en el adaptador siguiente.
 `ordago` representa el órdago aceptado como el final de la mano por 40 tantos;
 no modela el marcador previo de una partida.
