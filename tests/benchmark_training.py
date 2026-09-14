@@ -421,7 +421,7 @@ def main():
             "continuations": "Synthetic immutable V[a][b] = (a-b)/40. Target 40.",
             "store": "Each process starts with an empty store. No capacity reservation.",
             "cpu": "C getrusage deltas cover all training threads. CPU cores = CPU seconds / training seconds.",
-            "rss": "C peak_rss_kib is process high-water RSS through training. Procfs resources are sampled.",
+            "rss": "C peak_rss_kib is getrusage high-water RSS, which can include launcher memory before exec. Procfs VmHWM belongs to the executable's memory image and is sampled.",
             "threads": "Observed per-thread CPU and switches are lower bounds. Threads can exit between samples.",
             "host": "Host and cgroup counters include other processes. Raw samples permit interference checks.",
             "order": "Adjacent binary runs alternate direction each repetition. Thread order rotates and reverses.",

@@ -1,0 +1,35 @@
+/usr/bin/gprofng-display-text: Warning: Default gprofng.rc file (/build/binutils/pkg/binutils/etc/gprofng.rc) missing; configuration error
+Current metrics: e.totalcpu:i.totalcpu:name
+Current Sort Metric: Exclusive Total CPU Time ( e.totalcpu )
+Current Sort Metric: Exclusive Total CPU Time ( e.totalcpu )
+Print limit set to 25
+Functions sorted by metric: Exclusive Total CPU Time
+
+Excl.     Incl.      Name
+Total     Total
+CPU sec.  CPU sec.
+44.904    44.904     <Total>
+13.248    18.134     concurrent_get_or_create.lto_priv.0
+ 9.379    31.137     traverse_branch.lto_priv.0
+ 7.962    39.174     trainer_run
+ 4.610     4.610     sched_yield
+ 1.324     4.434     mus_ordago_trusted_apply_action
+ 1.318     1.318     sample_index.part.0
+ 0.908     1.775     update_score_accounting
+ 0.866     0.866     settle_ordago_lance_score
+ 0.855     0.855     mus_trusted_legal_actions
+ 0.821     3.077     apply_to_model
+ 0.802     0.877     ordago_information_set_key
+ 0.534     0.534     mus_trusted_terminal_utility
+ 0.451     2.063     advance_lance
+ 0.427     0.428     mus_ordago_trusted_undo_action
+ 0.407     0.407     <static>@0x170240 (<libc.so.6>)
+ 0.293     0.357     get_or_create_snapshot_delta.part.0
+ 0.171     1.049     mus_ordago_trusted_information_set_key
+ 0.154     0.154     mus_trusted_is_terminal
+ 0.119     0.119     mus_trusted_current_actor
+ 0.076     0.076     ordago_public_mus_code
+ 0.034     0.034     mus_ordago_trusted_legal_actions
+ 0.031     0.193     prepare_final_lance
+ 0.025     0.025     compact_hand_code
+ 0.018     0.032     mus_trusted_chance_outcomes
