@@ -1,0 +1,7 @@
+# All three builds produce this SHA-256 for each case.
+cdbe30fdf0faab34a557b463b559a596e89a4de6571f194e1941878c7e039ae4  ordago-score-four-seed-7-iterations-200.cfr
+7ee6bddd282f57428075dc3cb1ac27d1eb884465d07a2ba3002c3ae7b243d76f  ordago-score-four-seed-99-iterations-200.cfr
+4f7e8a7f4e518a8b4afdd6804095ef94e85e67c22cd7043c0acebc2777a7aa29  ordago-score-seed-7-iterations-200.cfr
+1cdaec8bac33fa728269e6c8e3266de6089281a1eafd22367bc56e99051f5197  ordago-score-seed-99-iterations-200.cfr
+148a7921e6287fbe4613a2ecdb3aaca6af61c21a38e70be54fb5c294a70be83b  ordago-public-seed-7-iterations-200.cfr
+6a1484e2f64fc8f5e8e856ce82d36aa7a19f63230c3fe08b99036f9b32a0ecdb  ordago-public-seed-99-iterations-200.cfr

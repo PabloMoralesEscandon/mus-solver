@@ -7,6 +7,8 @@
 
 #define MUS_SCORE_SCHEMA_ID "mus.ordago-score/v4"
 #define MUS_SCORE_REGION_SCHEMA_ID "mus.ordago-score-region/v1"
+#define MUS_SCORE_FOUR_SCHEMA_ID "mus.ordago-score-four/v1"
+#define MUS_SCORE_FOUR_REGION_SCHEMA_ID "mus.ordago-score-four-region/v1"
 
 typedef struct {
     bool ready;
@@ -39,7 +41,8 @@ typedef struct {
     bool target_reached;
 } MusScoreEvaluation;
 
-/* Index 0 is always mano. Publish complete diagonals after evaluation.
+/* Index 0 is always mano. In the four-player variant, the two indices denote
+ * teams and index 0 contains mano. Publish complete diagonals after evaluation.
  * Use one InfoStore per score cell. The initial score is constant in that store.
  * The table must remain unchanged while its game trains or evaluates. */
 struct MusScoreTable {
@@ -49,6 +52,9 @@ struct MusScoreTable {
      * of (a >= region_scores[0], b >= region_scores[1]). */
     uint8_t region_scores[MUS_GAME_PLAYER_COUNT];
     MusScoreCell cells[MUS_ORDAGO_WAGER][MUS_ORDAGO_WAGER];
+    /* False preserves the historical two-player format. True selects four
+     * seats: team 0 contains seats 0 and 2, team 1 contains seats 1 and 3. */
+    bool four_player;
 };
 
 typedef struct {
@@ -101,16 +107,30 @@ typedef Status (*MusScoreProgressCallback)(const MusScoreGame *game,
 
 /* Load a checkpoint against the source game's exact schema. The store starts
  * zeroed. Initialize the trainer with the supplied game, state, and store.
+ * This legacy callback receives only a two-player MusGameState.
  * Different cells can load concurrently. An error can leave an owned store;
  * the coordinator destroys that store. Retain game and state only in trainer. */
 typedef Status (*MusScoreLoadCell)(const MusScoreGame *game, MusGameState *state,
     InfoStore *store, Trainer *trainer, void *context);
 
+/* Generic extension loader for either score variant. The state is initialized
+ * for the supplied descriptor. Use GameState operations or a variant-specific
+ * predicate before accessing a concrete state. The ownership and checkpoint
+ * requirements are the same as for MusScoreLoadCell. */
+typedef Status (*MusScoreLoadCellGeneric)(const MusScoreGame *game, GameState *state,
+    InfoStore *store, Trainer *trainer, void *context);
+
 typedef struct {
     /* Immutable source table, with every requested cell ready. */
     const MusScoreTable *table;
+    /* This legacy field accepts only two-player tables. When non-null, it
+     * takes precedence and the generic field is not read. */
     MusScoreLoadCell load_cell;
     void *context;
+    /* Required for four-player tables, with load_cell set to null. Also
+     * accepts two-player tables when load_cell is null. Appended so existing
+     * callers that set only the legacy fields retain their behavior. */
+    MusScoreLoadCellGeneric load_cell_generic;
 } MusScoreExtension;
 
 /* Recover an evaluated cell after validating its persisted checkpoint, exact
@@ -179,9 +199,19 @@ Status mus_score_evaluate_with_options(const MusScoreGame *game, const InfoStore
     const MusScoreEvaluationOptions *options, uint64_t seed, MusScoreEvaluation *result);
 Status mus_score_game_init(MusScoreGame *game, const MusScoreTable *table,
                            unsigned int a, unsigned int b);
-/* Checks the game adapter before a caller interprets an opaque state. */
+/* Matches only the historical two-player score adapter. A state accepted
+ * by that descriptor uses the MusGameState layout. */
 bool mus_score_game_matches(const Game *game);
+/* Matches either score adapter. This predicate does not select a state layout
+ * and does not authorize a MusGameState cast. Use the generic helpers below
+ * or a variant-specific predicate before accessing concrete state fields. */
+bool mus_score_game_matches_any(const Game *game);
+/* The legacy initializer rejects four-player games. */
 Status mus_score_game_state_init(MusGameState *state, const MusScoreGame *game);
+/* Return zero for an unsupported adapter. Allocate this many bytes before
+ * calling the generic initializer. The caller owns the allocated state. */
+size_t mus_score_game_state_size(const MusScoreGame *game);
+Status mus_score_game_state_init_generic(GameState *state, const MusScoreGame *game);
 Status mus_score_game_information_set_decode(
     InfoSetKey key, unsigned int target, MusOrdagoInformationSet *information);
 /* Encode public score information without changing its scores or pending wagers.
@@ -239,6 +269,9 @@ Status mus_score_information_set_ordago_candidates(
 Status mus_score_prior_attach(MusScorePrior *prior, const MusScoreGame *game,
                               const MusScorePreloadOptions *options,
                               InfoStore *destination, MusScorePreloadStats *stats);
+/* Requires a two-player MusGameState. This typed helper cannot identify an
+ * opaque state layout. Generic callers use cfr_game_terminal_utility with the
+ * descriptor that owns the state. */
 Status mus_score_terminal_utility(const MusGameState *state, Player player,
                                   Utility *utility);
 /* Generates a schema with the cell identity and all higher continuations. */

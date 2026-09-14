@@ -9,6 +9,7 @@
 #include <time.h>
 
 #include "mus_solver/mus_score.h"
+#include "mus_solver/mus_four.h"
 #include "mus_solver/mus_training.h"
 
 static double seconds(void) {
@@ -36,10 +37,11 @@ static size_t number(const char *text) {
 int main(int argc, char **argv) {
     if (argc < 4 || argc == 6 || argc > 8) {
         fprintf(stderr, "Usage: %s FORMAT ITERATIONS THREADS [SEED [A B [REPORT_EVERY]]]\n"
-                        "FORMAT must be ordago-public or ordago-score.\n", argv[0]);
+                        "FORMAT must be ordago-public, ordago-score, or ordago-score-four.\n", argv[0]);
         return EXIT_FAILURE;
     }
-    const bool score = strcmp(argv[1], "ordago-score") == 0;
+    const bool four = strcmp(argv[1], "ordago-score-four") == 0;
+    const bool score = four || strcmp(argv[1], "ordago-score") == 0;
     if (!score && strcmp(argv[1], "ordago-public") != 0) {
         fprintf(stderr, "Invalid format: %s\n", argv[1]);
         return EXIT_FAILURE;
@@ -58,7 +60,7 @@ int main(int argc, char **argv) {
 
     MusScoreTable table;
     MusScoreGame score_game;
-    MusGameState *state = malloc(sizeof(*state));
+    void *state = malloc(four ? sizeof(MusFourGameState) : sizeof(MusGameState));
     InfoStore store = {0};
     Trainer trainer;
     if (state == NULL)
@@ -69,6 +71,7 @@ int main(int argc, char **argv) {
         status = mus_score_table_init(&table, MUS_ORDAGO_WAGER);
         /* Fixed synthetic continuations isolate training from table solving. */
         if (status == CFR_STATUS_SUCCESS) {
+            table.four_player = four;
             for (int x = 0; x < MUS_ORDAGO_WAGER; x += 1) {
                 for (int y = 0; y < MUS_ORDAGO_WAGER; y += 1) {
                     table.cells[x][y] = (MusScoreCell){
@@ -82,7 +85,7 @@ int main(int argc, char **argv) {
         }
         if (status == CFR_STATUS_SUCCESS) {
             game = &score_game.game;
-            status = mus_score_game_state_init(state, &score_game);
+            status = mus_score_game_state_init_generic(state, &score_game);
         }
     } else {
         status = mus_ordago_public_game_state_init(state);
@@ -90,8 +93,7 @@ int main(int argc, char **argv) {
     if (status == CFR_STATUS_SUCCESS)
         status = cfr_info_store_init(&store);
     if (status == CFR_STATUS_SUCCESS)
-        status = cfr_trainer_init_mccfr(&trainer, game,
-                                      mus_game_state_as_game_state(state), &store, seed);
+        status = cfr_trainer_init_mccfr(&trainer, game, state, &store, seed);
 
     struct rusage before = {0}, after = {0};
     if (status == CFR_STATUS_SUCCESS && getrusage(RUSAGE_SELF, &before) != 0)
@@ -109,7 +111,10 @@ int main(int argc, char **argv) {
         status = cfr_info_store_get_stats(&store, &stats);
     if (status == CFR_STATUS_SUCCESS &&
         (trainer.training_iterations != iterations || trainer.stats.iterations != iterations ||
-         trainer.stats.errors != 0 || state->undo_count != 0))
+         trainer.stats.traversals != iterations * game->strategic_player_count ||
+         trainer.stats.errors != 0 ||
+         (four ? ((MusFourGameState *)state)->undo_count
+               : ((MusGameState *)state)->undo_count) != 0))
         status = CFR_STATUS_INVALID_ARGUMENT;
     if (status == CFR_STATUS_SUCCESS) {
         printf("{\"format\":\"%s\",\"schema\":\"%s\",\"max_muses\":%d,"

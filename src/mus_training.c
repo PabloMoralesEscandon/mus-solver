@@ -3,6 +3,9 @@
 #include <sched.h>
 #include <stdatomic.h>
 #include <stdlib.h>
+#include <string.h>
+
+#include "mus_solver/mus_four.h"
 
 #include "mus_solver/mus_game.h"
 #include "mus_solver/mus_score.h"
@@ -44,7 +47,7 @@ static bool supported_game(const Game *game) {
          game == mus_single_bet_game_descriptor() ||
          game == mus_raises_to_eight_game_descriptor() ||
          game == mus_ordago_game_descriptor() ||
-         game == mus_ordago_public_game_descriptor() || mus_score_game_matches(game));
+         game == mus_ordago_public_game_descriptor() || mus_score_game_matches_any(game));
 }
 
 static size_t saturated_add(size_t left, size_t right) {
@@ -224,10 +227,12 @@ Status mus_training_run(Trainer *trainer, size_t iterations,
         active_count = report_every;
 
     TrainingWorker *workers = calloc(active_count, sizeof(*workers));
-    MusGameState *states = NULL;
+    const size_t state_size = mus_four_score_game_matches(trainer->game)
+        ? sizeof(MusFourGameState) : sizeof(MusGameState);
+    unsigned char *states = NULL;
     pthread_t *thread_handles = NULL;
     if (active_count > 1) {
-        states = calloc(active_count - 1, sizeof(*states));
+        states = calloc(active_count - 1, state_size);
         thread_handles = calloc(active_count - 1, sizeof(*thread_handles));
     }
     if (workers == NULL ||
@@ -247,10 +252,11 @@ Status mus_training_run(Trainer *trainer, size_t iterations,
     workers[0].trainer = *trainer;
     const uint64_t seed_base = trainer->mccfr_rng.state;
     for (size_t index = 1; index < active_count; index += 1) {
-        states[index - 1] = *(const MusGameState *)trainer->state;
+        GameState *state = (GameState *)(states + (index - 1) * state_size);
+        memcpy(state, trainer->state, state_size);
         status = cfr_trainer_init_mccfr(
             &workers[index].trainer, trainer->game,
-            mus_game_state_as_game_state(&states[index - 1]), trainer->store,
+            state, trainer->store,
             parallel_worker_seed(seed_base, index));
         if (status != CFR_STATUS_SUCCESS)
             goto cleanup;

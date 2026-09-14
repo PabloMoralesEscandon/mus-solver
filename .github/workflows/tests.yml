@@ -29,7 +29,7 @@ jobs:
       - name: Configure address mappings for sanitizer runtimes
         if: matrix.instrumentation != 'normal'
         run: sudo sysctl -w vm.mmap_rnd_bits=28
-      - name: Test all five formats
+      - name: Test all six formats
         env:
           MUS_LIMIT: ${{ matrix.muses }}
           INSTRUMENTATION: ${{ matrix.instrumentation }}

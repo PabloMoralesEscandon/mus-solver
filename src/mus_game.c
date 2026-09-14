@@ -5,6 +5,7 @@
 
 #include "mus_solver/mus_game.h"
 #include "mus_solver/mus_score.h"
+#include "mus_solver/mus_four.h"
 
 #define MUS_HAND_CODE_RADIX 390625
 #define MUS_INFORMATION_PHASE_COUNT 5
@@ -4260,10 +4261,16 @@ bool mus_score_game_matches(const Game *game) {
            game->max_legal_actions == MUS_GAME_MAX_LEGAL_ACTIONS;
 }
 
+bool mus_score_game_matches_any(const Game *game) {
+    return mus_score_game_matches(game) || mus_four_score_game_matches(game);
+}
+
 Status mus_score_game_init(MusScoreGame *score_game, const MusScoreTable *table,
                            unsigned int a, unsigned int b) {
     if (score_game == NULL || !mus_score_table_contains(table, a, b))
         return CFR_STATUS_INVALID_ARGUMENT;
+    if (table->four_player)
+        return mus_four_score_game_init(score_game, table, a, b);
     score_game->continuation = table;
     score_game->initial_scores[0] = (uint8_t)a;
     score_game->initial_scores[1] = (uint8_t)b;
@@ -4274,7 +4281,8 @@ Status mus_score_game_init(MusScoreGame *score_game, const MusScoreTable *table,
 }
 
 Status mus_score_game_state_init(MusGameState *state, const MusScoreGame *game) {
-    if (state == NULL || game == NULL || game->continuation == NULL)
+    if (state == NULL || game == NULL || game->continuation == NULL ||
+        !mus_score_game_matches(&game->game) || game->continuation->four_player)
         return CFR_STATUS_INVALID_ARGUMENT;
     Status status = mus_ordago_game_state_init(state);
     if (status != CFR_STATUS_SUCCESS)

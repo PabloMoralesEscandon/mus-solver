@@ -10,8 +10,9 @@
  * mus_game_descriptor, mus_single_bet_game_descriptor,
  * mus_raises_to_eight_game_descriptor, mus_ordago_game_descriptor, or
  * mus_ordago_public_game_descriptor, or with
- * a game accepted by mus_score_game_matches. Its state must be a valid
- * MusGameState. The helper checks the descriptor before copying the state.
+ * a game accepted by mus_score_game_matches_any. Its state must be a valid
+ * MusGameState, or MusFourGameState for the four-player score adapter. The
+ * helper checks the descriptor before copying the correct state size.
  * The caller retains ownership of trainer, game, state, and store. The game
  * and any continuation table must remain unchanged throughout this call.
  * The caller must not otherwise access the mutable trainer, state, or store

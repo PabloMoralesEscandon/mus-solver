@@ -234,22 +234,22 @@ Status score_recovery_load(const MusScoreGame *game, MusScoreCell *cell, void *c
     uint64_t actual_hash;
     status = file_hash(path, &actual_hash);
     if (status == CFR_STATUS_SUCCESS && stored_hash != actual_hash) status = CFR_STATUS_NOT_FOUND;
-    MusGameState *state = NULL;
+    GameState *state = NULL;
     InfoStore store = {0};
     Trainer trainer;
     FILE *stream = NULL;
     if (status == CFR_STATUS_SUCCESS) {
-        state = malloc(sizeof(*state));
+        state = malloc(mus_score_game_state_size(game));
         if (state == NULL) status = CFR_STATUS_OUT_OF_MEMORY;
     }
-    if (status == CFR_STATUS_SUCCESS) status = mus_score_game_state_init(state, game);
+    if (status == CFR_STATUS_SUCCESS) status = mus_score_game_state_init_generic(state, game);
     if (status == CFR_STATUS_SUCCESS) {
         stream = fopen(path, "rb");
         if (stream == NULL) status = errno == ENOENT ? CFR_STATUS_NOT_FOUND : CFR_STATUS_IO_ERROR;
     }
     if (status == CFR_STATUS_SUCCESS)
         status = cfr_checkpoint_read_zstd(stream, &game->game,
-            mus_game_state_as_game_state(state), &store, &trainer);
+            state, &store, &trainer);
     if (status == CFR_STATUS_SUCCESS &&
         (trainer.variant != CFR_TRAINER_VARIANT_MCCFR_EXTERNAL ||
          trainer.training_iterations != recovered.iterations)) status = CFR_STATUS_FORMAT_ERROR;

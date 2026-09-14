@@ -121,7 +121,8 @@ static Status validate_preload(const MusScoreGame *game,
                                const MusScorePreloadOptions *options,
                                InfoStore *destination) {
     if (game == NULL || !mus_score_game_matches(&game->game) ||
-        game->continuation == NULL || game->continuation->target == 0 ||
+        game->continuation == NULL || game->continuation->four_player ||
+        game->continuation->target == 0 ||
         game->continuation->target > MUS_ORDAGO_WAGER ||
         game->initial_scores[0] >= game->continuation->target ||
         game->initial_scores[1] >= game->continuation->target ||

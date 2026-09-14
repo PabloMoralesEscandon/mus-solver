@@ -5,6 +5,7 @@
 #define _XOPEN_SOURCE 700
 #endif
 
+#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <inttypes.h>
@@ -37,8 +38,17 @@ typedef enum {
     CLI_FORMAT_RAISES_TO_EIGHT,
     CLI_FORMAT_ORDAGO,
     CLI_FORMAT_ORDAGO_PUBLIC,
-    CLI_FORMAT_ORDAGO_SCORE
+    CLI_FORMAT_ORDAGO_SCORE,
+    CLI_FORMAT_ORDAGO_SCORE_FOUR
 } CliFormat;
+
+static bool is_score_format(CliFormat format) {
+    return format == CLI_FORMAT_ORDAGO_SCORE || format == CLI_FORMAT_ORDAGO_SCORE_FOUR;
+}
+
+static const char *score_team_fields(bool four_player) {
+    return four_player ? " players=4 teams=0+2:1+3" : "";
+}
 
 typedef struct {
     size_t iterations;
@@ -106,14 +116,15 @@ static bool print_usage(FILE *stream, const char *program) {
                "  --iterations N         Iteraciones MCCFR nuevas.\n"
                "  --report-every N       Frecuencia de informes de entrenamiento.\n"
                "  --threads N            Hilos de entrenamiento (1 por defecto).\n"
-               "                          ordago-score: celdas de la misma diagonal;\n"
+               "                          Versiones score: celdas de la misma diagonal;\n"
                "                          con un checkpoint, comparten su estrategia.\n"
                "  --threads-per-cell N   Hilos por estrategia al entrenar una tabla\n"
-               "                          ordago-score (1 por defecto).\n"
+               "                          score (1 por defecto).\n"
                "  --seed N               Semilla de un entrenamiento nuevo (0 por "
                "defecto).\n"
                "  --format FORMAT        single-bet (por defecto) o "
-               "raises-to-eight, ordago, ordago-public u ordago-score.\n"
+               "raises-to-eight, ordago, ordago-public, ordago-score\n"
+               "                          u ordago-score-four (parejas 0/2 y 1/3).\n"
                "  --reserve-information-sets N\n"
                "                          Sustituye la reserva automatica de "
                "ordago.\n"
@@ -125,7 +136,7 @@ static bool print_usage(FILE *stream, const char *program) {
                "un diagnostico acotado.\n"
                "  --export-strategy FILE Exporta la estrategia con etiquetas de "
                "mus.\n"
-               "  --continuation DIR     Tabla y checkpoints de ordago-score.\n"
+               "  --continuation DIR     Tabla y checkpoints de una version score.\n"
                "  --extend-continuation DIR\n"
                "                          Carga cada checkpoint de DIR y suma --iterations.\n"
                "                          Recalcula continuaciones por diagonal y guarda\n"
@@ -133,13 +144,13 @@ static bool print_usage(FILE *stream, const char *program) {
                "  --score A:B            Marcador inicial (0:0 por defecto).\n"
                "  --score-region A:B     Limita la tabla a continuaciones de A:B y B:A.\n"
                "                          Sin --score, empieza desde A:B.\n"
-               "  --target N             Objetivo de ordago-score (40 por defecto).\n"
+               "  --target N             Objetivo de una version score (40 por defecto).\n"
                "  --evaluation-samples N Manos para evaluar cada celda (10000).\n"
                "  --evaluation-min-samples N\n"
                "  --evaluation-target-se X\n"
                "                          Juntas: muestreo adaptativo desde N manos,\n"
                "                          hasta --evaluation-samples; error local estimado.\n"
-               "                          En ordago-score, --iterations se aplica\n"
+               "                          En las versiones score, --iterations se aplica\n"
                "                          a cada celda pendiente; se guarda por diagonal.\n"
                "                          Con --load[-compressed], se suman solo\n"
                "                          al checkpoint del marcador elegido.\n"
@@ -286,6 +297,8 @@ static bool parse_options(int argc, char *argv[], CliOptions *options) {
                 options->format = CLI_FORMAT_SINGLE_BET;
             } else if (strcmp(value, "raises-to-eight") == 0) {
                 options->format = CLI_FORMAT_RAISES_TO_EIGHT;
+            } else if (strcmp(value, "ordago-score-four") == 0) {
+                options->format = CLI_FORMAT_ORDAGO_SCORE_FOUR;
             } else if (strcmp(value, "ordago-score") == 0) {
                 options->format = CLI_FORMAT_ORDAGO_SCORE;
             } else if (strcmp(value, "ordago-public") == 0) {
@@ -391,7 +404,12 @@ static bool parse_options(int argc, char *argv[], CliOptions *options) {
           options->evaluation_min_samples > options->evaluation_samples ||
           (!options->evaluate && (!options->iterations_set || options->load_path != NULL)))))
         return false;
-    if (options->format == CLI_FORMAT_ORDAGO_SCORE) {
+    if (is_score_format(options->format)) {
+        if (options->format == CLI_FORMAT_ORDAGO_SCORE_FOUR &&
+            (options->preload_ordago_path != NULL || options->preload_weight_set)) {
+            fprintf(stderr, "error: ordago-score-four no admite estrategias previas de dos jugadores\n");
+            return false;
+        }
         if (options->score_region_set) {
             if (options->region_a >= options->score_target ||
                 options->region_b >= options->score_target) return false;
@@ -567,7 +585,7 @@ static Status export_strategy(const char *path, const Trainer *trainer,
 
     if (stream == NULL)
         return CFR_STATUS_IO_ERROR;
-    if (format == CLI_FORMAT_ORDAGO_SCORE) {
+    if (is_score_format(format)) {
         status = mus_score_strategy_write_text(stream, trainer);
     } else if (format == CLI_FORMAT_RAISES_TO_EIGHT) {
         status = mus_raises_to_eight_strategy_write_text(stream, trainer);
@@ -600,10 +618,10 @@ static bool print_report(const Trainer *trainer, size_t thread_count,
         return false;
     }
     return printf("report iterations=%zu threads=%zu information_sets=%zu "
-                  "traversals=%zu visited_nodes=%zu seconds=%.6f\n",
+                  "traversals=%zu visited_nodes=%zu seconds=%.6f%s\n",
                   trainer->training_iterations, thread_count, store_stats.size,
                   trainer_stats.traversals, trainer_stats.visited_nodes,
-                  seconds) >= 0;
+                  seconds, score_team_fields(trainer->game->strategic_player_count == 4)) >= 0;
 }
 
 static bool print_evaluation(size_t iterations, CliFormat format,
@@ -643,6 +661,31 @@ static char *score_cell_path(const char *directory, unsigned int a, unsigned int
     return score_path(directory, name);
 }
 
+/* Historical interruption can leave a checkpoint before the first values.txt.
+ * A new four-player table cannot establish ownership of those checkpoints. */
+static Status check_new_four_score_directory(const char *path) {
+    DIR *directory = opendir(path);
+    if (directory == NULL) return CFR_STATUS_IO_ERROR;
+    Status status = CFR_STATUS_SUCCESS;
+    for (;;) {
+        errno = 0;
+        const struct dirent *entry = readdir(directory);
+        if (entry == NULL) {
+            if (errno != 0) status = CFR_STATUS_IO_ERROR;
+            break;
+        }
+        const size_t length = strlen(entry->d_name);
+        if (length >= 14 && strncmp(entry->d_name, "score-", 6) == 0 &&
+            strcmp(entry->d_name + length - 8, ".cfr.zst") == 0) {
+            status = CFR_STATUS_INCOMPATIBLE_GAME;
+            break;
+        }
+    }
+    if (closedir(directory) != 0 && status == CFR_STATUS_SUCCESS)
+        status = CFR_STATUS_IO_ERROR;
+    return status;
+}
+
 typedef struct {
     const CliOptions *options;
     const MusScorePreloadStats *preload_stats;
@@ -671,11 +714,12 @@ static Status report_score_progress(const MusScoreGame *game, const Trainer *tra
         return status;
     if (printf("score-report score=%u:%u iterations=%zu information_sets=%zu "
                "imported_nodes=%zu imported_later_nodes=%zu missing_source_nodes=%zu "
-               "existing_nodes=%zu uniform_after_filter_nodes=%zu added_iterations=%zu\n",
+               "existing_nodes=%zu uniform_after_filter_nodes=%zu added_iterations=%zu%s\n",
                game->initial_scores[0], game->initial_scores[1], trainer->training_iterations, stats.size,
                preload->imported_nodes, preload->imported_later_nodes,
                preload->missing_source_nodes, preload->existing_nodes,
-               preload->uniform_after_filter_nodes, completed) < 0 || fflush(stdout) != 0)
+               preload->uniform_after_filter_nodes, completed,
+               score_team_fields(game->continuation->four_player)) < 0 || fflush(stdout) != 0)
         return CFR_STATUS_IO_ERROR;
     return CFR_STATUS_SUCCESS;
 }
@@ -732,10 +776,11 @@ static Status save_score_cell(const MusScoreGame *game, const Trainer *trainer,
         status = report_score_preload(game, persistence->preload_stats);
     if (status == CFR_STATUS_SUCCESS &&
         printf("score-cell score=%u:%u target=%u iterations=%zu "
-               "evaluation_samples=%zu value=%.17g win_probability=%.17g",
+               "evaluation_samples=%zu value=%.17g win_probability=%.17g%s",
                game->initial_scores[0], game->initial_scores[1],
                game->continuation->target, cell->iterations, cell->evaluation_samples,
-               cell->value, (cell->value + 1) / 2) < 0)
+               cell->value, (cell->value + 1) / 2,
+               score_team_fields(game->continuation->four_player)) < 0)
         status = CFR_STATUS_IO_ERROR;
     if (status == CFR_STATUS_SUCCESS && !print_score_statistics(cell->evaluation_samples,
         cell->variance_known, cell->sample_variance, options)) status = CFR_STATUS_IO_ERROR;
@@ -1015,7 +1060,7 @@ static int run_score_checkpoint(const CliOptions *options) {
     MusScoreGame game;
     InfoStore store = {0};
     Trainer trainer;
-    MusGameState *state = NULL;
+    GameState *state = NULL;
     InfoStore preload_store = {0};
     MusGameState *preload_state = NULL;
     Trainer preload_trainer;
@@ -1047,7 +1092,8 @@ static int run_score_checkpoint(const CliOptions *options) {
         status = CFR_STATUS_IO_ERROR;
     if (status != CFR_STATUS_SUCCESS)
         goto done;
-    if (table.target != options->score_target) {
+    if (table.target != options->score_target ||
+        table.four_player != (options->format == CLI_FORMAT_ORDAGO_SCORE_FOUR)) {
         status = CFR_STATUS_INCOMPATIBLE_GAME;
         goto done;
     }
@@ -1063,17 +1109,17 @@ static int run_score_checkpoint(const CliOptions *options) {
             }
         }
     }
-    state = malloc(sizeof(*state));
+    status = mus_score_game_init(&game, &table, options->score_a, options->score_b);
+    if (status != CFR_STATUS_SUCCESS) goto done;
+    state = malloc(mus_score_game_state_size(&game));
     if (state == NULL) {
         status = CFR_STATUS_OUT_OF_MEMORY;
         goto done;
     }
-    status = mus_score_game_init(&game, &table, options->score_a, options->score_b);
-    if (status == CFR_STATUS_SUCCESS)
-        status = mus_score_game_state_init(state, &game);
+    status = mus_score_game_state_init_generic(state, &game);
     if (status == CFR_STATUS_SUCCESS)
         status = load_checkpoint(options->load_path, &game.game,
-                                 mus_game_state_as_game_state(state), &store,
+                                 state, &store,
                                  &trainer, options->load_compressed);
     if (status != CFR_STATUS_SUCCESS)
         goto done;
@@ -1124,9 +1170,10 @@ static int run_score_checkpoint(const CliOptions *options) {
     if (status != CFR_STATUS_SUCCESS)
         goto done;
     if (printf("score-checkpoint score=%u:%u target=%u initial_iterations=%zu "
-               "added_iterations=%zu total_iterations=%zu continuation=frozen\n",
+               "added_iterations=%zu total_iterations=%zu continuation=frozen%s\n",
                options->score_a, options->score_b, table.target, initial_iterations,
-               options->iterations, trainer.training_iterations) < 0) {
+               options->iterations, trainer.training_iterations,
+               score_team_fields(table.four_player)) < 0) {
         status = CFR_STATUS_IO_ERROR;
         goto done;
     }
@@ -1142,6 +1189,11 @@ static int run_score_checkpoint(const CliOptions *options) {
                    options->score_a, options->score_b, trainer.training_iterations,
                    evaluation.samples, options->seed, evaluation.value, (evaluation.value + 1) / 2) < 0)
             status = CFR_STATUS_IO_ERROR;
+        if (status == CFR_STATUS_SUCCESS && table.four_player &&
+            printf(" profile_value_player_1=%.17g profile_value_player_2=%.17g "
+                   "profile_value_player_3=%.17g%s", -evaluation.value, evaluation.value,
+                   -evaluation.value, score_team_fields(true)) < 0)
+            status = CFR_STATUS_IO_ERROR;
         if (status == CFR_STATUS_SUCCESS && !print_score_statistics(evaluation.samples,
             evaluation.variance_known, evaluation.sample_variance, options)) status = CFR_STATUS_IO_ERROR;
     }
@@ -1156,7 +1208,9 @@ done:
     if (continuation_lock >= 0 && close(continuation_lock) != 0 && status == CFR_STATUS_SUCCESS)
         status = CFR_STATUS_IO_ERROR;
     if (status != CFR_STATUS_SUCCESS)
-        fprintf(stderr, "error: checkpoint ordago-score: %s\n", status_name(status));
+        fprintf(stderr, "error: checkpoint %s: %s\n",
+            options->format == CLI_FORMAT_ORDAGO_SCORE_FOUR ? "ordago-score-four" : "ordago-score",
+            status_name(status));
     return status == CFR_STATUS_SUCCESS ? 0 : EXIT_RUNTIME_ERROR;
 }
 
@@ -1178,7 +1232,8 @@ static Status read_score_extension(const CliOptions *options, MusScoreTable *sou
     free(path);
     if (status != CFR_STATUS_SUCCESS)
         return status;
-    if (source->target != options->score_target)
+    if (source->target != options->score_target ||
+        source->four_player != (options->format == CLI_FORMAT_ORDAGO_SCORE_FOUR))
         return CFR_STATUS_INCOMPATIBLE_GAME;
     return CFR_STATUS_SUCCESS;
 }
@@ -1300,7 +1355,7 @@ static Status check_score_extension_manifest(const CliOptions *options,
     return status;
 }
 
-static Status load_score_extension_cell(const MusScoreGame *game, MusGameState *state,
+static Status load_score_extension_cell(const MusScoreGame *game, GameState *state,
     InfoStore *store, Trainer *trainer, void *context) {
     const CliOptions *options = context;
     char *path = score_cell_path(options->extend_continuation_dir,
@@ -1308,7 +1363,7 @@ static Status load_score_extension_cell(const MusScoreGame *game, MusGameState *
     if (path == NULL)
         return CFR_STATUS_OUT_OF_MEMORY;
     Status status = load_checkpoint(path, &game->game,
-        mus_game_state_as_game_state(state), store, trainer, true);
+        state, store, trainer, true);
     if (status == CFR_STATUS_SUCCESS &&
         printf("score-extend score=%u:%u initial_iterations=%zu added_iterations=%zu "
                "source_schema=%s continuation=updated-by-diagonal\n",
@@ -1326,16 +1381,18 @@ static int run_score(const CliOptions *options) {
     options = &resolved;
     MusScoreTable source_table;
     const MusScoreExtension extension = {
-        .table = &source_table, .load_cell = load_score_extension_cell, .context = (void *)options,
+        .table = &source_table, .load_cell_generic = load_score_extension_cell,
+        .context = (void *)options,
     };
     MusScoreTable table;
     Status status = options->score_region_set
         ? mus_score_table_init_region(&table, (unsigned int)options->score_target,
                                       options->region_a, options->region_b)
         : mus_score_table_init(&table, (unsigned int)options->score_target);
+    table.four_player = options->format == CLI_FORMAT_ORDAGO_SCORE_FOUR;
     InfoStore store = {0};
     bool store_initialized = false;
-    MusGameState state;
+    GameState *state = NULL;
     MusScoreGame game;
     Trainer trainer;
     InfoStore preload_store = {0};
@@ -1385,7 +1442,8 @@ static int run_score(const CliOptions *options) {
             status = CFR_STATUS_IO_ERROR;
         if (status != CFR_STATUS_SUCCESS)
             goto done;
-        if (table.target != options->score_target) {
+        if (table.target != options->score_target ||
+            table.four_player != (options->format == CLI_FORMAT_ORDAGO_SCORE_FOUR)) {
             status = CFR_STATUS_INCOMPATIBLE_GAME;
             goto done;
         }
@@ -1410,6 +1468,10 @@ static int run_score(const CliOptions *options) {
         status = CFR_STATUS_IO_ERROR;
         goto done;
     } else {
+        if (table.four_player) {
+            status = check_new_four_score_directory(options->continuation_dir);
+            if (status != CFR_STATUS_SUCCESS) goto done;
+        }
         new_table = true;
     }
     status = resolve_score_region(&resolved, &table);
@@ -1428,8 +1490,8 @@ static int run_score(const CliOptions *options) {
             if (status != CFR_STATUS_SUCCESS)
                 goto done;
         }
-        /* Preserve explicit coverage even if the first cell is interrupted. */
-        if (new_table && table.region_enabled) {
+        /* Preserve the variant and explicit coverage if the first cell is interrupted. */
+        if (new_table && (table.region_enabled || table.four_player)) {
             status = save_score_diagonal(&table, &persistence);
             if (status != CFR_STATUS_SUCCESS) goto done;
         }
@@ -1486,9 +1548,9 @@ static int run_score(const CliOptions *options) {
         status = CFR_STATUS_NOT_FOUND;
         goto done;
     }
-    if (printf("score-table score=%u:%u target=%u value=%.17g win_probability=%.17g",
+    if (printf("score-table score=%u:%u target=%u value=%.17g win_probability=%.17g%s",
                options->score_a, options->score_b, table.target, cell->value,
-               (cell->value + 1) / 2) < 0) {
+               (cell->value + 1) / 2, score_team_fields(table.four_player)) < 0) {
         status = CFR_STATUS_IO_ERROR;
         goto done;
     }
@@ -1499,8 +1561,11 @@ static int run_score(const CliOptions *options) {
     }
     if (options->evaluate || options->export_path != NULL) {
         status = mus_score_game_init(&game, &table, options->score_a, options->score_b);
-        if (status == CFR_STATUS_SUCCESS)
-            status = mus_score_game_state_init(&state, &game);
+        if (status == CFR_STATUS_SUCCESS) {
+            state = malloc(mus_score_game_state_size(&game));
+            status = state == NULL ? CFR_STATUS_OUT_OF_MEMORY
+                : mus_score_game_state_init_generic(state, &game);
+        }
         if (status != CFR_STATUS_SUCCESS)
             goto done;
         char *cell_path = score_cell_path(options->continuation_dir, options->score_a,
@@ -1509,7 +1574,7 @@ static int run_score(const CliOptions *options) {
             status = CFR_STATUS_OUT_OF_MEMORY;
             goto done;
         }
-        status = load_checkpoint(cell_path, &game.game, mus_game_state_as_game_state(&state),
+        status = load_checkpoint(cell_path, &game.game, state,
                                   &store, &trainer, true);
         free(cell_path);
         if (status != CFR_STATUS_SUCCESS)
@@ -1534,6 +1599,9 @@ static int run_score(const CliOptions *options) {
                        options->score_a, options->score_b, evaluation.samples,
                        options->seed, cell->value, cell->evaluation_samples,
                        evaluation.value, -evaluation.value, (evaluation.value + 1) / 2) < 0 ||
+                (table.four_player && printf(" profile_value_player_2=%.17g "
+                    "profile_value_player_3=%.17g%s", evaluation.value, -evaluation.value,
+                    score_team_fields(true)) < 0) ||
                 !print_score_statistics(evaluation.samples, evaluation.variance_known,
                                         evaluation.sample_variance, options)) {
                 status = CFR_STATUS_IO_ERROR;
@@ -1541,13 +1609,14 @@ static int run_score(const CliOptions *options) {
             }
         }
         if (options->export_path != NULL)
-            status = export_strategy(options->export_path, &trainer, CLI_FORMAT_ORDAGO_SCORE);
+            status = export_strategy(options->export_path, &trainer, options->format);
     }
 done:
     if (score_recovery_close(&recovery) != CFR_STATUS_SUCCESS)
         status = CFR_STATUS_IO_ERROR;
     (void)cfr_info_store_destroy(&preload_store);
     free(preload_state);
+    free(state);
     if (store_initialized)
         (void)cfr_info_store_destroy(&store);
     if (lock >= 0 && close(lock) != 0 && status == CFR_STATUS_SUCCESS)
@@ -1556,12 +1625,14 @@ done:
         status = CFR_STATUS_IO_ERROR;
     free(path);
     if (status != CFR_STATUS_SUCCESS)
-        fprintf(stderr, "error: ordago-score: %s\n", status_name(status));
+        fprintf(stderr, "error: %s: %s\n",
+            options->format == CLI_FORMAT_ORDAGO_SCORE_FOUR ? "ordago-score-four" : "ordago-score",
+            status_name(status));
     return status == CFR_STATUS_SUCCESS ? 0 : EXIT_RUNTIME_ERROR;
 }
 
 static int run(const CliOptions *options) {
-    if (options->format == CLI_FORMAT_ORDAGO_SCORE)
+    if (is_score_format(options->format))
         return run_score(options);
     MusGameState *state = NULL;
     InfoStore store = {0};
