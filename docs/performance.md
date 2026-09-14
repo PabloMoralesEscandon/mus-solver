@@ -9,6 +9,11 @@ Para comparar versiones, mantenga las mismas reglas, abstracción, iteraciones,
 muestras de evaluación y semillas. Los benchmarks con un hilo por estrategia
 comprueban también que las políticas y los valores coincidan.
 
+El [informe MCCFR del 14 de septiembre de 2026](performance-mccfr-20260914/report.md)
+compara las versiones actuales de órdago público y marcador, con perfilado de
+CPU, memoria y escalabilidad. Incluye los cambios aceptados y los experimentos
+revertidos.
+
 ## Medición de una celda
 
 ```sh
@@ -95,6 +100,62 @@ La memoria aumenta con el número de celdas simultáneas. La reserva de infosets
 también se aplica por celda. Las diagonales estrechas y los grupos con una celda
 mucho más costosa limitan la aceleración; aumentar los hilos no garantiza una
 mejora proporcional.
+
+## Entrenamiento compartido y recursos en Linux
+
+```sh
+make benchmark-training
+python3 tests/benchmark_training.py \
+    --binary baseline=/ruta/al/benchmark-training-anterior \
+    --binary candidate=build/release/benchmark-training \
+    --threads 1 4 8 16 --repeats 3 \
+    --workload ordago-public:2000 --workload ordago-score:20:20:6000 \
+    --workload ordago-score:0:0:1000 --workload ordago-score:39:39:3000000 \
+    --output build/performance/training.json
+```
+
+El cronómetro C incluye preparación concurrente y creación/unión de hilos.
+Cada proceso comienza con un almacén vacío, sin reserva explícita. La evaluación
+y el guardado quedan fuera. Las continuaciones de marcador son sintéticas,
+como en la prueba de una celda. El JSON conserva iteraciones/s, nodos/s, tamaño
+del almacén, CPU de todos los hilos, RSS máximo, fallos de página, cambios de
+contexto y E/S. Un monitor de `/proc` añade muestras por hilo y procesador,
+RAM/swap del sistema, presión de recursos, frecuencias y sensores térmicos.
+
+Para medir también continuaciones reales, evaluación, checkpoints y recarga:
+
+```sh
+make solver
+python3 tests/benchmark_training_cli.py \
+    --binary baseline=/ruta/al/mus-solver-anterior \
+    --binary candidate=build/release/mus-solver \
+    --workers 2:4 --workers 4:2 --region 35:35 \
+    --iterations 10000 --samples 10000 --repeats 3 \
+    --output build/performance/score-cli.json
+```
+
+`--workers N:M` usa hasta N celdas simultáneas y M hilos por celda. Cada proceso
+usa un directorio nuevo. El harness verifica cobertura, contadores, valores
+publicados, evaluación final y archivos de checkpoint antes de eliminarlos.
+El tiempo cubre el proceso completo; la validación del harness queda fuera.
+
+Ambos monitores alternan las versiones para reducir el efecto del orden.
+Las actualizaciones compartidas pueden cambiar los nodos visitados por
+iteración: conviene contrastar throughput y memoria con nodos/s e infosets.
+La CPU por hilo se muestrea y puede omitir trabajo entre muestras; los
+contadores C o `wait4` incluyen el proceso completo. Las medidas del sistema
+incluyen otros procesos del equipo.
+
+`ru_maxrss` puede conservar un pico de memoria del lanzador anterior a `exec`.
+En procesos pequeños, contraste ese contador con `VmHWM` de `/proc`, que
+corresponde a la imagen del ejecutable. El gráfico de
+`tests/plot_training_benchmarks.py` usa ese máximo observado y requiere
+Matplotlib. Las barras muestran mínimos y máximos de las repeticiones.
+
+`tests/summarize_training_benchmarks.py` genera un JSON compacto con métricas
+por ejecución, deltas por CPU, extremos de sensores y hashes de las fuentes.
+Conserva los originales y sustituye las muestras detalladas únicamente en
+el artefacto derivado.
 
 ## Resultados anteriores: un hilo por celda
 

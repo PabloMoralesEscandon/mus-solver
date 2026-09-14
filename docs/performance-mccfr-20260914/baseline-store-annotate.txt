@@ -1,0 +1,964 @@
+ Percent |	Source code & Disassembly of benchmark-score-threads for cycles:u (12501 samples, percent: local period)
+------------------------------------------------------------------------------------------------------------------------
+         :
+         :
+         :
+         : 3     Disassembly of section .text:
+         :
+         : 5     000000000000ffd0 <concurrent_get_or_create.lto_priv.0>:
+         : 6     return CFR_STATUS_SUCCESS;
+         : 7     }
+         :
+         : 9     static uint64_t disperse(InfoSetKey key) {
+         : 10    uint64_t value = (uint64_t)key;
+         : 11    return value * HASH_MULTIPLIER;
+    0.03 :    ffd0:   movabs $0x9e3779b97f4a7c15,%r8
+         : 13    return CFR_STATUS_INVALID_ARGUMENT;
+         : 14    }
+         :
+         : 16    static Status concurrent_get_or_create(ConcurrentInfoStore *state,
+         : 17    InfoSetKey key, size_t action_count,
+         : 18    InfoNode **node_out) {
+    0.58 :    ffda:   mov    %rsi,%r10
+         : 20    return value * HASH_MULTIPLIER;
+    0.50 :    ffdd:   imul   %rsi,%r8
+         : 22    return (size_t)(hash >> (64 - CONCURRENT_SHARD_BITS));
+    0.73 :    ffe1:   mov    %r8,%r9
+    0.04 :    ffe4:   shr    $0x3e,%r9
+         : 25    const uint64_t hash = disperse(key);
+         : 26    const size_t shard_index = concurrent_shard_index(hash);
+         : 27    ConcurrentInfoStoreShard *shard = &state->shards[shard_index];
+    0.01 :    ffe8:   shl    $0x7,%r9
+    0.05 :    ffec:   add    0x20(%rdi),%r9
+         : 30    ConcurrentInfoStoreTable *table = __atomic_load_n(
+    0.13 :    fff0:   mov    (%r9),%rsi
+         : 32    if (table == NULL || table->capacity == 0 || index_out == NULL)
+    1.13 :    fff3:   test   %rsi,%rsi
+    0.04 :    fff6:   je     10218 <concurrent_get_or_create.lto_priv.0+0x248>
+         : 35    InfoNode **node_out) {
+    0.00 :    fffc:   sub    $0x98,%rsp
+    0.01 :   10003:  mov    %rbx,0x68(%rsp)
+         : 38    if (table == NULL || table->capacity == 0 || index_out == NULL)
+    0.01 :   10008:  mov    0x8(%rsi),%rbx
+    1.74 :   1000c:  test   %rbx,%rbx
+    0.03 :   1000f:  je     101f0 <concurrent_get_or_create.lto_priv.0+0x220>
+         : 42    const size_t mask = table->capacity - 1;
+    0.01 :   10015:  sub    $0x1,%rbx
+         : 44    return (hash << CONCURRENT_SHARD_BITS) |
+    0.01 :   10019:  mov    %r8,%rax
+    0.00 :   1001c:  mov    %r12,0x78(%rsp)
+    0.02 :   10021:  mov    %rcx,%r12
+         : 48    const unsigned int shift = (unsigned int)__builtin_clzll(
+    0.00 :   10024:  bsr    %rbx,%rcx
+         : 50    return (hash << CONCURRENT_SHARD_BITS) |
+    0.19 :   10028:  rol    $0x2,%rax
+    0.03 :   1002c:  mov    %rbp,0x70(%rsp)
+         : 53    const unsigned int shift = (unsigned int)__builtin_clzll(
+    0.10 :   10031:  xor    $0x3f,%rcx
+    0.19 :   10035:  mov    %r13,0x80(%rsp)
+         : 56    return (size_t)(concurrent_local_hash(hash) >> shift);
+    0.00 :   1003d:  mov    %rax,%r13
+    0.00 :   10040:  mov    %r15,0x90(%rsp)
+    0.00 :   10048:  shr    %cl,%r13
+         : 60    return (hash << CONCURRENT_SHARD_BITS) |
+    0.23 :   1004b:  mov    %rax,%r15
+         : 62    for (size_t offset = 0; offset < table->capacity; offset += 1) {
+    0.01 :   1004e:  xor    %ecx,%ecx
+    0.00 :   10050:  mov    %r14,0x88(%rsp)
+    0.13 :   10058:  jmp    10083 <concurrent_get_or_create.lto_priv.0+0xb3>
+    0.00 :   1005a:  nopw   0x0(%rax,%rax,1)
+         : 67    if ((tagged_node & CONCURRENT_NODE_TAG_MASK) ==
+    0.51 :   10060:  mov    %r8,%r14
+    3.93 :   10063:  xor    %rax,%r14
+    0.03 :   10066:  and    $0x7,%r14d
+    0.00 :   1006a:  jne    10079 <concurrent_get_or_create.lto_priv.0+0xa9>
+         : 72    return (InfoNode *)(tagged_node & ~(uintptr_t)CONCURRENT_NODE_TAG_MASK);
+    0.00 :   1006c:  and    $0xfffffffffffffff8,%rax
+         : 74    (hash & CONCURRENT_NODE_TAG_MASK) &&
+    2.57 :   10070:  cmp    (%rax),%r10
+   24.97 :   10073:  je     101c0 <concurrent_get_or_create.lto_priv.0+0x1f0>
+         : 77    for (size_t offset = 0; offset < table->capacity; offset += 1) {
+    1.08 :   10079:  add    $0x1,%rcx
+    4.13 :   1007d:  cmp    0x8(%rsi),%rcx
+    1.34 :   10081:  jae    10098 <concurrent_get_or_create.lto_priv.0+0xc8>
+         : 81    const size_t index = (first + offset) & mask;
+    0.05 :   10083:  lea    0x0(%r13,%rcx,1),%rbp
+    1.18 :   10088:  and    %rbx,%rbp
+         : 84    &table->slots[index].tagged_node, __ATOMIC_ACQUIRE);
+    0.30 :   1008b:  lea    0x2(%rbp),%r11
+         : 86    const uintptr_t tagged_node = __atomic_load_n(
+    0.10 :   1008f:  mov    (%rsi,%r11,8),%rax
+         : 88    if (tagged_node == 0) {
+    8.10 :   10093:  test   %rax,%rax
+    2.65 :   10096:  jne    10060 <concurrent_get_or_create.lto_priv.0+0x90>
+    0.03 :   10098:  mov    %r12,0x10(%rsp)
+         : 92    while (!__atomic_compare_exchange_n(
+    1.96 :   1009d:  xor    %eax,%eax
+         : 94    &shard->write.fields.writer_lock, &expected, 1, true,
+    0.03 :   1009f:  lea    0x60(%r9),%r12
+         : 96    while (!__atomic_compare_exchange_n(
+    0.02 :   100a3:  mov    $0x1,%ecx
+    0.00 :   100a8:  mov    %rdi,0x8(%rsp)
+    0.05 :   100ad:  lock cmpxchg %cl,(%r12)
+    6.84 :   100b3:  jne    109a5 <concurrent_get_or_create.lto_priv.0+0x9d5>
+         : 101   }
+         : 102   if (result == LOCATE_INVALID_ARGUMENT)
+         : 103   return CFR_STATUS_INVALID_ARGUMENT;
+         :
+         : 105   concurrent_shard_lock(shard);
+         : 106   table = shard->read.fields.active;
+    0.21 :   100b9:  mov    (%r9),%r11
+         : 108   if (table == NULL || table->capacity == 0 || index_out == NULL)
+    0.30 :   100bc:  test   %r11,%r11
+    0.00 :   100bf:  je     10270 <concurrent_get_or_create.lto_priv.0+0x2a0>
+    0.02 :   100c5:  mov    0x8(%r11),%r12
+    0.11 :   100c9:  test   %r12,%r12
+    0.00 :   100cc:  je     10270 <concurrent_get_or_create.lto_priv.0+0x2a0>
+         : 114   const size_t mask = table->capacity - 1;
+    0.01 :   100d2:  sub    $0x1,%r12
+         : 116   return (size_t)(concurrent_local_hash(hash) >> shift);
+    0.00 :   100d6:  mov    %r15,%r13
+         : 118   const unsigned int shift = (unsigned int)__builtin_clzll(
+    0.00 :   100d9:  bsr    %r12,%rcx
+         : 120   size_t collisions = 0;
+    0.00 :   100dd:  xor    %ebx,%ebx
+         : 122   for (size_t offset = 0; offset < table->capacity; offset += 1) {
+    0.00 :   100df:  xor    %edi,%edi
+         : 124   const unsigned int shift = (unsigned int)__builtin_clzll(
+    0.01 :   100e1:  xor    $0x3f,%rcx
+         : 126   return (size_t)(concurrent_local_hash(hash) >> shift);
+    0.09 :   100e5:  shr    %cl,%r13
+         : 128   for (size_t offset = 0; offset < table->capacity; offset += 1) {
+    0.04 :   100e8:  jmp    10122 <concurrent_get_or_create.lto_priv.0+0x152>
+    0.00 :   100ea:  nopw   0x0(%rax,%rax,1)
+         : 131   if ((tagged_node & CONCURRENT_NODE_TAG_MASK) ==
+    0.01 :   100f0:  mov    %r8,%rcx
+    0.23 :   100f3:  xor    %rax,%rcx
+    0.01 :   100f6:  and    $0x7,%ecx
+    0.00 :   100f9:  jne    10108 <concurrent_get_or_create.lto_priv.0+0x138>
+         : 136   return (InfoNode *)(tagged_node & ~(uintptr_t)CONCURRENT_NODE_TAG_MASK);
+    0.00 :   100fb:  and    $0xfffffffffffffff8,%rax
+         : 138   (hash & CONCURRENT_NODE_TAG_MASK) &&
+    0.13 :   100ff:  cmp    (%rax),%r10
+    0.08 :   10102:  je     108a2 <concurrent_get_or_create.lto_priv.0+0x8d2>
+         : 141   *collision_count += 1;
+    0.01 :   10108:  xor    %eax,%eax
+    0.10 :   1010a:  cmp    $0xffffffffffffffff,%rbx
+    0.02 :   1010e:  setne  %al
+         : 145   for (size_t offset = 0; offset < table->capacity; offset += 1) {
+    0.01 :   10111:  add    $0x1,%rdi
+         : 147   *collision_count += 1;
+    0.01 :   10115:  add    %rax,%rbx
+         : 149   for (size_t offset = 0; offset < table->capacity; offset += 1) {
+    0.00 :   10118:  cmp    0x8(%r11),%rdi
+    0.01 :   1011c:  jae    10280 <concurrent_get_or_create.lto_priv.0+0x2b0>
+         : 152   const size_t index = (first + offset) & mask;
+    0.05 :   10122:  lea    0x0(%r13,%rdi,1),%rcx
+    0.09 :   10127:  and    %r12,%rcx
+         : 155   &table->slots[index].tagged_node, __ATOMIC_ACQUIRE);
+    0.05 :   1012a:  lea    0x2(%rcx),%rsi
+         : 157   const uintptr_t tagged_node = __atomic_load_n(
+    0.04 :   1012e:  mov    (%r11,%rsi,8),%rax
+         : 159   if (tagged_node == 0) {
+    0.32 :   10132:  test   %rax,%rax
+    0.02 :   10135:  jne    100f0 <concurrent_get_or_create.lto_priv.0+0x120>
+         : 162   return LOCATE_EMPTY_SLOT_FOUND;
+    0.00 :   10137:  movl   $0x2,0x20(%rsp)
+         : 164   return left > SIZE_MAX - right ? SIZE_MAX : left + right;
+    0.06 :   1013f:  add    0x50(%r9),%rbx
+    0.32 :   10143:  jb     1057a <concurrent_get_or_create.lto_priv.0+0x5aa>
+         : 167   result = concurrent_locate(table, hash, key, &collisions, &index);
+         : 168   shard->write.fields.collision_count = saturating_add_size(
+    0.00 :   10149:  mov    %rbx,0x50(%r9)
+         : 170   InfoArenaBlock *block = shard->write.fields.node_blocks;
+    0.00 :   1014d:  mov    0x40(%r9),%rbx
+         : 172   }
+         :
+         : 174   Status cfr_info_node_owned_size(size_t action_count, size_t *size_out) {
+         : 175   if (action_count == 0 || size_out == NULL)
+         : 176   return CFR_STATUS_INVALID_ARGUMENT;
+         : 177   if (action_count >
+    0.01 :   10151:  lea    -0x1(%rdx),%rsi
+         : 179   .used = block == NULL ? 0 : block->used};
+    0.00 :   10155:  test   %rbx,%rbx
+    0.00 :   10158:  je     104e0 <concurrent_get_or_create.lto_priv.0+0x510>
+    0.00 :   1015e:  mov    0x8(%rbx),%r14
+         : 183   return status;
+    0.17 :   10162:  mov    $0x1,%eax
+    0.10 :   10167:  movabs $0xffffffffffffffc,%rdi
+         : 186   .used = block == NULL ? 0 : block->used};
+    0.01 :   10171:  mov    %r14,0x18(%rsp)
+    0.02 :   10176:  cmp    %rsi,%rdi
+    0.00 :   10179:  jae    10290 <concurrent_get_or_create.lto_priv.0+0x2c0>
+         : 190   block->used = mark.used;
+    0.00 :   1017f:  mov    0x18(%rsp),%rdx
+    0.00 :   10184:  mov    %rdx,0x8(%rbx)
+         : 193   __atomic_store_n(&shard->write.fields.writer_lock, 0, __ATOMIC_RELEASE);
+    0.00 :   10188:  movb   $0x0,0x60(%r9)
+         : 195   }
+         : 196   status = concurrent_shard_rebuild(shard, table->capacity * 2);
+         : 197   if (status != CFR_STATUS_SUCCESS) {
+         : 198   concurrent_arena_rollback(shard, mark);
+         : 199   concurrent_shard_unlock(shard);
+         : 200   return status;
+    0.00 :   1018d:  mov    0x70(%rsp),%rbp
+    0.60 :   10192:  mov    0x78(%rsp),%r12
+    0.10 :   10197:  mov    0x80(%rsp),%r13
+    0.02 :   1019f:  mov    0x88(%rsp),%r14
+    0.05 :   101a7:  mov    0x90(%rsp),%r15
+         : 206   concurrent_tag_node(node, hash), __ATOMIC_RELEASE);
+         : 207   shard->write.fields.size += 1;
+         : 208   *node_out = node;
+         : 209   concurrent_shard_unlock(shard);
+         : 210   return CFR_STATUS_SUCCESS;
+         : 211   }
+    0.51 :   101af:  mov    0x68(%rsp),%rbx
+    0.00 :   101b4:  add    $0x98,%rsp
+    0.02 :   101bb:  ret
+    0.00 :   101bc:  nopl   0x0(%rax)
+         : 216   const uintptr_t tagged_node = __atomic_load_n(
+    4.07 :   101c0:  mov    (%rsi,%r11,8),%rax
+         : 218   return (InfoNode *)(tagged_node & ~(uintptr_t)CONCURRENT_NODE_TAG_MASK);
+    6.28 :   101c4:  and    $0xfffffffffffffff8,%rax
+         : 220   if (node->action_count != action_count)
+    0.02 :   101c8:  cmp    %rdx,0x8(%rax)
+    2.67 :   101cc:  je     10208 <concurrent_get_or_create.lto_priv.0+0x238>
+    0.00 :   101ce:  mov    0x70(%rsp),%rbp
+    0.00 :   101d3:  mov    0x78(%rsp),%r12
+    0.00 :   101d8:  mov    0x80(%rsp),%r13
+    0.00 :   101e0:  mov    0x88(%rsp),%r14
+    0.00 :   101e8:  mov    0x90(%rsp),%r15
+         : 228   }
+    0.00 :   101f0:  mov    0x68(%rsp),%rbx
+         : 230   return CFR_STATUS_INVALID_ARGUMENT;
+    0.00 :   101f5:  mov    $0x1,%eax
+         : 232   }
+    0.00 :   101fa:  add    $0x98,%rsp
+    0.00 :   10201:  ret
+    0.00 :   10202:  nopw   0x0(%rax,%rax,1)
+         : 236   *node_out = node;
+    0.01 :   10208:  mov    %rax,(%r12)
+         : 238   return CFR_STATUS_SUCCESS;
+    3.97 :   1020c:  xor    %eax,%eax
+    0.01 :   1020e:  jmp    1018d <concurrent_get_or_create.lto_priv.0+0x1bd>
+    0.00 :   10213:  nopl   0x0(%rax,%rax,1)
+         : 242   return CFR_STATUS_INVALID_ARGUMENT;
+    0.00 :   10218:  mov    $0x1,%eax
+         : 244   }
+    0.00 :   1021d:  ret
+    0.00 :   1021e:  mov    %rbp,0x8(%rsp)
+    0.00 :   10223:  mov    %rbp,%rax
+         : 248   return left > SIZE_MAX - right ? SIZE_MAX : left + right;
+    0.00 :   10226:  add    0x50(%r9),%rax
+    0.00 :   1022a:  jb     1098e <concurrent_get_or_create.lto_priv.0+0x9be>
+    0.00 :   10230:  mov    %rax,0x50(%r9)
+         : 252   InfoArenaBlock *block = shard->write.fields.node_blocks;
+    0.00 :   10234:  mov    0x40(%r9),%rbp
+         : 254   while (block != mark.block) {
+    0.00 :   10238:  cmp    %rbp,%rbx
+    0.00 :   1023b:  je     10254 <concurrent_get_or_create.lto_priv.0+0x284>
+    0.00 :   1023d:  mov    %r9,%r12
+         : 258   InfoArenaBlock *next = block->next;
+    0.00 :   10240:  mov    %rbp,%rdi
+    0.00 :   10243:  mov    0x0(%rbp),%rbp
+         : 261   free(block);
+    0.00 :   10247:  call   2100 <free@plt>
+         : 263   while (block != mark.block) {
+    0.00 :   1024c:  cmp    %rbp,%rbx
+    0.00 :   1024f:  jne    10240 <concurrent_get_or_create.lto_priv.0+0x270>
+    0.00 :   10251:  mov    %r12,%r9
+         : 267   shard->write.fields.node_blocks = block;
+    0.00 :   10254:  mov    %rbp,0x40(%r9)
+         : 269   if (block != NULL)
+    0.00 :   10258:  test   %rbp,%rbp
+    0.00 :   1025b:  je     10270 <concurrent_get_or_create.lto_priv.0+0x2a0>
+         : 272   block->used = mark.used;
+    0.00 :   1025d:  mov    0x18(%rsp),%rax
+    0.00 :   10262:  mov    %rax,0x8(%rbp)
+    0.00 :   10266:  cs nopw 0x0(%rax,%rax,1)
+         : 276   __atomic_store_n(&shard->write.fields.writer_lock, 0, __ATOMIC_RELEASE);
+    0.00 :   10270:  movb   $0x0,0x60(%r9)
+         : 278   return CFR_STATUS_INVALID_ARGUMENT;
+    0.00 :   10275:  jmp    101ce <concurrent_get_or_create.lto_priv.0+0x1fe>
+    0.00 :   1027a:  nopw   0x0(%rax,%rax,1)
+         : 281   return LOCATE_STORE_FULL;
+    0.00 :   10280:  movl   $0x3,0x20(%rsp)
+         : 283   for (size_t offset = 0; offset < table->capacity; offset += 1) {
+    0.00 :   10288:  mov    %rbp,%rcx
+    0.00 :   1028b:  jmp    1013f <concurrent_get_or_create.lto_priv.0+0x16f>
+         : 286   if (block->used > SIZE_MAX - (alignment - 1))
+    0.00 :   10290:  cmp    $0xfffffffffffffff8,%r14
+    0.06 :   10294:  ja     105a4 <concurrent_get_or_create.lto_priv.0+0x5d4>
+         : 289   (SIZE_MAX - sizeof(InfoNode)) / (2 * sizeof(double))) {
+         : 290   return CFR_STATUS_INVALID_ARGUMENT;
+         : 291   }
+         : 292   *size_out = sizeof(InfoNode) + 2 * action_count * sizeof(double);
+    0.00 :   1029a:  mov    %rdx,%rax
+         : 294   if (block == NULL || offset > block->capacity ||
+    0.00 :   1029d:  mov    0x10(%rbx),%r12
+    0.06 :   102a1:  shl    $0x4,%rax
+    0.02 :   102a5:  lea    0x28(%rax),%r13
+         : 298   offset = (block->used + alignment - 1) & ~(alignment - 1);
+    0.00 :   102a9:  mov    0x18(%rsp),%rax
+    0.01 :   102ae:  add    $0x7,%rax
+    0.00 :   102b2:  and    $0xfffffffffffffff8,%rax
+         : 302   if (block == NULL || offset > block->capacity ||
+    0.00 :   102b6:  cmp    %rax,%r12
+    0.00 :   102b9:  jb     10586 <concurrent_get_or_create.lto_priv.0+0x5b6>
+         : 305   node_size > block->capacity - offset) {
+    0.00 :   102bf:  mov    %r12,%rsi
+    0.01 :   102c2:  sub    %rax,%rsi
+         : 308   if (block == NULL || offset > block->capacity ||
+    0.00 :   102c5:  cmp    %r13,%rsi
+    0.00 :   102c8:  jae    108d9 <concurrent_get_or_create.lto_priv.0+0x909>
+         : 311   if (capacity < INFO_ARENA_BLOCK_CAPACITY) {
+    0.00 :   102ce:  cmp    $0xfffff,%r12
+    0.00 :   102d5:  ja     102ec <concurrent_get_or_create.lto_priv.0+0x31c>
+         : 314   capacity *= 2;
+    0.00 :   102d7:  lea    (%r12,%r12,1),%rax
+    0.00 :   102db:  cmp    $0x80001,%r12
+    0.00 :   102e2:  mov    $0x100000,%r12d
+    0.00 :   102e8:  cmovb  %rax,%r12
+         : 319   return node_size > capacity ? node_size : capacity;
+    0.00 :   102ec:  cmp    %r13,%r12
+    0.00 :   102ef:  cmovb  %r13,%r12
+         : 322   if (capacity > SIZE_MAX - sizeof(*block))
+    0.00 :   102f3:  cmp    $0xffffffffffffffbf,%r12
+    0.00 :   102f7:  ja     10a0b <concurrent_get_or_create.lto_priv.0+0xa3b>
+         : 325   InfoArenaBlock *created = malloc(sizeof(*created) + capacity);
+    0.00 :   102fd:  lea    0x40(%r12),%rdi
+    0.00 :   10302:  mov    %rdx,0x50(%rsp)
+    0.00 :   10307:  mov    %r10,0x48(%rsp)
+    0.00 :   1030c:  mov    %rcx,0x40(%rsp)
+    0.00 :   10311:  mov    %r8,0x38(%rsp)
+    0.00 :   10316:  mov    %r9,0x30(%rsp)
+    0.00 :   1031b:  mov    %r11,0x28(%rsp)
+    0.00 :   10320:  call   20c0 <malloc@plt>
+         : 334   if (created == NULL)
+    0.00 :   10325:  mov    0x28(%rsp),%r11
+    0.00 :   1032a:  mov    0x30(%rsp),%r9
+    0.00 :   1032f:  test   %rax,%rax
+    0.00 :   10332:  mov    0x38(%rsp),%r8
+    0.00 :   10337:  mov    0x40(%rsp),%rcx
+         : 340   InfoArenaBlock *created = malloc(sizeof(*created) + capacity);
+    0.00 :   1033c:  mov    %rax,%rbp
+         : 342   if (created == NULL)
+    0.00 :   1033f:  mov    0x48(%rsp),%r10
+    0.00 :   10344:  mov    0x50(%rsp),%rdx
+    0.00 :   10349:  je     10a0b <concurrent_get_or_create.lto_priv.0+0xa3b>
+         : 346   created->capacity = capacity;
+    0.00 :   1034f:  mov    %r12,0x10(%rbp)
+         : 348   status = cfr_info_node_init_owned(block->data + offset,
+    0.00 :   10353:  lea    0x40(%rbp),%r12
+         : 350   created->next = block;
+    0.00 :   10357:  mov    %rbx,0x0(%rbp)
+         : 352   created->used = 0;
+    0.00 :   1035b:  movq   $0x0,0x8(%rbp)
+         : 354   shard->write.fields.node_blocks = created;
+    0.00 :   10363:  mov    %rbp,0x40(%r9)
+         : 356   Status status = cfr_info_node_owned_size(action_count, &required_size);
+         :
+         : 358   if (status != CFR_STATUS_SUCCESS || storage == NULL || node_out == NULL)
+         : 359   return status == CFR_STATUS_SUCCESS ? CFR_STATUS_INVALID_ARGUMENT
+         : 360   : status;
+         : 361   if (storage_size < required_size)
+    0.00 :   10367:  cmp    %r13,0x10(%rbp)
+    0.00 :   1036b:  jb     108e9 <concurrent_get_or_create.lto_priv.0+0x919>
+         : 364   return CFR_STATUS_BUFFER_TOO_SMALL;
+         : 365   InfoNode *node = storage;
+         : 366   *node = (InfoNode){0};
+    0.00 :   10371:  lea    0x28(,%rdx,8),%r14
+    0.01 :   10379:  xor    %esi,%esi
+    0.02 :   1037b:  test   %rdx,%rdx
+    0.00 :   1037e:  movq   $0x0,0x20(%r12)
+         : 371   return (double *)(void *)(attached_regret_sums(node) + action_count);
+    0.15 :   10387:  lea    (%r12,%r14,1),%rax
+    0.06 :   1038b:  setne  %sil
+         : 374   return (Utility *)(void *)((unsigned char *)node + sizeof(*node));
+    0.00 :   1038f:  lea    0x28(%r12),%rdi
+         : 376   node->key = key;
+    0.00 :   10394:  mov    %r10,(%r12)
+         : 378   return (double *)(void *)(attached_regret_sums(node) + action_count);
+    0.01 :   10398:  mov    %rax,0x28(%rsp)
+         : 380   node->action_count = action_count;
+         : 381   node->regret_sums = attached_regret_sums(node);
+         : 382   node->strategy_sums = attached_strategy_sums(node, action_count);
+    0.00 :   1039d:  mov    %rax,0x18(%r12)
+    0.00 :   103a2:  lea    0x6(%rdx,%rdx,1),%rax
+    0.02 :   103a7:  sub    %rsi,%rax
+         : 386   node->action_count = action_count;
+    0.00 :   103aa:  mov    %rdx,0x8(%r12)
+         : 388   return (Utility *)(void *)((unsigned char *)node + sizeof(*node));
+    0.01 :   103af:  lea    (%r12,%rax,8),%rax
+         : 390   node->regret_sums = attached_regret_sums(node);
+    0.00 :   103b3:  mov    %rdi,0x10(%r12)
+         : 392   for (size_t index = 0; index < action_count; index += 1) {
+    0.01 :   103b8:  cmp    %rax,%rdi
+    0.01 :   103bb:  jae    103d4 <concurrent_get_or_create.lto_priv.0+0x404>
+    0.00 :   103bd:  mov    %rdx,%rax
+    0.00 :   103c0:  sub    %rsi,%rax
+    0.00 :   103c3:  lea    0x30(,%rax,8),%rax
+    0.01 :   103cb:  cmp    %r14,%rax
+    0.01 :   103ce:  jg     10968 <concurrent_get_or_create.lto_priv.0+0x998>
+         : 400   node->regret_sums[index] = 0.0;
+    0.00 :   103d4:  sub    %rsi,%rdx
+    0.00 :   103d7:  xor    %esi,%esi
+    0.00 :   103d9:  mov    %r10,0x58(%rsp)
+    0.01 :   103de:  lea    0x8(,%rdx,8),%rdx
+    0.01 :   103e6:  mov    %rcx,0x50(%rsp)
+    0.00 :   103eb:  mov    %r8,0x48(%rsp)
+    0.02 :   103f0:  mov    %r9,0x40(%rsp)
+    0.02 :   103f5:  mov    %r11,0x38(%rsp)
+    0.00 :   103fa:  mov    %rdx,0x30(%rsp)
+    0.00 :   103ff:  call   2070 <memset@plt>
+         : 411   node->strategy_sums[index] = 0.0;
+    0.02 :   10404:  mov    0x30(%rsp),%rdx
+    0.02 :   10409:  mov    0x28(%rsp),%rdi
+    0.01 :   1040e:  xor    %esi,%esi
+    0.00 :   10410:  call   2070 <memset@plt>
+    0.06 :   10415:  mov    0x38(%rsp),%r11
+    0.02 :   1041a:  mov    0x40(%rsp),%r9
+    0.02 :   1041f:  mov    0x48(%rsp),%r8
+    0.00 :   10424:  mov    0x50(%rsp),%rcx
+    0.02 :   10429:  mov    0x58(%rsp),%r10
+         : 421   if (status == CFR_STATUS_SUCCESS && state->initializer != NULL)
+    0.01 :   1042e:  mov    0x8(%rsp),%rdx
+         : 423   }
+         : 424   node->synchronization = 0;
+    0.09 :   10433:  movb   $0x0,0x20(%r12)
+         : 426   node->version = 0;
+    0.01 :   10439:  movl   $0x0,0x24(%r12)
+    0.01 :   10442:  mov    0x28(%rdx),%rax
+         : 429   block->used = offset + node_size;
+    0.07 :   10446:  mov    %r13,0x8(%rbp)
+         : 431   if (status == CFR_STATUS_SUCCESS && state->initializer != NULL)
+    0.00 :   1044a:  test   %rax,%rax
+    0.00 :   1044d:  je     105b0 <concurrent_get_or_create.lto_priv.0+0x5e0>
+    0.00 :   10453:  mov    %r10,0x40(%rsp)
+         : 435   status = state->initializer(node, state->initializer_context);
+    0.00 :   10458:  mov    0x30(%rdx),%rsi
+    0.00 :   1045c:  mov    %r12,%rdi
+    0.00 :   1045f:  mov    %rcx,0x38(%rsp)
+    0.00 :   10464:  mov    %r8,0x30(%rsp)
+    0.00 :   10469:  mov    %r9,0x28(%rsp)
+    0.00 :   1046e:  mov    %r11,0x8(%rsp)
+    0.00 :   10473:  call   *%rax
+         : 443   if (status != CFR_STATUS_SUCCESS) {
+    0.00 :   10475:  mov    0x8(%rsp),%r11
+    0.00 :   1047a:  mov    0x28(%rsp),%r9
+    0.00 :   1047f:  test   %eax,%eax
+    0.00 :   10481:  mov    0x30(%rsp),%r8
+    0.00 :   10486:  mov    0x38(%rsp),%rcx
+    0.00 :   1048b:  mov    0x40(%rsp),%r10
+    0.00 :   10490:  je     105b0 <concurrent_get_or_create.lto_priv.0+0x5e0>
+         : 451   InfoArenaBlock *block = shard->write.fields.node_blocks;
+    0.00 :   10496:  mov    0x40(%r9),%rbp
+         : 453   while (block != mark.block) {
+    0.00 :   1049a:  cmp    %rbp,%rbx
+    0.00 :   1049d:  je     104c7 <concurrent_get_or_create.lto_priv.0+0x4f7>
+    0.00 :   1049f:  mov    %r9,%r12
+    0.00 :   104a2:  mov    %eax,%r13d
+    0.00 :   104a5:  data16 cs nopw 0x0(%rax,%rax,1)
+         : 459   InfoArenaBlock *next = block->next;
+    0.00 :   104b0:  mov    %rbp,%rdi
+    0.00 :   104b3:  mov    0x0(%rbp),%rbp
+         : 462   free(block);
+    0.00 :   104b7:  call   2100 <free@plt>
+         : 464   while (block != mark.block) {
+    0.00 :   104bc:  cmp    %rbp,%rbx
+    0.00 :   104bf:  jne    104b0 <concurrent_get_or_create.lto_priv.0+0x4e0>
+    0.00 :   104c1:  mov    %r12,%r9
+    0.00 :   104c4:  mov    %r13d,%eax
+         : 469   shard->write.fields.node_blocks = block;
+    0.00 :   104c7:  mov    %rbp,0x40(%r9)
+         : 471   if (block != NULL)
+    0.00 :   104cb:  mov    %rbp,%rbx
+    0.00 :   104ce:  test   %rbp,%rbp
+    0.00 :   104d1:  je     10188 <concurrent_get_or_create.lto_priv.0+0x1b8>
+    0.00 :   104d7:  jmp    1017f <concurrent_get_or_create.lto_priv.0+0x1af>
+    0.00 :   104dc:  nopl   0x0(%rax)
+         : 477   if (action_count >
+    0.00 :   104e0:  movabs $0xffffffffffffffc,%rdi
+         : 479   return status;
+    0.00 :   104ea:  mov    $0x1,%eax
+    0.00 :   104ef:  cmp    %rsi,%rdi
+    0.00 :   104f2:  jb     10188 <concurrent_get_or_create.lto_priv.0+0x1b8>
+         : 483   *size_out = sizeof(InfoNode) + 2 * action_count * sizeof(double);
+    0.00 :   104f8:  mov    %rdx,%rax
+         : 485   return node_size > capacity ? node_size : capacity;
+    0.00 :   104fb:  mov    $0x10000,%r12d
+    0.00 :   10501:  shl    $0x4,%rax
+    0.00 :   10505:  lea    0x28(%rax),%r13
+    0.00 :   10509:  cmp    %r12,%r13
+    0.00 :   1050c:  cmovae %r13,%r12
+         : 491   if (capacity > SIZE_MAX - sizeof(*block))
+    0.00 :   10510:  cmp    $0xffffffffffffffbf,%r13
+    0.00 :   10514:  ja     10a1a <concurrent_get_or_create.lto_priv.0+0xa4a>
+         : 494   InfoArenaBlock *created = malloc(sizeof(*created) + capacity);
+    0.00 :   1051a:  lea    0x40(%r12),%rdi
+    0.00 :   1051f:  mov    %rdx,0x48(%rsp)
+    0.00 :   10524:  mov    %r10,0x40(%rsp)
+    0.00 :   10529:  mov    %rcx,0x38(%rsp)
+    0.00 :   1052e:  mov    %r8,0x30(%rsp)
+    0.00 :   10533:  mov    %r9,0x28(%rsp)
+    0.00 :   10538:  mov    %r11,0x18(%rsp)
+    0.00 :   1053d:  call   20c0 <malloc@plt>
+         : 503   if (created == NULL)
+    0.00 :   10542:  mov    0x18(%rsp),%r11
+    0.00 :   10547:  mov    0x28(%rsp),%r9
+    0.00 :   1054c:  test   %rax,%rax
+    0.00 :   1054f:  mov    0x30(%rsp),%r8
+    0.00 :   10554:  mov    0x38(%rsp),%rcx
+         : 509   InfoArenaBlock *created = malloc(sizeof(*created) + capacity);
+    0.00 :   10559:  mov    %rax,%rbp
+         : 511   if (created == NULL)
+    0.00 :   1055c:  mov    0x40(%rsp),%r10
+    0.00 :   10561:  mov    0x48(%rsp),%rdx
+    0.00 :   10566:  je     10a14 <concurrent_get_or_create.lto_priv.0+0xa44>
+         : 515   .used = block == NULL ? 0 : block->used};
+    0.00 :   1056c:  movq   $0x0,0x18(%rsp)
+    0.00 :   10575:  jmp    1034f <concurrent_get_or_create.lto_priv.0+0x37f>
+         : 518   return left > SIZE_MAX - right ? SIZE_MAX : left + right;
+    0.00 :   1057a:  mov    $0xffffffffffffffff,%rbx
+    0.00 :   10581:  jmp    10149 <concurrent_get_or_create.lto_priv.0+0x179>
+         : 521   if (capacity < INFO_ARENA_BLOCK_CAPACITY) {
+    0.00 :   10586:  cmp    $0xfffff,%r12
+    0.00 :   1058d:  jbe    102d7 <concurrent_get_or_create.lto_priv.0+0x307>
+         : 524   return node_size > capacity ? node_size : capacity;
+    0.00 :   10593:  cmp    %r13,%r12
+    0.00 :   10596:  cmovb  %r13,%r12
+         : 527   if (capacity > SIZE_MAX - sizeof(*block))
+    0.00 :   1059a:  cmp    $0xffffffffffffffbf,%r12
+    0.00 :   1059e:  jbe    102fd <concurrent_get_or_create.lto_priv.0+0x32d>
+         : 530   return CFR_STATUS_OUT_OF_MEMORY;
+    0.00 :   105a4:  mov    $0x5,%eax
+    0.00 :   105a9:  jmp    1017f <concurrent_get_or_create.lto_priv.0+0x1af>
+    0.00 :   105ae:  xchg   %ax,%ax
+         : 534   table->capacity - table->capacity / 4) {
+    0.01 :   105b0:  mov    0x8(%r11),%r13
+         : 536   if (result == LOCATE_STORE_FULL ||
+    0.03 :   105b4:  cmpl   $0x3,0x20(%rsp)
+    0.00 :   105b9:  je     10600 <concurrent_get_or_create.lto_priv.0+0x630>
+         : 539   table->capacity - table->capacity / 4) {
+    0.01 :   105bb:  mov    %r13,%rdx
+    0.00 :   105be:  mov    %r13,%rax
+    0.00 :   105c1:  lea    0x2(%rcx),%rsi
+    0.00 :   105c5:  shr    $0x2,%rdx
+    0.00 :   105c9:  sub    %rdx,%rax
+         : 545   if (result == LOCATE_STORE_FULL ||
+    0.00 :   105cc:  cmp    %rax,0x48(%r9)
+    0.20 :   105d0:  jae    10600 <concurrent_get_or_create.lto_priv.0+0x630>
+         : 548   return (uintptr_t)node | (uintptr_t)(hash & CONCURRENT_NODE_TAG_MASK);
+    0.05 :   105d2:  and    $0x7,%r8d
+    0.00 :   105d6:  or     %r12,%r8
+         : 551   __atomic_store_n(&table->slots[index].tagged_node,
+    0.00 :   105d9:  mov    %r8,(%r11,%rsi,8)
+         : 553   *node_out = node;
+    0.00 :   105dd:  mov    0x10(%rsp),%rax
+         : 555   shard->write.fields.size += 1;
+    0.01 :   105e2:  addq   $0x1,0x48(%r9)
+         : 557   *node_out = node;
+    0.04 :   105e7:  mov    %r12,(%rax)
+         : 559   return CFR_STATUS_SUCCESS;
+    0.01 :   105ea:  xor    %eax,%eax
+         : 561   __atomic_store_n(&shard->write.fields.writer_lock, 0, __ATOMIC_RELEASE);
+    0.01 :   105ec:  movb   $0x0,0x60(%r9)
+         : 563   return CFR_STATUS_SUCCESS;
+    0.01 :   105f1:  jmp    1018d <concurrent_get_or_create.lto_priv.0+0x1bd>
+    0.00 :   105f6:  cs nopw 0x0(%rax,%rax,1)
+         : 566   if (table->capacity > SIZE_MAX / 2) {
+    0.00 :   10600:  test   %r13,%r13
+    0.00 :   10603:  js     10900 <concurrent_get_or_create.lto_priv.0+0x930>
+         : 569   ConcurrentInfoStoreTable *old_table = shard->read.fields.active;
+    0.00 :   10609:  mov    (%r9),%rbp
+         : 571   if (old_table == NULL || new_capacity <= old_table->capacity)
+    0.00 :   1060c:  test   %rbp,%rbp
+    0.00 :   1060f:  je     10852 <concurrent_get_or_create.lto_priv.0+0x882>
+         : 574   status = concurrent_shard_rebuild(shard, table->capacity * 2);
+    0.00 :   10615:  lea    0x0(%r13,%r13,1),%rcx
+         : 576   if (old_table == NULL || new_capacity <= old_table->capacity)
+    0.00 :   1061a:  cmp    %rcx,0x8(%rbp)
+    0.00 :   1061e:  jae    10852 <concurrent_get_or_create.lto_priv.0+0x882>
+         : 579   if (capacity < CONCURRENT_INITIAL_SHARD_CAPACITY ||
+    0.00 :   10624:  movabs $0x1ffffffffffffff5,%rdx
+    0.00 :   1062e:  lea    -0x8(%rcx),%rax
+    0.00 :   10632:  cmp    %rax,%rdx
+    0.00 :   10635:  jb     10951 <concurrent_get_or_create.lto_priv.0+0x981>
+         : 584   (capacity & (capacity - 1)) != 0 ||
+    0.00 :   1063b:  lea    -0x1(%rcx),%rax
+    0.00 :   1063f:  and    %rcx,%rax
+    0.00 :   10642:  mov    %rax,0x8(%rsp)
+    0.00 :   10647:  jne    10951 <concurrent_get_or_create.lto_priv.0+0x981>
+         : 589   table = malloc(sizeof(*table) + capacity * sizeof(*table->slots));
+    0.00 :   1064d:  lea    0x10(,%rcx,8),%rdi
+    0.00 :   10655:  mov    %r9,0x28(%rsp)
+    0.00 :   1065a:  mov    %rcx,0x20(%rsp)
+    0.00 :   1065f:  mov    %r8,0x30(%rsp)
+    0.00 :   10664:  mov    %r10,0x38(%rsp)
+    0.00 :   10669:  call   20c0 <malloc@plt>
+         : 596   if (table == NULL)
+    0.00 :   1066e:  mov    0x28(%rsp),%r9
+    0.00 :   10673:  test   %rax,%rax
+    0.00 :   10676:  je     10951 <concurrent_get_or_create.lto_priv.0+0x981>
+         : 600   table->capacity = capacity;
+    0.00 :   1067c:  mov    0x20(%rsp),%rcx
+         : 602   table->slots[index].tagged_node = 0;
+    0.00 :   10681:  mov    %r13,%rdx
+    0.00 :   10684:  xor    %esi,%esi
+    0.00 :   10686:  lea    0x10(%rax),%rdi
+         : 606   table->retired = NULL;
+    0.00 :   1068a:  movq   $0x0,(%rax)
+         : 608   table->slots[index].tagged_node = 0;
+    0.00 :   10691:  shl    $0x4,%rdx
+         : 610   table->capacity = capacity;
+    0.00 :   10695:  mov    %rcx,0x8(%rax)
+         : 612   table->slots[index].tagged_node = 0;
+    0.00 :   10699:  mov    %rax,0x20(%rsp)
+    0.00 :   1069e:  call   2070 <memset@plt>
+         : 615   for (size_t index = 0; index < old_table->capacity; index += 1) {
+    0.00 :   106a3:  cmpq   $0x0,0x8(%rbp)
+    0.00 :   106a8:  mov    0x20(%rsp),%r11
+    0.00 :   106ad:  mov    0x28(%rsp),%r9
+    0.00 :   106b2:  mov    0x30(%rsp),%r8
+    0.00 :   106b7:  mov    0x38(%rsp),%r10
+    0.00 :   106bc:  je     10798 <concurrent_get_or_create.lto_priv.0+0x7c8>
+         : 622   return value * HASH_MULTIPLIER;
+    0.00 :   106c2:  mov    %r8,0x20(%rsp)
+    0.00 :   106c7:  lea    0x10(%rbp),%r13
+         : 625   for (size_t index = 0; index < old_table->capacity; index += 1) {
+    0.00 :   106cb:  xor    %edx,%edx
+         : 627   return value * HASH_MULTIPLIER;
+    0.00 :   106cd:  mov    %r9,%r14
+    0.00 :   106d0:  mov    %r12,0x28(%rsp)
+    0.00 :   106d5:  mov    %r10,0x30(%rsp)
+    0.00 :   106da:  nopw   0x0(%rax,%rax,1)
+         : 632   const uintptr_t tagged_node = __atomic_load_n(
+    0.00 :   106e0:  mov    0x0(%r13),%r12
+         : 634   if (tagged_node == 0)
+    0.33 :   106e4:  test   %r12,%r12
+    0.01 :   106e7:  je     10774 <concurrent_get_or_create.lto_priv.0+0x7a4>
+         : 637   if (table == NULL || table->capacity == 0 || index_out == NULL)
+    0.00 :   106ed:  mov    0x8(%r11),%rdi
+    0.24 :   106f1:  test   %rdi,%rdi
+    0.01 :   106f4:  je     10840 <concurrent_get_or_create.lto_priv.0+0x870>
+         : 641   return (InfoNode *)(tagged_node & ~(uintptr_t)CONCURRENT_NODE_TAG_MASK);
+    0.00 :   106fa:  and    $0xfffffffffffffff8,%r12
+         : 643   const size_t mask = table->capacity - 1;
+    0.05 :   106fe:  sub    $0x1,%rdi
+         : 645   return value * HASH_MULTIPLIER;
+    0.00 :   10702:  movabs $0x9e3779b97f4a7c15,%r8
+         : 647   const uint64_t hash = disperse(node->key);
+    0.00 :   1070c:  mov    (%r12),%r10
+         : 649   return value * HASH_MULTIPLIER;
+    0.91 :   10710:  imul   %r10,%r8
+         : 651   const unsigned int shift = (unsigned int)__builtin_clzll(
+    0.39 :   10714:  bsr    %rdi,%rcx
+         : 653   for (size_t offset = 0; offset < table->capacity; offset += 1) {
+    0.00 :   10718:  xor    %esi,%esi
+         : 655   const unsigned int shift = (unsigned int)__builtin_clzll(
+    0.01 :   1071a:  xor    $0x3f,%rcx
+         : 657   return (hash << CONCURRENT_SHARD_BITS) |
+    0.00 :   1071e:  mov    %r8,%rax
+    0.08 :   10721:  rol    $0x2,%rax
+         : 660   return (size_t)(concurrent_local_hash(hash) >> shift);
+    0.01 :   10725:  shr    %cl,%rax
+    0.03 :   10728:  mov    %rax,%r9
+    0.05 :   1072b:  jmp    10755 <concurrent_get_or_create.lto_priv.0+0x785>
+    0.00 :   1072d:  nopl   (%rax)
+         : 665   if ((tagged_node & CONCURRENT_NODE_TAG_MASK) ==
+    0.00 :   10730:  mov    %r8,%rax
+    0.59 :   10733:  xor    %rcx,%rax
+    0.01 :   10736:  test   $0x7,%al
+    0.00 :   10738:  jne    10747 <concurrent_get_or_create.lto_priv.0+0x777>
+         : 670   return (InfoNode *)(tagged_node & ~(uintptr_t)CONCURRENT_NODE_TAG_MASK);
+    0.00 :   1073a:  and    $0xfffffffffffffff8,%rcx
+         : 672   (hash & CONCURRENT_NODE_TAG_MASK) &&
+    0.12 :   1073e:  cmp    (%rcx),%r10
+    0.06 :   10741:  je     10840 <concurrent_get_or_create.lto_priv.0+0x870>
+         : 675   for (size_t offset = 0; offset < table->capacity; offset += 1) {
+    0.00 :   10747:  add    $0x1,%rsi
+    0.08 :   1074b:  cmp    0x8(%r11),%rsi
+    0.04 :   1074f:  jae    10840 <concurrent_get_or_create.lto_priv.0+0x870>
+         : 679   const size_t index = (first + offset) & mask;
+    0.48 :   10755:  lea    (%r9,%rsi,1),%rax
+    0.03 :   10759:  and    %rdi,%rax
+         : 682   &table->slots[index].tagged_node, __ATOMIC_ACQUIRE);
+    0.01 :   1075c:  add    $0x2,%rax
+         : 684   const uintptr_t tagged_node = __atomic_load_n(
+    0.01 :   10760:  mov    (%r11,%rax,8),%rcx
+         : 686   if (tagged_node == 0) {
+    0.60 :   10764:  test   %rcx,%rcx
+    0.03 :   10767:  jne    10730 <concurrent_get_or_create.lto_priv.0+0x760>
+         : 689   return (uintptr_t)node | (uintptr_t)(hash & CONCURRENT_NODE_TAG_MASK);
+    0.00 :   10769:  and    $0x7,%r8d
+    0.29 :   1076d:  or     %r8,%r12
+    0.02 :   10770:  mov    %r12,(%r11,%rax,8)
+         : 693   for (size_t index = 0; index < old_table->capacity; index += 1) {
+    0.01 :   10774:  add    $0x1,%rdx
+    0.31 :   10778:  add    $0x8,%r13
+    0.00 :   1077c:  cmp    0x8(%rbp),%rdx
+    0.10 :   10780:  jb     106e0 <concurrent_get_or_create.lto_priv.0+0x710>
+    0.00 :   10786:  mov    0x20(%rsp),%r8
+    0.00 :   1078b:  mov    0x28(%rsp),%r12
+    0.00 :   10790:  mov    %r14,%r9
+    0.00 :   10793:  mov    0x30(%rsp),%r10
+         : 702   new_table->retired = old_table;
+    0.00 :   10798:  mov    %rbp,(%r11)
+         : 704   __atomic_store_n(&shard->read.fields.active, new_table, __ATOMIC_RELEASE);
+    0.00 :   1079b:  mov    %r11,(%r9)
+         : 706   table = shard->read.fields.active;
+    0.00 :   1079e:  mov    (%r9),%r11
+         : 708   shard->write.fields.growth_count += 1;
+    0.00 :   107a1:  addq   $0x1,0x58(%r9)
+         : 710   if (table == NULL || table->capacity == 0 || index_out == NULL)
+    0.00 :   107a6:  test   %r11,%r11
+    0.00 :   107a9:  je     10234 <concurrent_get_or_create.lto_priv.0+0x264>
+    0.00 :   107af:  mov    0x8(%r11),%rdx
+    0.00 :   107b3:  test   %rdx,%rdx
+    0.00 :   107b6:  je     10234 <concurrent_get_or_create.lto_priv.0+0x264>
+         : 716   const size_t mask = table->capacity - 1;
+    0.00 :   107bc:  sub    $0x1,%rdx
+         : 718   return (size_t)(concurrent_local_hash(hash) >> shift);
+    0.00 :   107c0:  mov    %r15,%rdi
+         : 720   for (size_t offset = 0; offset < table->capacity; offset += 1) {
+    0.00 :   107c3:  mov    0x8(%rsp),%rbp
+         : 722   const unsigned int shift = (unsigned int)__builtin_clzll(
+    0.00 :   107c8:  bsr    %rdx,%rcx
+    0.00 :   107cc:  xor    $0x3f,%rcx
+         : 725   return (size_t)(concurrent_local_hash(hash) >> shift);
+    0.00 :   107d0:  shr    %cl,%rdi
+         : 727   for (size_t offset = 0; offset < table->capacity; offset += 1) {
+    0.00 :   107d3:  xor    %ecx,%ecx
+    0.00 :   107d5:  jmp    10812 <concurrent_get_or_create.lto_priv.0+0x842>
+    0.00 :   107d7:  nopw   0x0(%rax,%rax,1)
+         : 731   if ((tagged_node & CONCURRENT_NODE_TAG_MASK) ==
+    0.00 :   107e0:  mov    %r8,%rsi
+    0.00 :   107e3:  xor    %rax,%rsi
+    0.00 :   107e6:  and    $0x7,%esi
+    0.00 :   107e9:  jne    107f8 <concurrent_get_or_create.lto_priv.0+0x828>
+         : 736   return (InfoNode *)(tagged_node & ~(uintptr_t)CONCURRENT_NODE_TAG_MASK);
+    0.00 :   107eb:  and    $0xfffffffffffffff8,%rax
+         : 738   (hash & CONCURRENT_NODE_TAG_MASK) &&
+    0.00 :   107ef:  cmp    (%rax),%r10
+    0.00 :   107f2:  je     1021e <concurrent_get_or_create.lto_priv.0+0x24e>
+         : 741   *collision_count += 1;
+    0.00 :   107f8:  xor    %eax,%eax
+    0.00 :   107fa:  cmp    $0xffffffffffffffff,%rbp
+    0.00 :   107fe:  setne  %al
+         : 745   for (size_t offset = 0; offset < table->capacity; offset += 1) {
+    0.00 :   10801:  add    $0x1,%rcx
+         : 747   *collision_count += 1;
+    0.00 :   10805:  add    %rax,%rbp
+         : 749   for (size_t offset = 0; offset < table->capacity; offset += 1) {
+    0.00 :   10808:  cmp    0x8(%r11),%rcx
+    0.00 :   1080c:  jae    1021e <concurrent_get_or_create.lto_priv.0+0x24e>
+         : 752   const size_t index = (first + offset) & mask;
+    0.00 :   10812:  lea    (%rdi,%rcx,1),%rsi
+    0.00 :   10816:  and    %rdx,%rsi
+         : 755   &table->slots[index].tagged_node, __ATOMIC_ACQUIRE);
+    0.00 :   10819:  add    $0x2,%rsi
+         : 757   const uintptr_t tagged_node = __atomic_load_n(
+    0.00 :   1081d:  mov    (%r11,%rsi,8),%rax
+         : 759   if (tagged_node == 0) {
+    0.00 :   10821:  test   %rax,%rax
+    0.00 :   10824:  jne    107e0 <concurrent_get_or_create.lto_priv.0+0x810>
+         : 762   return left > SIZE_MAX - right ? SIZE_MAX : left + right;
+    0.00 :   10826:  mov    %rbp,%rax
+    0.00 :   10829:  add    0x50(%r9),%rax
+    0.00 :   1082d:  jb     1095b <concurrent_get_or_create.lto_priv.0+0x98b>
+    0.00 :   10833:  mov    %rax,0x50(%r9)
+         : 767   if (result != LOCATE_EMPTY_SLOT_FOUND) {
+    0.00 :   10837:  jmp    105d2 <concurrent_get_or_create.lto_priv.0+0x602>
+    0.00 :   1083c:  nopl   0x0(%rax)
+         : 770   free(new_table);
+    0.00 :   10840:  mov    %r11,%rdi
+    0.00 :   10843:  mov    %r14,0x8(%rsp)
+    0.00 :   10848:  call   2100 <free@plt>
+         : 774   if (status != CFR_STATUS_SUCCESS)
+    0.00 :   1084d:  mov    0x8(%rsp),%r9
+         : 776   return CFR_STATUS_INVALID_ARGUMENT;
+    0.00 :   10852:  mov    $0x1,%eax
+         : 778   InfoArenaBlock *block = shard->write.fields.node_blocks;
+    0.00 :   10857:  mov    0x40(%r9),%rbp
+         : 780   while (block != mark.block) {
+    0.00 :   1085b:  cmp    %rbp,%rbx
+    0.00 :   1085e:  je     10887 <concurrent_get_or_create.lto_priv.0+0x8b7>
+    0.00 :   10860:  mov    %r9,%r12
+    0.00 :   10863:  mov    %eax,%r13d
+    0.00 :   10866:  cs nopw 0x0(%rax,%rax,1)
+         : 786   InfoArenaBlock *next = block->next;
+    0.00 :   10870:  mov    %rbp,%rdi
+    0.00 :   10873:  mov    0x0(%rbp),%rbp
+         : 789   free(block);
+    0.00 :   10877:  call   2100 <free@plt>
+         : 791   while (block != mark.block) {
+    0.00 :   1087c:  cmp    %rbp,%rbx
+    0.00 :   1087f:  jne    10870 <concurrent_get_or_create.lto_priv.0+0x8a0>
+    0.00 :   10881:  mov    %r12,%r9
+    0.00 :   10884:  mov    %r13d,%eax
+         : 796   shard->write.fields.node_blocks = block;
+    0.00 :   10887:  mov    %rbp,0x40(%r9)
+         : 798   if (block != NULL)
+    0.00 :   1088b:  test   %rbp,%rbp
+    0.00 :   1088e:  je     10188 <concurrent_get_or_create.lto_priv.0+0x1b8>
+         : 801   block->used = mark.used;
+    0.00 :   10894:  mov    0x18(%rsp),%rdx
+    0.00 :   10899:  mov    %rdx,0x8(%rbp)
+    0.00 :   1089d:  jmp    10188 <concurrent_get_or_create.lto_priv.0+0x1b8>
+         : 805   return left > SIZE_MAX - right ? SIZE_MAX : left + right;
+    0.00 :   108a2:  add    0x50(%r9),%rbx
+    0.00 :   108a6:  jb     10945 <concurrent_get_or_create.lto_priv.0+0x975>
+         : 808   shard->write.fields.collision_count = saturating_add_size(
+    0.00 :   108ac:  mov    %rbx,0x50(%r9)
+         : 810   return (InfoNode *)(tagged_node & ~(uintptr_t)CONCURRENT_NODE_TAG_MASK);
+    0.00 :   108b0:  mov    (%r11,%rsi,8),%rax
+    0.00 :   108b4:  and    $0xfffffffffffffff8,%rax
+         : 813   const bool count_matches = node->action_count == action_count;
+    0.00 :   108b8:  mov    0x8(%rax),%rcx
+         : 815   __atomic_store_n(&shard->write.fields.writer_lock, 0, __ATOMIC_RELEASE);
+    0.00 :   108bc:  movb   $0x0,0x60(%r9)
+         : 817   if (!count_matches)
+    0.00 :   108c1:  cmp    %rdx,%rcx
+    0.00 :   108c4:  jne    101ce <concurrent_get_or_create.lto_priv.0+0x1fe>
+         : 820   *node_out = node;
+    0.00 :   108ca:  mov    0x10(%rsp),%rdx
+    0.00 :   108cf:  mov    %rax,(%rdx)
+         : 823   return CFR_STATUS_SUCCESS;
+    0.00 :   108d2:  xor    %eax,%eax
+    0.00 :   108d4:  jmp    1018d <concurrent_get_or_create.lto_priv.0+0x1bd>
+         : 826   status = cfr_info_node_init_owned(block->data + offset,
+    0.00 :   108d9:  lea    0x40(%rbx,%rax,1),%r12
+         : 828   block->used = offset + node_size;
+    0.07 :   108de:  add    %rax,%r13
+         : 830   InfoArenaBlock *block = shard->write.fields.node_blocks;
+    0.00 :   108e1:  mov    %rbx,%rbp
+    0.00 :   108e4:  jmp    10371 <concurrent_get_or_create.lto_priv.0+0x3a1>
+         : 833   while (block != mark.block) {
+    0.00 :   108e9:  cmp    %rbp,%rbx
+    0.00 :   108ec:  je     1099b <concurrent_get_or_create.lto_priv.0+0x9cb>
+         : 836   return CFR_STATUS_BUFFER_TOO_SMALL;
+    0.00 :   108f2:  mov    %r9,%r12
+    0.00 :   108f5:  mov    $0x3,%r13d
+    0.00 :   108fb:  jmp    104b0 <concurrent_get_or_create.lto_priv.0+0x4e0>
+         : 840   InfoArenaBlock *block = shard->write.fields.node_blocks;
+    0.00 :   10900:  mov    0x40(%r9),%rbp
+         : 842   while (block != mark.block) {
+    0.00 :   10904:  cmp    %rbp,%rbx
+    0.00 :   10907:  je     10924 <concurrent_get_or_create.lto_priv.0+0x954>
+    0.00 :   10909:  mov    %r9,%r12
+    0.00 :   1090c:  nopl   0x0(%rax)
+         : 847   InfoArenaBlock *next = block->next;
+    0.00 :   10910:  mov    %rbp,%rdi
+    0.00 :   10913:  mov    0x0(%rbp),%rbp
+         : 850   free(block);
+    0.00 :   10917:  call   2100 <free@plt>
+         : 852   while (block != mark.block) {
+    0.00 :   1091c:  cmp    %rbp,%rbx
+    0.00 :   1091f:  jne    10910 <concurrent_get_or_create.lto_priv.0+0x940>
+    0.00 :   10921:  mov    %r12,%r9
+         : 856   shard->write.fields.node_blocks = block;
+    0.00 :   10924:  mov    %rbp,0x40(%r9)
+         : 858   if (block != NULL)
+    0.00 :   10928:  test   %rbp,%rbp
+    0.00 :   1092b:  je     10936 <concurrent_get_or_create.lto_priv.0+0x966>
+         : 861   block->used = mark.used;
+    0.00 :   1092d:  mov    0x18(%rsp),%rax
+    0.00 :   10932:  mov    %rax,0x8(%rbp)
+         : 864   return CFR_STATUS_OUT_OF_MEMORY;
+    0.00 :   10936:  mov    $0x5,%eax
+         : 866   __atomic_store_n(&shard->write.fields.writer_lock, 0, __ATOMIC_RELEASE);
+    0.00 :   1093b:  movb   $0x0,0x60(%r9)
+         : 868   return CFR_STATUS_OUT_OF_MEMORY;
+    0.00 :   10940:  jmp    1018d <concurrent_get_or_create.lto_priv.0+0x1bd>
+         : 870   return left > SIZE_MAX - right ? SIZE_MAX : left + right;
+    0.00 :   10945:  mov    $0xffffffffffffffff,%rbx
+    0.00 :   1094c:  jmp    108ac <concurrent_get_or_create.lto_priv.0+0x8dc>
+         : 873   return CFR_STATUS_OUT_OF_MEMORY;
+    0.00 :   10951:  mov    $0x5,%eax
+    0.00 :   10956:  jmp    10857 <concurrent_get_or_create.lto_priv.0+0x887>
+         : 876   shard->write.fields.collision_count = saturating_add_size(
+    0.00 :   1095b:  movq   $0xffffffffffffffff,0x50(%r9)
+         : 878   if (result != LOCATE_EMPTY_SLOT_FOUND) {
+    0.00 :   10963:  jmp    105d2 <concurrent_get_or_create.lto_priv.0+0x602>
+         : 880   for (size_t index = 0; index < action_count; index += 1) {
+    0.00 :   10968:  mov    0x28(%rsp),%rsi
+    0.00 :   1096d:  xor    %eax,%eax
+         : 883   node->regret_sums[index] = 0.0;
+    0.00 :   1096f:  movq   $0x0,0x28(%r12,%rax,8)
+         : 885   node->strategy_sums[index] = 0.0;
+    0.00 :   10978:  movq   $0x0,(%rsi,%rax,8)
+         : 887   for (size_t index = 0; index < action_count; index += 1) {
+    0.00 :   10980:  add    $0x1,%rax
+    0.00 :   10984:  cmp    %rdx,%rax
+    0.00 :   10987:  jb     1096f <concurrent_get_or_create.lto_priv.0+0x99f>
+    0.00 :   10989:  jmp    1042e <concurrent_get_or_create.lto_priv.0+0x45e>
+         : 892   shard->write.fields.collision_count = saturating_add_size(
+    0.00 :   1098e:  movq   $0xffffffffffffffff,0x50(%r9)
+         : 894   if (result != LOCATE_EMPTY_SLOT_FOUND) {
+    0.00 :   10996:  jmp    10234 <concurrent_get_or_create.lto_priv.0+0x264>
+         : 896   return CFR_STATUS_BUFFER_TOO_SMALL;
+    0.00 :   1099b:  mov    $0x3,%eax
+    0.00 :   109a0:  jmp    1017f <concurrent_get_or_create.lto_priv.0+0x1af>
+    0.05 :   109a5:  mov    %rbp,%r14
+         : 900   size_t spin_count = 0;
+    0.06 :   109a8:  xor    %r13d,%r13d
+    0.00 :   109ab:  mov    %r9,%rbp
+    0.00 :   109ae:  jmp    109bc <concurrent_get_or_create.lto_priv.0+0x9ec>
+         :
+         : 905   enum { CFR_SPIN_BEFORE_YIELD = 64 };
+         :
+         : 907   static inline void cfr_cpu_relax(void) {
+         : 908   #if defined(__i386__) || defined(__x86_64__)
+         : 909   __asm__ __volatile__("pause");
+    0.11 :   109b0:  pause
+         : 911   #endif
+         : 912   }
+         :
+         : 914   static inline void cfr_spin_wait(size_t *spin_count) {
+         : 915   cfr_cpu_relax();
+         : 916   if (*spin_count < CFR_SPIN_BEFORE_YIELD) {
+    1.56 :   109b2:  cmp    $0x3f,%r13
+    0.33 :   109b6:  ja     109df <concurrent_get_or_create.lto_priv.0+0xa0f>
+         : 919   *spin_count += 1;
+    0.03 :   109b8:  add    $0x1,%r13
+         : 921   __ATOMIC_RELAXED) != 0) {
+    0.12 :   109bc:  cmpb   $0x0,(%r12)
+    1.05 :   109c1:  jne    109b0 <concurrent_get_or_create.lto_priv.0+0x9e0>
+         : 924   while (!__atomic_compare_exchange_n(
+    0.01 :   109c3:  xor    %eax,%eax
+    0.03 :   109c5:  mov    $0x1,%edi
+    0.01 :   109ca:  lock cmpxchg %dil,(%r12)
+    0.53 :   109d0:  jne    109bc <concurrent_get_or_create.lto_priv.0+0x9ec>
+    0.00 :   109d2:  mov    %rbp,%r9
+    0.00 :   109d5:  mov    %r14,%rbp
+    0.00 :   109d8:  jmp    100b9 <concurrent_get_or_create.lto_priv.0+0xe9>
+         : 932   __asm__ __volatile__("pause");
+    0.01 :   109dd:  pause
+         : 934   if (*spin_count < CFR_SPIN_BEFORE_YIELD) {
+    1.99 :   109df:  mov    %rdx,0x28(%rsp)
+    0.81 :   109e4:  mov    %r10,0x20(%rsp)
+    0.02 :   109e9:  mov    %r8,0x18(%rsp)
+         : 938   return;
+         : 939   }
+         : 940   #if defined(_WIN32)
+         : 941   (void)SwitchToThread();
+         : 942   #elif defined(__unix__) || defined(__APPLE__)
+         : 943   (void)sched_yield();
+    0.00 :   109ee:  call   20d0 <sched_yield@plt>
+         : 945   __ATOMIC_RELAXED) != 0) {
+    0.12 :   109f3:  cmpb   $0x0,(%r12)
+    0.11 :   109f8:  mov    0x18(%rsp),%r8
+    0.05 :   109fd:  mov    0x20(%rsp),%r10
+    0.01 :   10a02:  mov    0x28(%rsp),%rdx
+    0.00 :   10a07:  jne    109dd <concurrent_get_or_create.lto_priv.0+0xa0d>
+    0.00 :   10a09:  jmp    109c3 <concurrent_get_or_create.lto_priv.0+0x9f3>
+         : 952   shard->write.fields.node_blocks = block;
+    0.00 :   10a0b:  mov    %rbx,0x40(%r9)
+         : 954   if (block != NULL)
+    0.00 :   10a0f:  jmp    105a4 <concurrent_get_or_create.lto_priv.0+0x5d4>
+         : 956   shard->write.fields.node_blocks = block;
+    0.00 :   10a14:  xor    %eax,%eax
+    0.00 :   10a16:  mov    %rax,0x40(%r9)
+         : 959   return CFR_STATUS_OUT_OF_MEMORY;
+    0.00 :   10a1a:  mov    $0x5,%eax
+    0.00 :   10a1f:  jmp    10188 <concurrent_get_or_create.lto_priv.0+0x1b8>

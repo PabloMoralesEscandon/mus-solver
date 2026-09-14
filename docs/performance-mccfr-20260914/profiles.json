@@ -1,0 +1,237 @@
+{
+  "measurement": "User-space perf stat counters cover the complete process. Training counters and timing come from the C benchmark. One hardware-counter run per workload/version; no confidence interval.",
+  "runs": [
+    {
+      "workload": "public",
+      "label": "baseline",
+      "benchmark": {
+        "format": "ordago-public",
+        "schema": "mus.heads-up-single-hand.ordago-public/v1-muses-1",
+        "max_muses": 1,
+        "score": "0:0",
+        "iterations": 5000,
+        "threads": 8,
+        "seed": 7,
+        "report_every": 5000,
+        "training_start_monotonic": 95128.976833774,
+        "training_end_monotonic": 95148.63335205,
+        "training_seconds": 19.656518276,
+        "iterations_per_second": 254.369,
+        "traversals": 10000,
+        "visited_nodes": 365346012,
+        "nodes_per_second": 18586506.871,
+        "information_sets": 55358622,
+        "store_capacity": 134217728,
+        "store_collisions": 137137800,
+        "store_growths": 88,
+        "peak_rss_kib": 7557616,
+        "user_cpu_seconds": 130.642666,
+        "system_cpu_seconds": 19.478777,
+        "minor_faults": 1329813,
+        "major_faults": 0,
+        "voluntary_context_switches": 315,
+        "involuntary_context_switches": 3485,
+        "input_blocks": 0,
+        "output_blocks": 0
+      },
+      "counters": {
+        "cycles:u": {
+          "count": 423607398691,
+          "enabled_percent": 100.0
+        },
+        "instructions:u": {
+          "count": 384047918061,
+          "enabled_percent": 100.0
+        },
+        "cache-references:u": {
+          "count": 11981891671,
+          "enabled_percent": 100.0
+        },
+        "cache-misses:u": {
+          "count": 3567706320,
+          "enabled_percent": 100.0
+        }
+      },
+      "per_visited_node": {
+        "cycles:u": 1159.469064331815,
+        "instructions:u": 1051.1895722047734,
+        "cache-references:u": 32.79601056929013,
+        "cache-misses:u": 9.765280591046933
+      }
+    },
+    {
+      "workload": "public",
+      "label": "final",
+      "benchmark": {
+        "format": "ordago-public",
+        "schema": "mus.heads-up-single-hand.ordago-public/v1-muses-1",
+        "max_muses": 1,
+        "score": "0:0",
+        "iterations": 5000,
+        "threads": 8,
+        "seed": 7,
+        "report_every": 5000,
+        "training_start_monotonic": 95148.919881197,
+        "training_end_monotonic": 95169.398618204,
+        "training_seconds": 20.478737007,
+        "iterations_per_second": 244.156,
+        "traversals": 10000,
+        "visited_nodes": 380507080,
+        "nodes_per_second": 18580593.123,
+        "information_sets": 57523793,
+        "store_capacity": 134217728,
+        "store_collisions": 139126699,
+        "store_growths": 88,
+        "peak_rss_kib": 7752984,
+        "user_cpu_seconds": 136.921745,
+        "system_cpu_seconds": 19.920849,
+        "minor_faults": 1378840,
+        "major_faults": 0,
+        "voluntary_context_switches": 238,
+        "involuntary_context_switches": 4957,
+        "input_blocks": 0,
+        "output_blocks": 0
+      },
+      "counters": {
+        "cycles:u": {
+          "count": 439776530748,
+          "enabled_percent": 100.0
+        },
+        "instructions:u": {
+          "count": 393700090573,
+          "enabled_percent": 100.0
+        },
+        "cache-references:u": {
+          "count": 11408846501,
+          "enabled_percent": 100.0
+        },
+        "cache-misses:u": {
+          "count": 3568279947,
+          "enabled_percent": 100.0
+        }
+      },
+      "per_visited_node": {
+        "cycles:u": 1155.764383537883,
+        "instructions:u": 1034.6721815872652,
+        "cache-references:u": 29.983269959129277,
+        "cache-misses:u": 9.377696591085769
+      }
+    },
+    {
+      "workload": "score20",
+      "label": "baseline",
+      "benchmark": {
+        "format": "ordago-score",
+        "schema": "mus.ordago-score/v4/base-mus.heads-up-single-hand.ordago-with-mus/v9-muses-1/target-40/score-20-20/mano/signed-one/V-b2a5e93dd76d1e3c",
+        "max_muses": 1,
+        "score": "20:20",
+        "iterations": 15000,
+        "threads": 16,
+        "seed": 7,
+        "report_every": 15000,
+        "training_start_monotonic": 95169.713415372,
+        "training_end_monotonic": 95182.627691476,
+        "training_seconds": 12.914276104,
+        "iterations_per_second": 1161.505,
+        "traversals": 30000,
+        "visited_nodes": 379305897,
+        "nodes_per_second": 29371053.704,
+        "information_sets": 23806237,
+        "store_capacity": 33554432,
+        "store_collisions": 59467745,
+        "store_growths": 80,
+        "peak_rss_kib": 2789040,
+        "user_cpu_seconds": 161.778355,
+        "system_cpu_seconds": 16.100761,
+        "minor_faults": 585746,
+        "major_faults": 0,
+        "voluntary_context_switches": 340,
+        "involuntary_context_switches": 225217,
+        "input_blocks": 0,
+        "output_blocks": 0
+      },
+      "counters": {
+        "cycles:u": {
+          "count": 517116097462,
+          "enabled_percent": 100.0
+        },
+        "instructions:u": {
+          "count": 407648474036,
+          "enabled_percent": 100.0
+        },
+        "cache-references:u": {
+          "count": 11562686174,
+          "enabled_percent": 100.0
+        },
+        "cache-misses:u": {
+          "count": 2748063740,
+          "enabled_percent": 100.0
+        }
+      },
+      "per_visited_node": {
+        "cycles:u": 1363.3220615655232,
+        "instructions:u": 1074.7222156580392,
+        "cache-references:u": 30.483802823661346,
+        "cache-misses:u": 7.244980269842733
+      }
+    },
+    {
+      "workload": "score20",
+      "label": "final",
+      "benchmark": {
+        "format": "ordago-score",
+        "schema": "mus.ordago-score/v4/base-mus.heads-up-single-hand.ordago-with-mus/v9-muses-1/target-40/score-20-20/mano/signed-one/V-b2a5e93dd76d1e3c",
+        "max_muses": 1,
+        "score": "20:20",
+        "iterations": 15000,
+        "threads": 16,
+        "seed": 7,
+        "report_every": 15000,
+        "training_start_monotonic": 95182.752876862,
+        "training_end_monotonic": 95195.209377017,
+        "training_seconds": 12.456500155,
+        "iterations_per_second": 1204.191,
+        "traversals": 30000,
+        "visited_nodes": 395213636,
+        "nodes_per_second": 31727502.194,
+        "information_sets": 24302123,
+        "store_capacity": 33554432,
+        "store_collisions": 62306498,
+        "store_growths": 80,
+        "peak_rss_kib": 2862320,
+        "user_cpu_seconds": 163.203702,
+        "system_cpu_seconds": 14.48733,
+        "minor_faults": 600707,
+        "major_faults": 0,
+        "voluntary_context_switches": 399,
+        "involuntary_context_switches": 121990,
+        "input_blocks": 0,
+        "output_blocks": 0
+      },
+      "counters": {
+        "cycles:u": {
+          "count": 522013013783,
+          "enabled_percent": 100.0
+        },
+        "instructions:u": {
+          "count": 403307943366,
+          "enabled_percent": 100.0
+        },
+        "cache-references:u": {
+          "count": 8931639170,
+          "enabled_percent": 100.0
+        },
+        "cache-misses:u": {
+          "count": 2740987719,
+          "enabled_percent": 100.0
+        }
+      },
+      "per_visited_node": {
+        "cycles:u": 1320.8375577987395,
+        "instructions:u": 1020.480840306836,
+        "cache-references:u": 22.599521768525214,
+        "cache-misses:u": 6.9354583681419335
+      }
+    }
+  ]
+}
