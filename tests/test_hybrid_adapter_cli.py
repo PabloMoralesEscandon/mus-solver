@@ -45,7 +45,7 @@ with tempfile.TemporaryDirectory(prefix='mus-hybrid-') as directory:
         assert result['ok'], result
         diagnostic = result['diagnostic']
         covered = sum(q['hand_start_scores']) >= 60
-        assert diagnostic['strategy'] == ('ordago-score' if covered else 'ordago')
+        assert diagnostic['strategy'] == ('ordago-score' if covered else 'ordago-deprecated')
         assert diagnostic['strategy_scores'] == (q['hand_start_scores'] if covered else None)
         assert diagnostic['strategy_reason'] == ('trained_start_score' if covered else 'untrained_start_score')
         if covered:
@@ -110,7 +110,7 @@ with tempfile.TemporaryDirectory(prefix='mus-hybrid-') as directory:
     crossing = copy.deepcopy(paid)
     crossing.update(hand_start_scores=[29, 30], match_scores=[30, 30],
                     known_hand_scores=[1, 0], prior_wager_total=1)
-    assert run([crossing])[0]['diagnostic']['strategy'] == 'ordago'
+    assert run([crossing])[0]['diagnostic']['strategy'] == 'ordago-deprecated'
     assert run([observation(30, 30)])[0]['diagnostic']['strategy'] == 'ordago-score'
 
     # Arbitrary real wagers still interpolate or use nearby betting histories.

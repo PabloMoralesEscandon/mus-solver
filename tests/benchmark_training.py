@@ -4,7 +4,7 @@ r"""Compare MCCFR binaries in sequential processes and record Linux resources.
 Example:
   python3 tests/benchmark_training.py --binary baseline=/tmp/benchmark-baseline \
     --binary candidate=build/release/benchmark-training --threads 1 2 4 8 \
-    --workload ordago-public:1000 --workload ordago-score:39:39:500000 \
+    --workload ordago:1000 --workload ordago-score:39:39:500000 \
     --repeats 3 --output /tmp/training-comparison.json
 
 Each process starts with an empty store. Training includes worker and store setup.
@@ -320,7 +320,7 @@ def run_one(command, monitor, interval, timeout):
 def workload(text):
     fields = text.split(":")
     try:
-        if fields[0] == "ordago-public" and len(fields) == 2:
+        if fields[0] in ("ordago", "ordago-public") and len(fields) == 2:
             result = {"format": fields[0], "a": 0, "b": 0, "iterations": int(fields[1])}
         elif fields[0] == "ordago-score" and len(fields) == 4:
             result = {"format": fields[0], "a": int(fields[1]), "b": int(fields[2]),
@@ -332,7 +332,7 @@ def workload(text):
         return {"name": text, **result}
     except ValueError as exc:
         raise argparse.ArgumentTypeError(
-            "Use ordago-public:ITERATIONS or ordago-score:A:B:ITERATIONS with positive iterations and scores from 0 to 39."
+            "Use ordago:ITERATIONS or ordago-score:A:B:ITERATIONS with positive iterations and scores from 0 to 39."
         ) from exc
 
 
@@ -406,7 +406,7 @@ def main():
         if label in [item[0] for item in binaries]:
             parser.error(f"Duplicate binary label: {label}")
         binaries.append((label, path))
-    workloads = args.workload or [workload("ordago-public:1000"), workload("ordago-score:39:39:500000"),
+    workloads = args.workload or [workload("ordago:1000"), workload("ordago-score:39:39:500000"),
                                   workload("ordago-score:35:18:10000"), workload("ordago-score:0:0:300")]
     if len(set(args.threads)) != len(args.threads) or len({w["name"] for w in workloads}) != len(workloads):
         parser.error("Thread counts and workload names must be unique.")

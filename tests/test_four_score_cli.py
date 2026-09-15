@@ -215,7 +215,7 @@ with tempfile.TemporaryDirectory(prefix='mus-four-cli-') as temporary:
     run(read(old, ['--load-compressed', source, '--evaluate'], variant='ordago-score'), False)
     run(train(root / 'wrong-extension', ['--extend-continuation', old]), False)
     generic = root / 'generic.cfr'
-    run(['--format', 'ordago-public', '--iterations', '1', '--seed', '7', '--save', generic])
+    run(['--format', 'ordago', '--iterations', '1', '--seed', '7', '--save', generic])
     run(train(root / 'wrong-prior', ['--preload-ordago', generic]), False)
     assert artifacts(old) == old_before and artifacts(scores) == before
 

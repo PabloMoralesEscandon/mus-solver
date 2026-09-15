@@ -37,12 +37,13 @@ static size_t number(const char *text) {
 int main(int argc, char **argv) {
     if (argc < 4 || argc == 6 || argc > 8) {
         fprintf(stderr, "Usage: %s FORMAT ITERATIONS THREADS [SEED [A B [REPORT_EVERY]]]\n"
-                        "FORMAT must be ordago-public, ordago-score, or ordago-score-four.\n", argv[0]);
+                        "FORMAT must be ordago, ordago-score, or ordago-score-four.\n"
+                        "ordago-public is an alias of ordago.\n", argv[0]);
         return EXIT_FAILURE;
     }
     const bool four = strcmp(argv[1], "ordago-score-four") == 0;
     const bool score = four || strcmp(argv[1], "ordago-score") == 0;
-    if (!score && strcmp(argv[1], "ordago-public") != 0) {
+    if (!score && strcmp(argv[1], "ordago") != 0 && strcmp(argv[1], "ordago-public") != 0) {
         fprintf(stderr, "Invalid format: %s\n", argv[1]);
         return EXIT_FAILURE;
     }

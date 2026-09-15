@@ -49,7 +49,7 @@ with tempfile.TemporaryDirectory() as directory:
     for q, result in zip(queries, results):
         assert result['ok'] and result['diagnostic']['method'] == 'exact', (q, result)
         d = result['diagnostic']
-        assert d['strategy'] == 'ordago-public' and not d['score_proxy'] and d['strategy_scores'] is None
+        assert d['strategy'] == 'ordago' and not d['score_proxy'] and d['strategy_scores'] is None
         assert d['ordago_factor'] == 1
         kind = 'mus' if q['phase'] == 'mus' else 'discard' if q['phase'] == 'discard' else 'ordago'
         expected = .75 if kind == 'mus' else .25 if kind == 'discard' else .3
@@ -101,7 +101,7 @@ with tempfile.TemporaryDirectory() as directory:
     for a,b in [(10,12),(30,30),(30,39),(10,12)]:
         q = observation(); q.update(hand_start_scores=[a,b], match_scores=[a,b]); switches.append(q)
     routed = run(switches, hybrid)
-    assert [r['diagnostic']['strategy'] for r in routed] == ['ordago-public','ordago-score','ordago-score','ordago-public']
+    assert [r['diagnostic']['strategy'] for r in routed] == ['ordago','ordago-score','ordago-score','ordago']
     assert all(abs(probability(r,'ordago')-p)<1e-12 for r,p in zip(routed,[.3,.25,.75,.3]))
     switches = [dict(q, phase='mus',legal_actions=[dict(type='mus'),dict(type='no_mus')]) for q in switches]
     assert [probability(r,'mus') for r in run(switches,hybrid)] == [.75,.25,.75,.75]

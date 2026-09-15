@@ -1,1135 +1,154 @@
-# Solver de mus para dos jugadores y para cuatro por parejas
+# Mus Solver
 
-Solver en C17 de mus para dos jugadores o cuatro por parejas. Entrena estrategias mediante
-external-sampling MCCFR y guarda checkpoints reanudables. Los formatos
-históricos y `ordago-public` resuelven una mano aislada; `ordago-score` incorpora el marcador de
-la partida mediante una tabla de continuación. Las métricas disponibles
-dependen del formato. `ordago-score-four` añade la variante con marcador para
-cuatro jugadores: 0 y 2 contra 1 y 3. Conserva disponibles los cinco formatos
-anteriores y sus checkpoints. La [guía de cuatro jugadores](docs/mus-four-score.md)
-describe las reglas, el entrenamiento y las API nuevas.
+Solver de mus en C17 para dos jugadores y cuatro jugadores por parejas.
+Entrena estrategias con external-sampling Monte Carlo CFR (MCCFR), permite
+reanudar el entrenamiento y exporta las probabilidades de cada decisión.
+Incluye un bot y un evaluador de partidas para dos jugadores.
 
-## Formatos de reglas
+**Para entrenar una mano aislada, usa `ordago`: es la variante normal
+y predeterminada.** Usa únicamente las cartas propias y la información pública
+al decidir. `ordago-deprecated` conserva el modelo histórico para poder seguir
+cargando, consultando y ampliando las estrategias ya entrenadas con él.
 
-- En los formatos de dos jugadores, el jugador 0 siempre es mano y el jugador 1 es postre.
-  En `ordago-score-four`, los turnos son 0, 1, 2, 3 y el jugador 0 es mano.
-- Se usa la baraja española de 40 cartas, con ochos reyes y ocho ases según las
-  equivalencias del mus: tres = rey y dos = as.
-- Se juegan en orden grande, chica, pares y juego o punto.
-- `single-bet` y `raises-to-eight` no tienen fase de mus ni descartes.
-  `ordago`, `ordago-public` y `ordago-score` sí los incorporan.
-- El formato `single-bet` conserva la primera versión: en cada lance se puede
-  pasar o envidar 2 y, ante el envite, solo se puede querer o no querer.
-- El formato `raises-to-eight` añade respuestas y subidas en todos los lances.
-  Quien abre puede pasar o envidar 2. Si pasa, postre también puede pasar o
-  envidar 2. Ante un envite se puede no querer, querer o subir duplicando la
-  cantidad: 2 → 4 → 8. Ante 8 ya no se puede volver a subir.
-- El formato `ordago` permite pasar o envidar 2, 4, 7, 10 u órdago en todos
-  los lances. Los envites numéricos son incrementos: responder a 2 con otro 2
-  deja 4 tantos en juego, y responder después con 4 deja 8. La apertura puede
-  ser de 2, 4, 7 o 10. Las respuestas numéricas solo pueden ser de 2, 4 o 10 y
-  deben ser iguales o mayores que el incremento anterior. Cada jugador puede
-  usar cada incremento numérico una sola vez por lance. Por ejemplo, tras
-  `+2 → +2`, el jugador que abrió ya no puede volver a usar `+2`, aunque el
-  incremento anterior también sea 2; antes de responder, el otro jugador sí
-  podía igualar con `+2` porque todavía no lo había usado. Por ello, tras
-  `paso → +7`, el jugador 0 puede no querer, querer, lanzar órdago o subir 10.
-  Cada lance admite como máximo cinco envites numéricos, incluida la apertura;
-  después del quinto solo se puede no querer, querer o lanzar órdago. La cota
-  numérica tiene en cuenta los tantos ya ganados por el jugador que va por
-  delante, los envites acumulados de los lances anteriores, el envite activo y
-  el nuevo incremento. La suma debe ser estrictamente menor que 40. Por
-  ejemplo, si los jugadores han ganado 10 y 15 tantos y hay 20 de envites
-  acumulados, se puede envidar 4 porque 15 + 20 + 4 = 39, pero no 7 ni 10. Al
-  agotar el presupuesto ya no se puede hacer otro envite numérico, pero sí
-  lanzar órdago, que sigue siendo una acción distinta.
-- En `ordago`, antes de grande cada jugador dice, por orden, `mus` o `no mus`.
-  Si ambos dicen mus, cada uno elige un subconjunto no vacío de sus cartas. Los
-  bits recorren la mano en su orden canónico, de menor a mayor valor. Las copias
-  del mismo valor son indistinguibles, por lo que sus máscaras equivalentes se
-  agrupan: hay como máximo 15 acciones y solo 4 para cuatro cartas iguales. Las
-  cartas descartadas quedan fuera del mazo y los robos se hacen sin reposición.
-- El estado conserva el número de muses, las máscaras y los recuentos de
-  descarte. Por defecto, tras un mus aceptado se pasa directamente a grande.
-  `MUS_GAME_MAX_MUSES` permite compilar el solver con un límite de uno o dos
-  muses; su valor predeterminado es uno.
-- En los lances posteriores, cada lance completado se resume como ninguna
-  muestra de fuerza, solo jugador 0, solo jugador 1 o ambos. Envidar, subir o
-  querer cuenta como mostrar fuerza. No se conservan la secuencia ni las
-  cantidades exactas de los lances anteriores. Si pares no se negocia, el
-  resumen conserva además si no tenía pares nadie, solo mano o solo postre.
-  También se conservan el mayor tanteo ya resuelto y el total numérico
-  acumulado, porque ambos determinan qué envites siguen disponibles. No se
-  conserva cuánto aportó individualmente cada lance.
-  El acumulado suma el envite final cuando se quiere. Cuando se rechaza un
-  envite numérico o un órdago, suma únicamente la cantidad cubierta: una piedra
-  para una apertura y el último total cubierto para una subida.
-  Mientras un lance está abierto, el conjunto de información conserva además
-  el número de envites numéricos del lance y los incrementos ya usados por
-  cada jugador para aplicar ambos límites. Las máscaras exportadas como
-  `usados_j0` y `usados_j1` asignan los bits 0, 1, 2 y 3 a `+2`, `+4`, `+7` y
-  `+10`, respectivamente; por ejemplo, el valor 11 representa `+2`, `+4` y
-  `+10`.
-- Se aplica literalmente el tanteo de `Simulador-Mus`: el envite o deje se
-  suma al valor intrínseco de pares, juego y punto. En `ordago`, el tanteo total
-  de cada jugador se limita a 40 para que una resolución ordinaria nunca supere
-  el valor de un órdago querido.
-- En los tres formatos históricos, la utilidad del jugador 0 es sus tantos
-  menos los del jugador 1; la utilidad contraria es su opuesto.
-- `ordago-score` parte de las reglas y abstracciones actuales de `ordago`, añade
-  el marcador inicial y optimiza una utilidad de partida en `[-1, 1]`. Se
-  selecciona como una opción explícita; `single-bet` sigue siendo el valor
-  predeterminado.
+## Instalación
 
-Al no querer el envite inicial se concede una piedra. Si se rechaza una subida
-a 4 u 8, se concede el último envite ya cubierto: 2 o 4 piedras. Si se quiere,
-el lance se resuelve por la cantidad final aceptada.
+Necesitas un compilador C17, Make, Git, Zstandard y, para el bot, json-c y
+`pkg-config`. Las pruebas requieren Python 3. El CLI de tablas con marcador
+utiliza funciones POSIX y bloqueos de directorio del sistema de archivos local.
 
-En `ordago` se aplica la misma regla general: rechazar una apertura concede una
-piedra y rechazar una subida concede el total anterior ya cubierto. Por
-ejemplo, tras envites de 2, 2 y 4 hay 8 tantos en juego; si después se lanza
-un órdago y se rechaza, se conceden los 8 tantos cubiertos.
-Si se quiere el órdago, la mano termina inmediatamente y el ganador del lance
-actual recibe exactamente 40 tantos; no se suman lances ni valores intrínsecos
-posteriores.
-
-Los conjuntos de información de `ordago` usan una abstracción específica para
-cada lance. Mus y descartes conservan la composición exacta de la mano. Grande
-conserva el número de reyes y la siguiente carta más alta; chica, el número de
-pitos y la siguiente carta más baja; pares, el tipo y los valores de las
-parejas; juego, uno de sus ocho totales; y punto, el total entre 4 y 30. Esta
-abstracción reduce mucho el número de estados, pero pierde recuerdo perfecto.
-Por ello, CFR no garantiza que la estrategia media converja a un equilibrio y
-las métricas acotadas descritas más abajo son diagnósticas, no una garantía.
-La regla de usar cada incremento una sola vez por jugador introduce además una
-asimetría posicional deliberada que no pertenece al mus sin abstraer. El mayor
-envite numérico alcanzable desde un lance vacío es 30, mediante
-`2 → 4 → 4 → 10 → 10`. Por estos cambios, los valores y la explotabilidad del
-esquema `v9` no son comparables con los del esquema `v7`.
-
-Los palos no afectan a ninguna decisión. El reparto agrupa las cartas en ocho
-clases de valor, pero conserva exactamente sus multiplicidades y el muestreo
-sin reemplazo. Hay 330 composiciones de mano y 104.820 repartos conjuntos.
-
-## Mano aislada con información pública: `ordago-public`
-
-`--format ordago-public` conserva las acciones y abstracciones de `ordago`,
-pero calcula claves y límites de envite con los pagos públicos y los envites
-aceptados pendientes. Los resultados de las cartas ocultas se resuelven al
-contar al final. Los dejes se cobran durante la negociación; los tantos
-intrínsecos de pares/juego/punto quedan pendientes, también si se rechaza el
-lance. No hay marcador inicial ni tabla de continuación.
-
-Al terminar una mano ordinaria se cuentan todos los lances en orden y se limita
-cada total a 40. Alcanzar 40 durante ese recuento no impide sumar el resto:
-un resultado 40:1 da utilidad +39 a mano y −39 a postre. Un órdago querido
-termina de inmediato y sustituye todos los pagos anteriores por 40:0 o 0:40.
-Este contrato es distinto de la utilidad de partida de `ordago-score`.
-
-El esquema nuevo exige reentrenar. `ordago` mantiene su esquema histórico v9,
-sus lectores y su comportamiento: sus claves y límites de envite dependen de
-resultados de cartas ocultas que aún no están disponibles para quien decide.
-No se reinterpretan esos checkpoints como políticas de información pública.
-Las tablas `ordago-score/v4` conservan su identidad y su contabilidad pública.
-Se admite entrenar, reanudar, exportar, precargar tablas con marcador y ejecutar el
-diagnóstico `bounded-final-lances` de `ordago-public`. Ese diagnóstico fija las
-dos manos; no mide la explotabilidad desde la raíz. El bot admite la política
-nueva en binario y TXT, también como genérica del modo híbrido. Para consultarla
-requiere `hand_start_scores` y, al apostar, `pending_wager_total`; véase el
-[contrato del adaptador](docs/adapter.md).
+En Debian o Ubuntu:
 
 ```sh
-./build/release/mus-solver --format ordago-public --iterations 10000 --seed 7 \
-    --save-compressed public.cfr.zst --export-strategy public.txt
-./build/release/mus-solver --format ordago-public \
-    --load-compressed public.cfr.zst --iterations 10000 \
-    --save-compressed public-20k.cfr.zst
-```
-
-## Compilar y probar
-
-Inicialice primero los submódulos:
-
-```sh
-git submodule update --init --recursive
-```
-
-Después puede compilar la versión optimizada o ejecutar las pruebas:
-
-```sh
+sudo apt install build-essential git pkg-config libzstd-dev libjson-c-dev python3
+git clone --recurse-submodules https://github.com/PabloMoralesEscandon/mus-solver.git
+cd mus-solver
 make
-make test
-make test-tsan
-make test-sanitize
-make MUS_MAX_MUSES=2 test-core
-make dependencies
 ```
 
-La compilación release usa `-O3` y LTO. El build predeterminado (`make` o
-`make all`) requiere las bibliotecas de desarrollo de Zstandard y json-c, además
-de `pkg-config`, porque incluye el bot. `make solver` construye solo el solver y
-su biblioteca, sin consultar json-c ni compilar el simulador. `make bot` y
-`make match-eval` permiten construir los otros ejecutables por separado; el
-evaluador de partidas necesita las fuentes del simulador.
-`make lto` genera la misma configuración optimizada en
-`build/lto/release` y `C-CFR/build/lto/release`, sin reemplazar los artefactos
-normales.
-`make test-tsan` comprueba con ThreadSanitizer tanto el acceso concurrente al
-almacén de C-CFR como el entrenamiento paralelo del CLI.
+Si ya tienes el repositorio, ejecuta `git submodule update --init --recursive`
+antes de compilar.
 
-El workflow del repositorio ejecuta los seis formatos (`single-bet`,
-`raises-to-eight`, `ordago`, `ordago-public`, `ordago-score`, `ordago-score-four`) con uno y dos muses,
-en modo normal, ASan/UBSan y TSan. `test-core` comprueba el núcleo, las claves,
-el modelo público, el CLI y la guarda del adaptador; `test` añade las pruebas de
-persistencia, estadísticas, bots genérico/público/híbrido y partidas desplegadas.
-El bot sigue requiriendo un mus. Otro job verifica el build release con LTO y
-las tres pruebas de configuración, dependencias incrementales y componentes.
-El checkout del workflow usa la [acción oficial de GitHub](https://github.com/actions/checkout)
-fijada al commit correspondiente a v7.
-Los jobs instrumentados ajustan el mapa de direcciones de su runner temporal por
-la [incompatibilidad conocida del runtime de GCC 13](https://gcc.gnu.org/bugzilla/show_bug.cgi?id=113430).
-Antes de publicar una rama del repositorio principal, publique los commits de
-submódulos que esa rama referencia: el checkout de CI necesita poder descargarlos.
+| Comando | Resultado en `build/release/` |
+|---|---|
+| `make` | Biblioteca y los tres ejecutables. |
+| `make solver` | `mus-solver` y `libmus_solver.a`; no requiere json-c. |
+| `make bot` | `mus-bot`, para consultar decisiones por JSON. |
+| `make match-eval` | `mus-match-eval`, para comparar políticas en partidas. |
 
-Para volver a permitir dos muses en una compilación independiente:
+## Elegir variante
+
+| `--format` | Jugadores | Uso |
+|---|---|---|
+| **`ordago`** | 2 | **Normal:** mano aislada con mus, descartes, envites y órdago; información pública y utilidad en tantos. |
+| `ordago-score` | 2 | Con marcador: optimiza el valor de ganar la partida mediante una tabla de continuación. |
+| `ordago-score-four` | 4, por parejas | Con marcador: cada jugador decide con sus propias cartas. |
+| `ordago-deprecated` | 2 | **Obsoleta:** compatibilidad con estrategias históricas de órdago. |
+| `single-bet` | 2 | Modelo reducido: pasar o envidar 2, sin mus ni descartes. |
+| `raises-to-eight` | 2 | Modelo reducido: subidas 2 → 4 → 8, sin mus ni descartes. |
+
+### Comandos anteriores y estrategias guardadas
+
+**El cambio de nombres no requiere reentrenar ni convertir archivos.**
+
+| Comando anterior | Comando actual | Entrenamiento guardado |
+|---|---|---|
+| `--format ordago-public` | `--format ordago` | Se carga, reanuda y exporta directamente. |
+| `--format ordago` | `--format ordago-deprecated` | Se carga, reanuda y exporta directamente. |
+| Sin `--format` (antes elegía `single-bet`) | `--format single-bet` | Conserva el modelo reducido anterior. |
+
+Ahora omitir `--format` selecciona `ordago`. `ordago-public` sigue aceptándose
+como alias de la variante normal. Las API C y los esquemas de los archivos
+se conservan; el formato se valida al cargar cada checkpoint.
+
+`ordago-deprecated` se mantiene para aprovechar las estrategias existentes.
+Su modelo utiliza resultados aún ocultos en sus decisiones y límites de envite;
+los entrenamientos nuevos deben usar `ordago` o una variante con marcador.
+
+## Primer entrenamiento
+
+Desde la raíz del repositorio:
 
 ```sh
-make BUILD_DIR=build/two-muses MUS_MAX_MUSES=2
+build/release/mus-solver --format ordago \
+    --iterations 100 --seed 7 \
+    --save-compressed generica.cfr.zst --export-strategy generica.txt
 ```
 
-El build registra las opciones efectivas por modo (`release`/`debug`). Cambiar
-`MUS_MAX_MUSES`, compilador o flags invalida los objetos afectados, también al
-volver a una configuración anterior. Se pueden usar directorios distintos para
-conservar varias configuraciones a la vez. Los registros de C-CFR se comprueban
-desde el Makefile principal, sin modificar el submódulo; una invocación directa
-de su Makefile no usa esta comprobación. No ejecute dos builds con configuraciones
-distintas simultáneamente sobre un mismo `BUILD_DIR` o `CFR_BUILD_DIR`.
-`python3 tests/test_build_config.py` comprueba los cambios de configuración en
-directorios temporales.
-`make -n` y `make -q` también comprueban y, si hace falta, actualizan estos
-registros; no compilan objetos. Así, la simulación refleja las dependencias
-de los objetos y deja pendiente su compilación cuando cambia la configuración.
-Tras sustituir un compilador conservando su nombre, o cambiar variables externas
-como `CPATH`, use directorios nuevos o una limpieza completa: los registros
-comparan los comandos y flags de Make, no el contenido de las herramientas.
-Los builds sin cambios comprueban C-CFR y conservan las fechas de sus archivos:
-no vuelven a compilar ni enlazar. `python3 tests/test_build_incremental.py`
-comprueba ese comportamiento y los cambios de dependencias en una copia temporal
-de las fuentes.
-Si solo cambia C-CFR, `make -n` muestra su recompilación, pero puede omitir los
-enlaces posteriores porque la simulación conserva la fecha de `libcfr.a`.
-En ese caso `make -q` devuelve un error desde la llamada recursiva. El build
-real sí reconstruye la biblioteca y enlaza los consumidores.
-
-La biblioteca `libmus_solver.a` contiene únicamente el código de mus. Las pruebas
-que contrastan el simulador y el evaluador de partidas enlazan sus objetos de
-forma explícita. Al cambiar la lista de fuentes, se reconstruye el archivo
-estático completo para retirar los miembros antiguos.
-`make clean` elimina `BUILD_DIR` y conserva la caché de C-CFR.
-`make clean-all` elimina además `C-CFR/CFR_BUILD_DIR`; ambos directorios se pueden
-seleccionar como en un build normal. Los builds independientes del simulador se
-limpian con su propio Makefile.
-Después de actualizar C-CFR con cambios en su lista de fuentes, ejecute
-`make clean-all` antes de reconstruir: su Makefile propio actualiza `libcfr.a`
-en el sitio y puede conservar miembros retirados por esa actualización.
-`python3 tests/test_build_components.py` comprueba las dependencias del solver,
-la composición del archivo estático y la limpieza en una copia temporal.
-
-Los artefactos principales son:
-
-- `build/release/mus-solver`
-- `build/release/libmus_solver.a`
-- `build/release/mus-match-eval`
-
-`make dependencies` ejecuta además las baterías independientes de `C-CFR` y
-`Simulador-Mus`.
-
-`mus-match-eval` evalúa partidas completas con las decisiones reales del
-adaptador, incluidas sus traducciones y respaldos. Informa victorias y cobertura
-por fase, marcador y acción. Puede comparar dos políticas o una política contra
-un rival de control; admite genéricas y tablas híbridas. Véanse los
-[comandos y límites de la evaluación del bot](docs/match-evaluation.md).
-
-## Variante con marcador: `ordago-score`
-
-La [tabla de continuación](docs/continuation-table.md) explica cómo se valora
-el resto de la partida desde cada marcador.
-Cada celda `a–b` tiene su propio almacén CFR. El árbol conserva una sola mano,
-con mus, descartes y los envites de `ordago`. El jugador 0 representa siempre
-la mano y el jugador 1 el postre.
-
-El modelo separa los cobros inmediatos de los contratos pendientes. Los envites
-u órdagos rechazados pagan inmediatamente el deje o el total cubierto. Los
-envites queridos, los lances en paso y los valores de pares/juego quedan para
-el tanteo final, por orden: grande, chica, pares y juego o punto. Se detiene el
-cobro cuando alguien alcanza el objetivo. Un órdago querido decide la partida
-inmediatamente y descarta los tantos pendientes. Estas reglas siguen los
-[títulos IV.5 y V.1 del reglamento FEMUS](https://www.mustembleque.es/downloads/REGLAMENTO_FEMUS.29.pdf).
-
-Por ejemplo, a `39–39`, pasar ambos en grande permite continuar a chica y
-resolver allí un órdago. Si toda la mano va en paso, grande se cuenta primero
-al final. En cambio, un deje cobrado en chica puede decidir la partida antes
-de que se cuente ese grande pendiente.
-
-`paid_scores` conserva los cobros inmediatos; `settled_scores` incorpora además
-el tanteo final cuando corresponde. `pending_lances` señala los contratos aún
-pendientes, descritos en `outcomes` y sus importes, sin guardar sus ganadores
-ni sus valores intrínsecos ocultos. El deshacer restaura los tres campos.
-
-Las utilidades son `+1/-1` cuando termina la partida. Si continúa desde `a'–b'`,
-la utilidad del jugador 0 es `-V[b'][a']`: el siguiente reparto pasa la mano al
-contrario. No se añade la diferencia de tantos a ese valor.
-
-En `ordago-score/v4`, cada oferta numérica debe cumplir:
-
-```text
-max(marcador_inicial_0 + tantos_cobrados_0,
-    marcador_inicial_1 + tantos_cobrados_1)
-+ total_de_envites_queridos_pendientes
-+ total_propuesto_en_el_lance_actual < 40
-```
-
-Los dejes e importes cubiertos ya cobrados solo cuentan en el marcador; no se
-suman otra vez como pendientes. Los lances en paso y los valores intrínsecos no
-se anticipan. En una subida, el total propuesto incluye lo envidado antes en
-ese mismo lance. El órdago sigue disponible y queda fuera de esta cota numérica.
-Por ejemplo, partiendo de `29–30`, cobrar 1 el jugador 0 y 2 el jugador 1 deja
-`30–32`. Si además hay 2 queridos en pares, la base es `32 + 2 = 34`: un total
-de 6 queda excluido por la desigualdad estricta. Entre las aperturas disponibles,
-se permiten 2 y 4; entre las respuestas a 2, subir otros 4 queda prohibido.
-A `38–19`, `19–38` y `39–39` solo se puede abrir pasando o con órdago.
-
-Se mantienen las restricciones por lance de la abstracción: incrementos
-permitidos y no decrecientes, cada incremento una vez por jugador y máximo de
-cinco envites numéricos. La cota acumulada de 40 también se usa con objetivos
-reducidos. Es una restricción del árbol del solver. El formato histórico
-`ordago` conserva su cota acumulada anterior.
-
-Las claves vuelven al resumen de fuerza por lance de `ordago` y un único total
-agregado de envites anteriores, que en el modo con marcador contiene solo los
-queridos pendientes. No conservan sus importes separados por lance. Por tanto,
-grande 2/chica 4 y grande 4/chica 2 comparten nodo si coinciden los demás datos.
-El **modelo** conserva cada importe para cobrarlo correctamente al final; unir
-las claves hace que esos estados usen la misma política pese a tener pagos
-futuros distintos. Es la abstracción elegida para reducir los nodos.
-
-Los conjuntos de información incluyen ambos marcadores **cobrados**, las cartas
-propias abstraídas, el lance y turno, mus y descartes, fuerza anterior y envite
-activo. No incluyen quién ganará un lance pendiente ni el valor oculto de los
-pares del rival. El marcador inicial y el objetivo identifican el almacén de
-cada celda. Las claves usan una codificación reversible dentro de `int64_t`;
-los importes activos se reconstruyen con las máscaras de incrementos utilizados.
-
-Prueba pequeña con una partida a cinco tantos:
+Es un ejemplo para comprobar el flujo de trabajo, no un presupuesto que
+garantice una estrategia fuerte. El checkpoint permite reanudar; el TXT sirve
+para consultar las probabilidades y alimentar al bot.
 
 ```sh
-build/release/mus-solver \
-    --format ordago-score --target 5 --score 0:0 \
-    --iterations 100 --evaluation-samples 10000 --seed 7 \
-    --continuation marcador-5 \
-    --evaluate --export-strategy marcador-5-0-0.txt
+build/release/mus-solver --format ordago \
+    --load-compressed generica.cfr.zst --iterations 100 \
+    --save-compressed generica-ampliada.cfr.zst
 ```
 
-El directorio padre de `--continuation` debe existir. El solver crea el
-directorio final si es necesario. Para una partida normal, el objetivo
-predeterminado es 40:
+Para empezar con una tabla pequeña de partidas a 40 tantos:
 
 ```sh
-build/release/mus-solver \
-    --format ordago-score --score 35:18 \
-    --iterations 1000 --evaluation-samples 10000 --seed 7 \
-    --continuation marcador-40
+build/release/mus-solver --format ordago-score \
+    --score 39:39 --iterations 100 --evaluation-samples 1000 --seed 7 \
+    --continuation tabla
 ```
 
-`--iterations` es el número de iteraciones **por celda pendiente**.
-El coordinador resuelve las diagonales desde `2 × (objetivo - 1)` hasta la suma
-del marcador solicitado. Calcula todos los marcadores de esas diagonales;
-`0:0` a 40 requiere 1.600 celdas. Esto puede costar mucho más que entrenar una
-mano aislada. Se mantiene un almacén CFR de destino por celda simultánea y se libera después
-de guardar cada estrategia. La tabla permanece inmutable durante el
-entrenamiento y la evaluación de cada diagonal, y sus valores se publican
-juntos al terminarla.
+Las iteraciones de una tabla se aplican **a cada celda pendiente**. Entrenar
+desde `0:0` a 40 puede requerir 1.600 estrategias; empieza por un marcador final
+o una región. La [guía de entrenamiento](docs/training.md) explica la cobertura,
+los hilos, la recuperación y la ampliación de tablas.
 
-Para limitar el entrenamiento a una región suficiente desde un marcador,
-añada `--score-region A:B` al crear la tabla:
+## Usar una estrategia
+
+El bot recibe una observación JSON por línea y devuelve una acción legal con
+sus probabilidades. El motor que lo integra conserva las reglas y el tanteo.
 
 ```sh
-build/release/mus-solver \
-    --format ordago-score --score-region 35:18 \
-    --iterations 1000 --evaluation-samples 10000 --seed 7 \
-    --continuation marcador-region-35-18
+build/release/mus-bot --strategy generica.txt --seed 7
 ```
 
-La región incluye `(x,y)` si `x >= A && y >= B` o `x >= B && y >= A`.
-Así conserva todas las continuaciones necesarias cuando suben los tantos y
-se intercambian mano y postre. Desde 35:18 contiene 195 celdas, frente a las
-351 de las diagonales completas; desde 35:35 contiene 25 frente a 45. Estos
-recuentos no equivalen a porcentajes de ahorro de tiempo. Con las mismas
-semillas y un hilo por celda, las políticas y valores de las celdas comunes
-coinciden con los de una tabla completa.
-
-Sin `--score`, la creación usa A:B como marcador solicitado. Los límites se
-guardan ordenados en `values.txt` antes de entrenar la primera celda. Al
-reanudar puede omitir `--score-region`; si también omite `--score`, se usa el
-marcador de los límites ordenados. Puede pedir un marcador superior dentro
-de la región para entrenar solo las diagonales necesarias hasta ese punto.
-Un marcador fuera de la región o unos límites explícitos distintos provocan
-un error. Para cambiar la cobertura, utilice otro directorio.
-
-Una ampliación con `--extend-continuation` puede partir de una tabla completa
-o restringida, siempre que el origen contenga todas las celdas solicitadas
-del destino. El origen conserva su bloqueo compartido durante la ejecución.
-El bot usa la política genérica para los marcadores iniciales excluidos;
-solo hay que exportar los TXT de las celdas publicadas.
-
-Sin esta opción se conservan las diagonales completas y el formato v4.
-Las tablas restringidas usan el esquema independiente descrito más abajo,
-incluso con `--score-region 0:0`, que incluye las 1.600 celdas.
-
-`--threads N` entrena hasta N celdas independientes de una misma diagonal en
-paralelo; el valor predeterminado es 1. Con `--threads-per-cell 1`, cada celda
-conserva su semilla, recorrido MCCFR y evaluación, por lo que cambiar solo
-`--threads` no cambia las tablas ni los checkpoints. Las estrategias se guardan
-en el mismo orden que en la ejecución
-secuencial. La memoria puede crecer hasta N almacenes CFR; conviene ajustar los
-hilos a la memoria disponible, especialmente lejos del objetivo. El paralelismo
-está limitado por el número de celdas de cada diagonal.
+Consulta el [protocolo y ejemplo de petición](docs/adapter.md#petición).
+Para comparar dos estrategias en partidas completas:
 
 ```sh
-./build/release/mus-solver --format ordago-score \
-    --iterations 1000 --evaluation-samples 10000 --seed 7 \
-    --threads 4 --continuation marcador-40
+build/release/mus-match-eval \
+    --strategy-a generica.txt --strategy-b otra.txt \
+    --matches 1000 --seed 7 > partidas.json
 ```
 
-`score-workers` muestra los trabajadores solicitados, `cell_limit` y los hilos
-por celda. `cell_limit` es el máximo de celdas pendientes que puede atender una
-diagonal, limitado por `--threads`, el marcador, la región y las celdas ya
-publicadas. Vale cero si no queda trabajo. Es una cota de concurrencia; la
-recuperación de celdas o un fallo al crear hilos puede reducir el trabajo real.
-
-`--threads-per-cell M` permite que hasta M hilos entrenen **la misma estrategia**
-dentro de cada celda; también vale 1 por defecto. Cada hilo tiene su estado,
-generador aleatorio y espacio de recorrido, y todos actualizan el mismo almacén
-CFR concurrente. Las iteraciones por celda se reparten entre esos hilos; no se
-multiplican por M. Para entrenar una sola celda cada vez con ocho hilos:
-
-```sh
-./build/release/mus-solver --format ordago-score \
-    --iterations 1000 --evaluation-samples 10000 --seed 7 \
-    --threads 1 --threads-per-cell 8 --continuation marcador-40
-```
-
-Ambas opciones se pueden combinar: `--threads 2 --threads-per-cell 4` mantiene
-hasta dos estrategias simultáneas, cada una con hasta cuatro hilos. Compartir
-la estrategia evita un almacén completo por hilo, pero añade estados, espacios
-de recorrido y las tablas hash del acceso concurrente. La memoria adicional
-depende del tamaño del entrenamiento.
-
-El entrenamiento de una estrategia con varios hilos usa el mismo MCCFR
-concurrente que `ordago`. Conserva la abstracción y los formatos de checkpoint,
-pero el orden de las actualizaciones depende del planificador: la misma semilla
-no garantiza tablas ni checkpoints idénticos. Cada celda se evalúa y guarda
-después de que terminen todos sus hilos. La tabla de continuación permanece fija
-hasta publicar la diagonal completa.
-
-Emite un informe `score-cell` por celda y un `score-table` para
-el marcador solicitado. Al reanudar, `score-resume` muestra cuántas celdas ya
-están publicadas, los mínimos y máximos de iteraciones y muestras, y cuántas
-se entrenaron con ajustes diferentes de los solicitados. Se permiten
-presupuestos diferentes por celda; las publicadas conservan sus valores.
-El coordinador no utiliza `--report-every`, `--load` ni `--save`; su
-persistencia se gestiona con `--continuation`. Cargar un checkpoint con
-`--load` o `--load-compressed` selecciona la reanudación individual descrita
-más abajo, sin recorrer las diagonales.
-`--reserve-information-sets` permite reservar capacidad por celda; sin esa
-opción el almacén crece según las necesidades.
-
-El tanteo incremental, la generación de acciones y las cachés del recorrido
-conservan la abstracción `ordago-score/v4`. La evaluación restaura solo el estado
-activo entre muestras. El [benchmark de rendimiento](docs/performance.md)
-permite medir iteraciones por segundo y comprobar que los resultados coinciden.
-
-### Incertidumbre de la evaluación por marcador
-
-Cada celda guarda la media y la varianza muestral de las utilidades obtenidas
-durante su evaluación. La salida incluye `standard_error`, calculado como
-`sqrt(varianza_muestral / muestras)`, y `win_probability_se`, la mitad de ese
-valor para la escala `(V + 1) / 2`. La varianza se acumula con Welford, sin
-guardar todas las muestras. Con una sola muestra o un valor antiguo sin
-estadísticas, la incertidumbre se informa como `unknown`.
-
-Estas cifras miden **el ruido local de muestreo**, con la política y las
-continuaciones actuales fijas. No miden el error frente a la estrategia óptima
-ni incluyen la incertidumbre propagada desde otras celdas. No son un intervalo
-de confianza de toda la tabla ni una medición de las victorias del bot
-desplegado, que puede usar otros respaldos para nodos ausentes.
-
-El modo predeterminado usa exactamente `--evaluation-samples` manos y conserva
-la media y los checkpoints del evaluador anterior. Para adaptar el número
-de muestras por celda, indique juntas estas dos opciones:
-
-```sh
-build/release/mus-solver \
-    --format ordago-score --score-region 35:35 \
-    --iterations 1000 --seed 7 --continuation marcador-adaptativo \
-    --evaluation-min-samples 1000 --evaluation-samples 50000 \
-    --evaluation-target-se 0.01
-```
-
-Se evalúan al menos 1.000 manos y se comprueba el error estimado después de
-cada muestra adicional. Se detiene cuando es menor o igual a 0,01, o al llegar
-a 50.000 manos. `stop=estimated-target` o `stop=sample-limit` explica el motivo;
-el recuento guardado es el realmente usado. Las opciones también sirven con
-`--evaluate`, incluida la evaluación de un checkpoint individual.
-
-El objetivo es una regla práctica de parada, no una garantía estadística:
-un mínimo pequeño puede observar varianza cero por casualidad. Además, parar
-según las muestras puede sesgar la media y el error estimado. Si necesita una
-comparación con un presupuesto fijo, omita las dos opciones. Cambiar las
-muestras cambia los valores estimados y puede cambiar las políticas de las
-celdas inferiores. Aumentar las iteraciones de CFR por sí solo no reduce este
-ruido. Para dedicar más evaluación a una zona, entrene primero esas diagonales
-con más muestras y reanude después hacia abajo con otro presupuesto; las
-celdas publicadas conservan su valor.
-
-`values.txt` añade `statistics=sample-variance-v1` a la cabecera cuando contiene
-varianzas conocidas. En ese formato cada fila añade dos columnas: disponibilidad
-(`0` o `1`) y varianza muestral. Las filas antiguas cargan con incertidumbre
-desconocida; las tablas mixtas conservan esa distinción. La cabecera y las filas
-antiguas siguen aceptadas, pero los lectores anteriores a esta ampliación no
-leen el formato con estadísticas. Los esquemas de checkpoints y TXT no cambian:
-las varianzas no alteran las reglas, las claves ni la identidad de los pagos.
-
-Las ampliaciones y el registro de recuperación incluyen el mínimo y el error
-solicitados para evitar mezclar criterios. Los registros provisionales de
-recuperación anteriores a `mus-score-recovery/v2` se recalculan al reanudar;
-las celdas ya publicadas se conservan. Una evaluación nueva con `--evaluate`
-informa sus estadísticas sin reemplazar el valor ni la varianza guardados.
-
-### Precarga desde `ordago` u `ordago-public` sin marcador
-
-Puede reutilizarse la **estrategia media** de un checkpoint de `ordago` u
-`ordago-public` como
-política inicial de cada celda pendiente:
-
-```sh
-build/release/mus-solver \
-    --format ordago-score --target 5 --score 0:0 \
-    --preload-ordago-compressed ordago.cfr.zst \
-    --preload-weight 1 \
-    --iterations 100 --evaluation-samples 10000 --seed 7 \
-    --continuation marcador-5-precargado
-```
-
-Para checkpoints sin compresión se usa `--preload-ordago ordago.cfr`.
-La carga identifica y valida el esquema de origen, incluida la configuración de uno o dos
-muses. No acepta exportaciones de texto, otros formatos de juego ni checkpoints
-de ninguna versión de `ordago-score`.
-
-La precarga del CLI inicializa cada nodo **cuando se crea**, en mus, descartes,
-grande, chica, pares y juego/punto. Comparte una sola estrategia genérica en RAM
-entre las celdas activas. No recorre ni copia todos sus nodos para cada marcador.
-
-Para traducir una decisión, calcula por jugador `cobrado = marcador actual −
-marcador inicial de la celda`. Con `ordago-public`, esos cobros y los envites
-pendientes identifican una sola decisión de origen en cualquier lance. Se
-conservan las demás observaciones públicas. La correspondencia de claves es
-exacta, aunque la política de mano aislada optimiza una utilidad distinta y
-no garantiza una mejora de convergencia en partidas.
-
-Con el `ordago` histórico, reconstruye el acumulado antiguo sumando esos
-cobros a los envites aceptados pendientes. Conserva la mano abstracta, jugador,
-lance, historial de mus, fuerza previa e incrementos del envite activo.
-El máximo de puntos calculados de la genérica incluía resultados todavía
-ocultos: se enumeran sus valores posibles usando los cobros, los envites, los
-puntos de grande/chica al paso y el intervalo de tantos de pares. No se consultan
-las cartas rivales. Se suman las masas de estrategia de los candidatos existentes;
-esto pondera sus políticas por el peso acumulado en el entrenamiento antiguo.
-Es una aproximación a la política general, no una traducción exacta de todos los
-estados ni una garantía de que mejore la convergencia.
-
-Las probabilidades se emparejan por **acción** y se normalizan sobre el menú
-legal del destino. La política inicial es `0,95 × política transferida +
-0,05 × uniforme`. Si no hay candidatos con masa de estrategia, o toda la masa
-corresponde a acciones prohibidas, el nodo empieza uniforme. Los contadores
-`missing_source_nodes` e `imported_later_nodes` permiten comprobar la cobertura.
-
-`--preload-weight` fija la masa inicial por nodo de estrategia media y de regrets
-positivos **sintéticos**; por defecto vale 1. No copia regrets antiguos, unidades
-de utilidad, iteraciones, RNG ni valores de continuación. El aprendizaje nuevo
-optimiza la utilidad de ganar la partida. Los nodos existentes se conservan.
-
-`--report-every 1000` permite seguir las iteraciones y la cobertura de la precarga
-dentro de cada marcador mediante líneas `score-report`.
-
-`score-preload-source` identifica el origen y sus parámetros; `score-preload`
-informa por celda con `mode=lazy-all-lances`. `uniform_after_filter_nodes` cuenta
-los nodos importados cuyo prior queda sin masa en las acciones legales del
-destino, antes de añadir la mezcla uniforme. Es un subconjunto de
-`imported_nodes`; los orígenes ausentes se cuentan en `missing_source_nodes`.
-No mide la calidad de la política ni indica por sí solo cuánto se ha aprendido.
-Conserva el checkpoint genérico y
-repite las opciones al reanudar para inicializar también los nodos que aparezcan
-después. `values.txt` no guarda la configuración del prior y las celdas publicadas
-no se vuelven a entrenar. Para rehacerlas con esta precarga, usa un directorio nuevo.
-
-Los checkpoints y TXT contienen los nodos materializados, incluida su
-inicialización y aprendizaje. Se pueden cargar sin la genérica, pero entonces
-los nodos nuevos empiezan uniformes. La evaluación mantiene la política uniforme
-para nodos ausentes y no materializa nodos; tampoco el TXT contiene un fallback
-implícito a la genérica. La precarga no cambia el esquema `ordago-score/v4`.
-
-La API de [mus_score.h](include/mus_solver/mus_score.h) ofrece
-`mus_score_prior_attach()` para instalar la inicialización de todos los lances
-en un almacén nuevo o restaurado. El origen permanece inmutable y el binding debe
-vivir mientras se creen nodos. `mus_score_information_set_from_ordago()` conserva
-su operación limitada a mus, descartes y grande por compatibilidad. Los helpers
-`mus_score_information_set_from_ordago_public()` y
-`mus_score_information_set_to_ordago_public()` traducen todos los lances entre
-la genérica pública y la celda. `mus_score_preload_ordago()` importa todos los
-lances si el origen es público; mantiene la restricción a mus, descartes y grande
-con el origen histórico. El coordinador usa automáticamente el binding:
-
-```c
-MusScorePreloadOptions prior = {
-    .source = &ordago_trainer, /* Cargado con cfr_checkpoint_read[_zstd]. */
-    .weight = MUS_SCORE_PRELOAD_DEFAULT_WEIGHT,
-    .uniform_mix = MUS_SCORE_PRELOAD_DEFAULT_UNIFORM_MIX,
-};
-MusScoreTrainingOptions training = {
-    .iterations = 100,
-    .evaluation_samples = 10000,
-    .seed = 7,
-    .preload = &prior,
-};
-Status status = mus_score_train(&table, 0, &training,
-                                save_cell, save_diagonal, context);
-```
-
-### Ampliar una tabla ya entrenada
-
-`--extend-continuation ORIGEN` carga los checkpoints de una tabla de marcadores
-y añade `--iterations N` a **cada marcador** solicitado. Usa otro directorio como
-destino. Por ejemplo, para pasar de 10M a 50M por marcador hasta 30–30:
-
-```sh
-build/release/mus-solver \
-    --format ordago-score --target 40 --score 30:30 \
-    --extend-continuation entrenamiento-10m/continuacion \
-    --continuation entrenamiento-50m/continuacion \
-    --iterations 40000000 --threads 1 --threads-per-cell 14 \
-    --report-every 1000 --evaluation-samples 1000 \
-    --preload-ordago-compressed ordago-100m.cfr.zst --preload-weight 1
-```
-
-El origen debe contener todos los marcadores solicitados, con el mismo objetivo
-y esquema, y no tener un entrenamiento activo. El destino debe estar separado
-del origen. No se admite `--seed` ni `--load`: cada marcador restaura su RNG.
-Se conservan los regrets, la estrategia acumulada, los contadores y las semillas
-originales. La genérica es opcional y solo inicializa nodos nuevos.
-
-El coordinador valida cada checkpoint contra la tabla **antigua**. Después
-asocia el entrenamiento a la tabla **nueva**: completa y evalúa una diagonal,
-guarda sus checkpoints y publica sus valores antes de bajar a la siguiente.
-Las claves y reglas del marcador no cambian. Los checkpoints de salida llevan
-el hash de las nuevas continuaciones y se cargan con la nueva tabla. La carga
-ordinaria mantiene la comprobación estricta de esquema.
-
-Esta ampliación conserva aprendizaje de una aproximación anterior de los
-valores de continuación. Un contador de 50M significa 10M anteriores más 40M
-nuevos; no significa que los 50M se hayan ejecutado bajo los valores finales.
-
-`extension.txt` guarda el origen canónico, su tabla y los parámetros de la
-ampliación. Al reanudar, repite el mismo comando: las diagonales publicadas se
-conservan y cada marcador pendiente vuelve a cargar su checkpoint del origen.
-Los checkpoints de una diagonal incompleta pueden recalcularse. Para ampliar
-otra vez desde 50M, utiliza esta nueva tabla como origen y otro destino.
-Cambiar de origen, iteraciones añadidas, evaluación o precarga en una ampliación
-parcial produce un error. El origen y sus checkpoints deben permanecer inmutables.
-`score-report` muestra `iterations` acumuladas y `added_iterations` de esta ejecución.
-
-### Persistencia y evaluación
-
-El directorio contiene:
-
-- `values.txt`: valores, objetivo, versión de reglas y abstracción, orientación,
-  escala de utilidad, iteraciones, muestras de evaluación y semilla por celda.
-- `score-AA-BB.cfr.zst`: checkpoint CFR de cada marcador, con la estrategia
-  media y los acumuladores necesarios para reanudar el entrenamiento mediante
-  la CLI o la API de C-CFR.
-- `recovery.txt`: registro de celdas evaluadas cuyos checkpoints ya se guardaron.
-  Permite recuperar las celdas de una diagonal que quedó incompleta. Se comprueban
-  esquema, parámetros y contenido del checkpoint antes de reutilizar su valor.
-- `training.lock`: metadatos del último escritor: PID, equipo y fecha UTC de inicio.
-  El bloqueo real se mantiene sobre un descriptor del **directorio**. Es
-  exclusivo para entrenar y compartido para leer o ampliar desde esa tabla.
-  Al terminar, incluso por SIGINT, SIGTERM o SIGKILL, el sistema lo libera.
-  El archivo de metadatos permanece y se reutiliza: su existencia o su PID
-  escrito no indican que siga ocupado. No hay que borrarlo para reanudar.
-  Las ampliaciones mantienen protegido el origen hasta terminar, sin crear
-  archivos en él. Esto admite tablas antiguas archivadas en solo lectura.
-  Todos los coordinadores que escriban en la tabla deben usar este protocolo;
-  no se deben mezclar coordinadores antiguos que solo comprueban la existencia
-  del archivo. El error de adquisición muestra los últimos metadatos del escritor.
-
-El bloqueo es cooperativo: no impide cambios mediante editores o herramientas
-de copia. Este contrato se limita a sistemas de archivos locales con soporte
-para `flock` sobre directorios; no ofrece coordinación entre equipos a través
-de un sistema de archivos de red. El directorio debe permanecer en su ubicación.
-Un sistema que rechace esa operación produce un error; no se continúa sin bloqueo.
-
-Una señal termina el trabajo en curso; el bloqueo se libera sin ejecutar código
-desde un manejador de señales. La recuperación parte de las diagonales publicadas
-y puede reutilizar celdas terminadas de la siguiente diagonal.
-
-Repetir el comando del coordinador con el mismo directorio conserva las diagonales terminadas
-y completa las pendientes. Una celda recuperada conserva el checkpoint y su
-fecha de modificación, sin repetir entrenamiento ni evaluación; se anuncia como
-`score-recovered`. La diagonal completa se publica al terminar sus celdas.
-
-El registro se escribe y vacía después de guardar cada checkpoint. Las entradas
-incompletas, dañadas o incompatibles se ignoran y esas celdas se entrenan de nuevo.
-Otros errores de lectura, memoria o escritura se notifican y detienen el trabajo.
-Se comprueban las iteraciones, muestras, semilla, hilos, reserva, intervalo de
-informes, esquema y parámetros de precarga, incluido el contenido del prior y,
-en ampliaciones, del checkpoint de origen de esa celda. Los archivos de origen
-deben permanecer inmutables durante la ejecución. Las huellas FNV detectan
-cambios accidentales; no autentican los archivos. El lector de checkpoints
-comprueba además el formato y su checksum. Esta recuperación cubre interrupciones
-del proceso. Los archivos y directorios no se sincronizan explícitamente con el
-disco, por lo que no se garantiza conservar las últimas escrituras ante un corte
-de energía.
-
-El registro conserva como máximo una entrada por marcador en memoria y se lee
-una vez al iniciar la escritura. Las entradas antiguas permanecen en el archivo.
-Se puede eliminar `recovery.txt` con el coordinador detenido: las diagonales
-publicadas siguen disponibles, pero se pierde la recuperación de celdas aún
-no publicadas. Las tablas antiguas sin registro continúan siendo compatibles.
-Las celdas ya publicadas no reciben iteraciones adicionales, porque sus
-estrategias y valores son continuaciones fijas de las anteriores. Para cambiar
-el entrenamiento completo se utiliza otro directorio. Los checkpoints tienen
-un esquema distinto del de `ordago`, que incluye objetivo, marcador y una
-huella de las continuaciones superiores. No se pueden intercambiar entre
-marcadores, objetivos, versiones de mus o tablas distintas.
-
-El esquema predeterminado es `mus.ordago-score/v4`. Una tabla creada con
-`--score-region` usa una cabecera `mus.ordago-score-region/v1` con
-`region=A:B`; sus checkpoints y TXT incluyen `/region-A-B` en el esquema.
-Aunque las políticas coincidan, esos archivos no son intercambiables con los
-de v4: la cobertura y la huella de continuaciones forman parte de su identidad.
-**Las tablas y checkpoints de `v1`,
-`v2` y `v3` no son compatibles y requieren un entrenamiento nuevo en otro directorio.**
-`v3` usa otra abstracción de historial y otros menús; su incompatibilidad no
-implica un error de tanteo. En cambio, `v1` y `v2` adelantaban el cobro de lances
-pendientes y filtraban resultados de cartas ocultas en las claves. Sus estrategias,
-utilidades y mediciones de
-tamaño no validan el modelo corregido. Los artefactos antiguos pueden conservarse
-para diagnóstico. Los formatos históricos mantienen sus esquemas y comportamiento;
-no representan esta corrección del tanteo ni de la información disponible.
-Los checkpoints de una diagonal interrumpida que no figuren en `values.txt`
-solo se reutilizan si tienen una entrada válida en `recovery.txt`; los demás
-se reemplazan cuando se vuelve a entrenar esa celda. Tanto los
-checkpoints como la tabla se publican mediante archivo temporal y `rename()`;
-las estrategias de celdas ya publicadas no se sobrescriben al reanudar.
-
-### Añadir iteraciones a un checkpoint con marcador
-
-`--load-compressed` carga el estado completo de un único marcador: regrets,
-estrategia acumulada, contador, estadísticas y estado aleatorio. En este modo,
-`--iterations N` añade **N iteraciones a ese checkpoint**, sin entrenar otras
-celdas. Por ejemplo, un checkpoint
-de 100.000 iteraciones pasa a 200.000 con:
-
-```sh
-build/release/mus-solver \
-    --format ordago-score --target 40 --score 30:30 \
-    --continuation marcador-40 \
-    --load-compressed marcador-40/score-30-30.cfr.zst \
-    --iterations 100000 --report-every 1000 \
-    --save-compressed score-30-30-200k.cfr.zst \
-    --export-strategy score-30-30-200k.txt
-```
-
-También admite `--load` y `--save` para checkpoints sin comprimir. El nuevo
-checkpoint debe guardarse con `--save` o `--save-compressed`. Los archivos de
-salida deben quedar fuera del directorio `--continuation`, para conservar sus
-checkpoints publicados y su tabla. Las exportaciones TXT no se sobrescriben.
-Para seguir desde el resultado, se utiliza ese nuevo archivo con `--load` o
-`--load-compressed`, según su formato.
-No se permite `--seed` al añadir iteraciones: se restaura el flujo aleatorio
-guardado. Se admite `--preload-ordago` o `--preload-ordago-compressed` junto con
-entrenamiento: inicializa únicamente nodos nuevos y conserva el aprendizaje
-restaurado. Usa de nuevo el mismo origen y `--preload-weight` para mantener la
-configuración. Estas opciones no se admiten para una evaluación o exportación
-sin entrenamiento.
-
-Al reanudar un checkpoint, `--threads N` reparte las nuevas iteraciones entre
-hilos que comparten **esa única estrategia**, igual que en `ordago`. Por ejemplo:
-
-```sh
-build/release/mus-solver \
-    --format ordago-score --target 40 --score 30:30 \
-    --continuation marcador-40 \
-    --load-compressed marcador-40/score-30-30.cfr.zst \
-    --iterations 100000 --threads 8 --report-every 1000 \
-    --save-compressed score-30-30-parallel.cfr.zst
-```
-
-`--threads-per-cell` se reserva para el coordinador de tablas y no se admite
-con `--load` o `--load-compressed`. Los informes esperan a que todos los hilos
-alcancen el final del bloque; después de unirlos se guardan los contadores
-globales y el flujo aleatorio del hilo principal. Los flujos auxiliares se
-derivan de este al reanudar. Dividir una ejecución paralela entre procesos no
-garantiza el mismo resultado que ejecutarla sin interrupciones. Un hilo mantiene
-la reanudación exacta del recorrido secuencial.
-
-Los informes de `--report-every` muestran el contador total, incluidas las
-iteraciones anteriores. El informe `score-checkpoint` separa
-`initial_iterations`, `added_iterations` y `total_iterations`.
-
-La continuación se lee de `values.txt` y permanece fija durante esta ejecución.
-Solo se necesitan los valores de las diagonales superiores; no se cargan sus
-estrategias. La celda seleccionada puede no estar publicada todavía. El esquema
-del checkpoint debe coincidir con el marcador, objetivo, versión y valores de
-continuación. Un cambio en esos valores impide una reanudación exacta.
-Conserve la tabla compatible junto con el checkpoint.
-
-Este modo **no publica un valor nuevo en `values.txt`**: modificarlo afectaría
-a las estrategias que ya usaron ese marcador como continuación. El checkpoint
-ampliado se evalúa o exporta pasando explícitamente `--load[-compressed]`, sin
-`--iterations`. `--evaluate` usa las muestras de `--evaluation-samples`, con
-semilla 0 por defecto o la indicada por `--seed` en esa evaluación separada.
-
-Al comenzar otra mano puede seleccionarse su estrategia guardada:
-
-```sh
-build/release/mus-solver \
-    --format ordago-score --target 5 --score 2:1 \
-    --continuation marcador-5 \
-    --evaluate --evaluation-samples 10000 \
-    --export-strategy marcador-5-2-1.txt
-```
-
-La evaluación recorre manos completas muestreadas con la **estrategia media**,
-con política uniforme en los conjuntos no visitados. Usa un flujo aleatorio
-separado y no modifica los arrepentimientos. El valor guardado es una estimación
-Monte Carlo de esa política, no la utilidad de la última iteración ni una
-medida de explotabilidad. `win_probability = (value + 1) / 2`.
-
-`--evaluate` produce una evaluación nueva, indicada con `estimate=fresh`, y
-muestra su semilla, el `stored_value` de la tabla y las muestras utilizadas
-para estimarlo (`stored_samples`). Ambos valores pueden diferir por muestreo.
-Repetir la evaluación con la misma semilla, el mismo número de muestras y la
-misma estrategia reproduce la evaluación nueva; no exige que coincida con la
-estimación guardada durante el entrenamiento.
-
-El error de
-muestreo de las continuaciones se propaga hacia marcadores anteriores. Sigue
-aplicándose la limitación de recuerdo imperfecto de la abstracción de `ordago`;
-el entrenamiento no garantiza un equilibrio.
-
-La API está en `include/mus_solver/mus_score.h`: permite leer la tabla, crear
-un `MusScoreGame` para el marcador actual, inicializar el estado y cargar el
-checkpoint correspondiente mediante C-CFR. Al terminar la mano, si nadie ha
-alcanzado el objetivo, se suman los tantos resueltos al marcador inicial y se
-intercambian los jugadores antes de cargar la siguiente celda. El descriptor,
-la tabla y el estado deben permanecer vivos mientras el entrenador los use;
-cada almacén pertenece a un único marcador.
-
-Las pruebas comprueban signos, suma cero, órdagos, fin anticipado, tanteo de
-lances sin negociación, acciones legales, aplicación y deshacer, persistencia
-y publicación por diagonales. Un subjuego a tres tantos, con reparto fijo,
-cartas conocidas, sin mus, apertura de dos u órdago y sin subidas numéricas,
-compara la continuación por tabla con el
-desarrollo directo del mismo árbol hasta el final de la partida. Esta prueba
-valida la continuación, la orientación y el signo; comparte las reglas del
-juego y no es un oráculo independiente de esas reglas. Otras pruebas fijan
-explícitamente los menús de apuestas y los resultados de tanteo a tres y cinco
-tantos, incluidos los lances sin negociación y los empates a favor de mano.
-Hay regresiones explícitas de cobros inmediatos frente a pendientes, órdago
-posterior a un grande en paso a `39–39`, prioridad del tanteo final y ausencia
-de filtraciones al variar solo cartas ocultas. Se recorre también todo el árbol
-de envites de grande a distintos marcadores para comprobar las claves y menús.
-Otras regresiones comprueban la unión de las historias 2+4 y 4+2, su cobro
-diferenciado, el límite estricto acumulado y la precarga de menús reducidos.
-Las pruebas de entrenamiento y CLI cubren además mus,
-descartes y la selección de marcadores a 40. Estas comprobaciones no equivalen
-a resolver exhaustivamente el juego completo de información imperfecta.
-
-## Entrenamiento
-
-Los enteros sin signo del CLI se escriben solo con dígitos decimales, sin signo
-ni espacios. Se admiten ceros iniciales. Los tamaños y cantidades de trabajo
-deben ser positivos; la semilla también admite cero. Se rechazan los valores
-que desborden el tipo correspondiente. La misma gramática se aplica a cada
-componente de `--score A:B`.
-
-Entrenamiento nuevo, reproducible y con informes periódicos:
-
-```sh
-build/release/mus-solver \
-    --iterations 1000000 \
-    --seed 0 \
-    --report-every 100000 \
-    --save mus-1m.cfr
-```
-
-Para repartir esas mismas iteraciones entre varios hilos:
-
-```sh
-build/release/mus-solver \
-    --iterations 1000000 \
-    --threads 8 \
-    --seed 0 \
-    --report-every 100000 \
-    --save mus-1m-parallel.cfr
-```
-
-En los tres formatos históricos, `--iterations` indica el total global: cada bloque se distribuye de la
-forma más uniforme posible entre los hilos. Cada hilo mantiene el `Trainer`, el
-estado raíz y el flujo aleatorio independientes que exige C-CFR, y todos
-actualizan un único `InfoStore` concurrente. El hilo principal también entrena,
-por lo que `--threads 8` crea siete hilos adicionales. Antes de emitir un
-informe, guardar, evaluar o exportar, el programa espera a que finalice el
-bloque completo. Los hilos y sus espacios de trabajo se conservan entre
-informes durante toda la ejecución; cada informe mantiene su barrera de
-sincronización. El valor predeterminado, `--threads 1`, conserva el recorrido
-secuencial y reproducible de las versiones anteriores.
-
-Los entrenamientos nuevos de `ordago` reservan capacidad para reducir las
-ampliaciones del almacén. La estimación conserva 12.600 infosets por iteración
-durante las primeras 1.000 iteraciones y añade 1.200 por iteración posterior,
-hasta un máximo de 35,4 millones de infosets reservados. Es una heurística,
-no un límite de entrenamiento. Los checkpoints cargados no usan esta reserva
-automática. `--reserve-information-sets N` sustituye la estimación; conviene
-ajustarlo si el tamaño de la carga o la memoria disponible son distintos.
-
-Con varios hilos, una misma semilla determina los flujos aleatorios iniciales,
-pero el orden de las actualizaciones depende del planificador y el resultado no
-es reproducible bit a bit. Los checkpoints paralelos guardan correctamente el
-almacén y los contadores globales y se pueden reanudar. El formato de checkpoint
-de C-CFR contiene un solo flujo aleatorio; al reanudar, los flujos auxiliares se
-derivan de él de nuevo. Por tanto, dividir una ejecución paralela entre procesos
-no produce necesariamente el mismo fichero que ejecutarla sin interrupciones.
-
-`single-bet` es el formato predeterminado, por lo que los comandos y
-checkpoints existentes conservan su comportamiento. Para entrenar con subidas:
-
-```sh
-build/release/mus-solver \
-    --format raises-to-eight \
-    --iterations 1000000 \
-    --seed 0 \
-    --save mus-raises-1m.cfr
-```
-
-Para entrenar con mus, descartes y órdago:
-
-```sh
-build/release/mus-solver \
-    --format ordago \
-    --iterations 1000000 \
-    --seed 0 \
-    --save mus-ordago-1m.cfr
-```
-
-Un informe normal no recorre el árbol completo:
-
-```text
-report iterations=100000 threads=8 information_sets=... traversals=... visited_nodes=... seconds=...
-```
-
-Continuación exacta del mismo flujo aleatorio en el modo secuencial
-predeterminado:
-
-```sh
-build/release/mus-solver \
-    --load mus-1m.cfr \
-    --iterations 500000 \
-    --save mus-1.5m.cfr
-```
-
-El checkpoint binario contiene la estrategia acumulada, los regrets, las
-estadísticas, la semilla interna y el número de iteraciones. Los identificadores
-de esquema son independientes e incompatibles entre sí:
-
-- `single-bet`: `mus.heads-up-single-hand/v1`;
-- `raises-to-eight`: `mus.heads-up-single-hand.raises-to-eight/v1`;
-- `ordago`: `mus.heads-up-single-hand.ordago-with-mus/v9-muses-1` por defecto;
-- `ordago-public`: `mus.heads-up-single-hand.ordago-public/v1-muses-1` por defecto.
-
-La compilación con dos muses usa `v9-muses-2` para `ordago` y
-`v1-muses-2` para `ordago-public`, por lo que sus
-checkpoints no se mezclan con los del límite predeterminado.
-
-Al cargar un checkpoint de `raises-to-eight` hay que volver a indicar
-`--format raises-to-eight`.
-Lo mismo se aplica a `ordago`: hay que indicar `--format ordago`.
-
-Los checkpoints pueden comprimirse en streaming con Zstandard nivel 1. Es un
-modo explícito: `--save` y `--load` conservan el formato binario original.
-
-```sh
-build/release/mus-solver \
-    --format ordago \
-    --iterations 1000000 \
-    --save-compressed mus-ordago-1m.cfr.zst
-
-build/release/mus-solver \
-    --format ordago \
-    --load-compressed mus-ordago-1m.cfr.zst \
-    --iterations 500000 \
-    --save-compressed mus-ordago-1.5m.cfr.zst
-```
-
-## Evaluación exacta
-
-```sh
-build/release/mus-solver --load mus-1m.cfr --evaluate
-```
-
-También se puede evaluar la estrategia uniforme inicial:
-
-```sh
-build/release/mus-solver --evaluate
-```
-
-La evaluación de `single-bet` y `raises-to-eight` enumera sus repartos e
-historiales y trata como uniformes los conjuntos de información aún no
-visitados. Calcula:
-
-- valor del perfil para ambos jugadores;
-- mejor respuesta de cada jugador;
-- mejora unilateral, NashConv y explotabilidad.
-
-Los formatos históricos acumulan valores contrafactuales por profundidad sin
-materializar el árbol completo. El evaluador valida la raíz una vez y utiliza
-las operaciones de confianza disponibles durante el recorrido; conserva la
-alternativa pública si el descriptor no las proporciona. La evaluación de
-`ordago` desde la raíz no es
-viable con el evaluador general por su árbol de mus, descartes y envites
-aditivos. Por eso, `--format ordago --evaluate` y
-`--format ordago-public --evaluate` calculan un diagnóstico acotado:
-promedia las métricas exactas de dos repartos fijos en el último lance, uno de
-juego y otro de punto. La salida lo identifica con
-`scope=bounded-final-lances deals=2 opponent_cards=fixed best_responses=per-deal
-root_bound=none` (los campos aparecen junto a las métricas).
-Dentro de cada reparto están fijadas **las cartas de ambos jugadores**. Por
-tanto, la mejor respuesta se calcula sin incertidumbre sobre la mano rival,
-con el historial previo también fijo: se corta mus y ambos pasan en grande y
-chica. Se calcula por separado en juego y punto; después se promedian las métricas. Esta señal
-permite comparar esos subproblemas entre checkpoints. No mide la explotabilidad
-desde la raíz, no restablece la garantía de convergencia y no es una cota
-superior o inferior demostrada de la explotabilidad global.
-Los consumidores de la salida deben leer los campos por su nombre `clave=valor`;
-`exploitability` ya no es el último campo de las líneas de estos diagnósticos.
-
-Ampliar el diagnóstico a más repartos requiere ponderar las manos rivales
-compatibles y acumular sus valores en los conjuntos de información compartidos
-**antes** de elegir la mejor acción. Promediar mejores respuestas calculadas
-por separado para cada mano seguiría permitiendo responder a sus cartas.
-La API permite además evaluar cualquier subestado acotado mediante
-`mus_ordago_evaluation_metrics_from_state` o su equivalente `ordago-public`;
-el alcance depende del estado inicial proporcionado.
-
-Para medir todas las pasadas del evaluador con una estrategia entrenada:
-
-```sh
-make benchmark-evaluation
-build/release/benchmark-evaluation single-bet 10000 root 1
-build/release/benchmark-evaluation raises-to-eight 10000 first-hand-fixed 1
-```
-
-El tiempo excluye el entrenamiento. `visited_nodes` e `information_sets`
-describen ese entrenamiento previo, no el número de nodos evaluados. El alcance
-`first-hand-fixed` fija la mano de P0 y enumera la de P1; sus métricas son un
-subproblema condicionado y no la explotabilidad de la raíz completa.
-
-### Referencia reproducible
-
-Una ejecución de referencia en este entorno, el 31 de agosto de 2026, produjo:
-
-| Estrategia | Iteraciones | Valor J0 | Explotabilidad |
-|---|---:|---:|---:|
-| Uniforme | 0 | 0,6079451 | 1,5693584 |
-| MCCFR, semilla 0 | 1.000.000 | 0,0755868 | 0,0455666 |
-
-El entrenamiento de un millón de iteraciones tardó 24,45 segundos y su
-evaluación exacta 79,41 segundos en esa medición. Son referencias, no garantías
-de rendimiento para otros equipos o compiladores.
-
-## Exportar la estrategia
-
-```sh
-build/release/mus-solver \
-    --load mus-1m.cfr \
-    --export-strategy mus-1m.txt
-```
-
-Cada fila contiene la abstracción de mano correspondiente, posición, lance,
-resumen de fuerza anterior y probabilidades con nombres de mus. Solo se
-exportan los conjuntos visitados. El destino no se sobrescribe: debe ser una
-ruta nueva.
-
-## API
-
-Los encabezados públicos bajo `include/mus_solver/` exponen:
-
-- el formato original mediante el prefijo `mus_single_bet_`;
-- el formato con subidas mediante el prefijo `mus_raises_to_eight_`;
-- el formato con mus y órdago mediante el prefijo `mus_ordago_`;
-- el formato con marcador para cuatro jugadores mediante `mus_four_score_`
-  y los inicializadores genéricos de estado de `mus_score_`;
-- el adaptador `Game`, el estado reversible y el exportador etiquetado para
-  cada formato;
-- el evaluador exacto incremental para los formatos históricos y la evaluación
-  de subestados acotados de `ordago`.
-
-Las funciones históricas `mus_game_*`, `mus_evaluation_*` y
-`mus_strategy_write_text` siguen apuntando a `single-bet` para mantener la
-compatibilidad de la primera versión.
-
-`C-CFR` incorpora además `cfr_info_store_visit_sorted`, una visita de solo
-lectura en orden de clave utilizada por el exportador.
-
-## Fuera de alcance
-
-Los formatos históricos no incluyen partidas completas a 40 tantos ni rotación
-de la mano. `ordago-score` incorpora el marcador y la continuación con cambio
-de mano descritos arriba. `ordago-score-four` añade parejas y cuatro decisiones
-privadas. No se incluyen señas ni un motor de partida interactivo.
-La consulta de decisiones de dos jugadores y su integración con un motor externo
-se describen en el adaptador siguiente.
-`ordago` representa el órdago aceptado como el final de la mano por 40 tantos;
-no modela el marcador previo de una partida.
-
-## Adaptador para jugar contra humanos
-
-El ejecutable `build/release/mus-bot` y la API `mus_adapter_*` utilizan un
-checkpoint `ordago` para responder a observaciones de partidas reales de dos
-jugadores. Admiten envites arbitrarios y repetidos mediante interpolación y
-mezcla de estados próximos, con ajustes sencillos por marcador y un máximo de
-un mus. El motor externo conserva las reglas, las acciones legales y el tanteo.
-El modo híbrido añade las estrategias `ordago-score/v4`: selecciona la celda por
-el marcador al inicio de la mano y utiliza sus probabilidades sin el sesgo de
-marcador de la genérica. Los marcadores no publicados siguen usando `ordago`.
-
-El CLI requiere la biblioteca de desarrollo de json-c y `pkg-config`, además
-de las dependencias del solver. Con `--strategy` consulta las filas necesarias
-del exportador de texto ordenado directamente en disco, sin cargar toda la
-estrategia en RAM. Recibe una observación JSON por línea:
-
-```sh
-build/release/mus-bot --strategy mus-ordago-100m.txt --seed 17
-
-# Usar las estrategias con marcador donde estén entrenadas:
-build/release/mus-bot --strategy mus-ordago-100m.txt \
-    --score-table entrenamiento-50m/continuacion/values.txt \
-    --score-strategies entrenamiento-50m/txt --seed 17
-```
-
-El [contrato del adaptador](docs/adapter.md) documenta el protocolo, la API,
-las aproximaciones, los diagnósticos y el benchmark reproducible.
-La [guía de integración](docs/adapter-integration.md) explica los nuevos campos,
-la contabilidad de tantos y el cambio de estrategia entre manos. El bot mantiene
-la genérica y como máximo un TXT de marcador abiertos, con cachés acotadas.
+El bot y el evaluador de partidas admiten dos jugadores y un mus. Las
+estrategias de cuatro jugadores se entrenan y consultan mediante la biblioteca C.
+
+## Documentación
+
+| Guía | Contenido |
+|---|---|
+| [Reglas y variantes](docs/rules.md) | Envites, tanteo, abstracciones y compatibilidad histórica. |
+| [Entrenamiento](docs/training.md) | Guardar, reanudar, exportar, entrenar tablas y configurar recursos. |
+| [Tabla de continuación](docs/continuation-table.md) | Cómo se usa el marcador para valorar el resto de la partida. |
+| [Bot e integración](docs/adapter.md) | Protocolo JSON, contabilidad del motor, políticas híbridas y API. |
+| [Evaluación de partidas](docs/match-evaluation.md) | Comparar políticas y entender las métricas y su alcance. |
+| [Cuatro jugadores](docs/mus-four-score.md) | Reglas de parejas, entrenamiento y API específica. |
+| [Desarrollo](docs/development.md) | Compilación, pruebas y puntos de entrada de la biblioteca. |
+
+Cada ejecutable incluye ayuda con `--help`.
+
+## Alcance
+
+Se utiliza la baraja española de 40 cartas con ocho reyes y ocho ases. Las
+apuestas y la memoria de los jugadores están abstraídas para reducir el árbol:
+no se representa todo el mus sin restricciones. La abstracción pierde recuerdo
+perfecto y el entrenamiento no garantiza converger a un equilibrio.
+
+`--evaluate` en `ordago` es un diagnóstico de dos repartos fijos en los
+lances finales, con ambas manos fijadas; **no mide la explotabilidad del juego
+completo**. Las variantes con marcador estiman valores por muestreo. Las
+victorias de `mus-match-eval` corresponden a las políticas, reglas y rival
+seleccionados. No se incluyen señas ni una interfaz gráfica de partida.
+
+## Licencia
+
+Copyright 2026 Pablo Morales Escandon. Publicado bajo [Apache-2.0](LICENSE).
+Las dependencias incluidas como submódulos se mantienen en sus repositorios:
+[C-CFR](https://github.com/PabloMoralesEscandon/C-CFR), también con
+[Apache-2.0](C-CFR/LICENSE), y
+[Simulador-Mus](https://github.com/PabloMoralesEscandon/Simulador-Mus).

@@ -22,6 +22,7 @@ def hashes(path):
 def normalized(output):
     result = json.loads(output)
     assert result['scope'] == 'deployed-adapter-matches'
+    assert result['strategy_order'] == ['ordago-deprecated', 'ordago', 'ordago-score', 'baseline']
     assert sum(result['wins']) == result['matches']
     assert result['hands'] >= result['matches']
     assert result['seconds'] >= 0
@@ -35,7 +36,7 @@ def normalized(output):
 
 with tempfile.TemporaryDirectory(prefix='mus-match-tests-') as tmp:
     root = Path(tmp); inputs = root/'inputs'; inputs.mkdir()
-    for variant in ['ordago', 'ordago-public']:
+    for variant in ['ordago-deprecated', 'ordago']:
         raw = inputs/f'{variant}.cfr'; compressed = inputs/f'{variant}.cfr.zst'; text = inputs/f'{variant}.txt'
         common = [solver, '--format', variant, '--iterations', '3', '--seed', '7']
         run([*common, '--save', str(raw), '--export-strategy', str(text)])
@@ -58,7 +59,7 @@ with tempfile.TemporaryDirectory(prefix='mus-match-tests-') as tmp:
             for match in range(1, 7):
                 first_row = next(r for r in rows if int(r['match']) == match)
                 assert int(first_row['mano']) == (match - 1) % 2
-            assert first['strategy_counts'][0][0 if variant == 'ordago' else 1] > 0
+            assert first['strategy_counts'][0][0 if variant == 'ordago-deprecated' else 1] > 0
         pair = normalized(run([*base, '--load-a', str(raw), '--load-b', str(raw), '--no-score-adjustment']))
         assert pair['policies'] == ['adapter', 'adapter']
         assert pair['strategy_counts'][0][3] == pair['strategy_counts'][1][3] == 0
@@ -74,25 +75,25 @@ with tempfile.TemporaryDirectory(prefix='mus-match-tests-') as tmp:
          '--export-strategy', str(inputs/'score-temp.txt')])
     (inputs/'score-temp.txt').rename(table/'score-39-39.txt')
     before = hashes(inputs)
-    hybrid = [evaluator, '--load-a', str(inputs/'ordago-public.cfr'), '--matches', '4', '--seed', '7',
+    hybrid = [evaluator, '--load-a', str(inputs/'ordago.cfr'), '--matches', '4', '--seed', '7',
               '--score-table-a', str(table/'values.txt'), '--score-strategies-a', str(table)]
     trained = normalized(run([*hybrid, '--score', '39:39']))
     assert trained['strategy_counts'][0][2] == trained['decisions'][0]
     untrained = normalized(run([*hybrid, '--score', '38:39']))
     assert untrained['strategy_counts'][0][1] == untrained['decisions'][0]
-    pair = normalized(run([*hybrid, '--score', '39:39', '--load-b', str(inputs/'ordago-public.cfr'),
+    pair = normalized(run([*hybrid, '--score', '39:39', '--load-b', str(inputs/'ordago.cfr'),
                            '--score-table-b', str(table/'values.txt'), '--score-strategies-b', str(table)]))
     assert pair['strategy_counts'][1][2] == pair['decisions'][1]
     assert hashes(inputs) == before
 
     # CLI counts follow the strict unsigned grammar. Invalid input and partial
     # match budgets must fail instead of reporting a biased win rate.
-    base = [evaluator, '--load-a', str(inputs/'ordago-public.cfr'), '--matches', '1']
+    base = [evaluator, '--load-a', str(inputs/'ordago.cfr'), '--matches', '1']
     for args in [['--matches', '2'], ['--score', '40:0'], ['--score', '-1:0'],
                  ['--seed', '-1'], ['--seed', '+1'], ['--seed', ' 1'], ['--seed', str(2**32)],
                  ['--max-hands', '0'], ['--max-hands', '-1'], ['--opponent', 'unknown'],
                  ['--score-table-a', str(table/'values.txt')],
-                 ['--strategy-a', str(inputs/'ordago-public.txt')],
+                 ['--strategy-a', str(inputs/'ordago.txt')],
                  ['--load-b', str(inputs/'ordago.cfr'), '--opponent', 'three']]:
         run([*base, *args], False)
     # The passive opponent rejects every wager. From 0:0 no first hand can

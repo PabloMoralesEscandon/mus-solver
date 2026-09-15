@@ -4,7 +4,7 @@ r"""Plot throughput and memory from a completed training benchmark JSON file.
 Requires matplotlib. Each error bar shows the observed minimum and maximum,
 not a confidence interval. Example:
   python3 tests/plot_training_benchmarks.py build/performance/final-comparison.json \
-      --output docs/performance-mccfr-20260914/scaling.svg
+      --output artifacts/benchmarks/scaling.svg
 """
 
 import argparse
@@ -53,7 +53,7 @@ def main():
     colors = ["#747b86", "#087f68", "#a54a00", "#6361ae"]
     for index, workload in enumerate(workloads):
         fields = workload.split(":")
-        title = "Órdago público" if fields[0] == "ordago-public" else f"Marcador {fields[1]}:{fields[2]}"
+        title = "Órdago" if fields[0] in ("ordago", "ordago-public") else f"Marcador {fields[1]}:{fields[2]}"
         for column, (metric, scale, ylabel) in enumerate([
                 ("iterations_per_second", 1, "Iteraciones / segundo"),
                 ("observed_hwm_kib", 1 / 1048576, "VmHWM observado (GiB)")]):

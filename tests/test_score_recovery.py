@@ -82,7 +82,7 @@ with tempfile.TemporaryDirectory(prefix='mus-recovery-tests-') as tmp:
     # Same prior path with changed contents is incompatible, even if its size
     # and timestamp are restored. All source files remain read-only to recovery.
     prior=root/'prior.cfr'
-    run(['--format','ordago-public','--iterations','1','--seed','1','--save',str(prior)])
+    run(['--format','ordago','--iterations','1','--seed','1','--save',str(prior)])
     path=interrupted('prior',('--preload-ordago',str(prior)))
     old_stat=prior.stat()
     # Change only the saved RNG state, retaining a valid v1 raw checkpoint,

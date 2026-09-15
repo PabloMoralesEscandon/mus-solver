@@ -1,4 +1,6 @@
-# Evaluar la política desplegada en partidas completas
+# Evaluación de partidas
+
+[Volver al README](../README.md) · [Bot e integración](adapter.md)
 
 `mus-match-eval` juega partidas a 40 tantos con el simulador de dos jugadores
 y el mismo `mus_adapter_decide` que usa `mus-bot`. Incluye selección de celda,
@@ -8,7 +10,7 @@ la decisión final. Los archivos de políticas se leen sin entrenarlos.
 ```sh
 make
 build/release/mus-match-eval \
-    --strategy-a public.txt --opponent three \
+    --strategy-a generica.txt --opponent three \
     --matches 1000 --seed 7 --trace decisiones.csv > partidas.json
 ```
 
@@ -41,12 +43,13 @@ Para cada lado puede usar exactamente una de estas opciones:
 - `--load-a FILE` / `--load-b FILE`: checkpoint sin comprimir.
 - `--load-compressed-a FILE` / `--load-compressed-b FILE`: checkpoint Zstandard.
 
-Se admiten las genéricas `ordago` y `ordago-public` de un mus. Para el selector
+La genérica normal es `ordago`, con un mus. También se admite
+`ordago-deprecated` para evaluar estrategias históricas. Para el selector
 híbrido, añada ambas rutas de ese lado:
 
 ```sh
 build/release/mus-match-eval \
-    --strategy-a public.txt \
+    --strategy-a generica.txt \
     --score-table-a continuacion/values.txt \
     --score-strategies-a continuacion \
     --opponent three --score 35:35 --matches 1000 --seed 7 > tramo-final.json
@@ -59,21 +62,21 @@ comportamiento. El TXT v1 y el binario pueden diferir al consultar nodos con
 masa cero; el evaluador reproduce el comportamiento del backend elegido.
 
 `--score A:B` fija el marcador inicial de las **políticas A y B**, por defecto
-0:0. Un experimento desde 35:35 mide partidas desde ese tramo, no victorias
+0:0. Una evaluación desde 35:35 mide partidas desde ese tramo, no victorias
 desde 0:0. `--no-score-adjustment` desactiva en ambos adaptadores la heurística
 de órdago de las genéricas, igual que en `mus-bot`.
 
 ## Reglas y observaciones
 
 El anfitrión usa `simularRondaMusConEstrategias`, con los cobros diferidos del
-simulador corregido. Los dejes se cobran durante la negociación; los envites
+simulador. Los dejes se cobran durante la negociación; los envites
 queridos, lances al paso y valores intrínsecos se cuentan al final. El órdago
 querido o un deje decisivo terminan antes de cobrar los pendientes.
 
 El entorno permite un mus y descartes no vacíos. Ofrece pasar o responder,
 órdago y todos los totales numéricos enteros de 2 a 40 que admite la
 negociación activa, incluidos aumentos de un tanto. Cada acción se valida en
-una copia del envite del simulador. Este es el menú finito del experimento;
+una copia del envite del simulador. Este es el menú finito de esta evaluación;
 no se limita a los incrementos 2/4/7/10 del árbol entrenado.
 
 La observación de cada jugador contiene solo sus cartas y datos públicos:
@@ -98,6 +101,9 @@ por política y por cada una de estas dimensiones:
 
 Son distribuciones separadas, no su producto cartesiano. `strategy_counts`
 separa genérica histórica, genérica pública, celda entrenada y rival de control.
+`strategy_order` indica los nombres actuales de esas columnas:
+`ordago-deprecated`, `ordago`, `ordago-score` y `baseline`. El orden de columnas
+se conserva; los lectores de JSON deben usar los nombres actuales.
 El CSV opcional conserva conjuntamente fase, marcador, método y acción de cada
 decisión; no contiene cartas. El archivo de traza debe ser nuevo: se rechaza
 una ruta existente para conservar las políticas y otros archivos.

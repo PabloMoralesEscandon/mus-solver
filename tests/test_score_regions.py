@@ -53,7 +53,7 @@ with tempfile.TemporaryDirectory(prefix='mus-region-tests-') as tmp:
     run(read(region,'0:2',('--evaluate',)),False)
     run(train(region,region='0:2'),False)
     run(train(full,region='0:0'),False)
-    run(['--format','ordago-public','--iterations','1','--score-region','1:1'],False)
+    run(['--format','ordago','--iterations','1','--score-region','1:1'],False)
     for bad in ['-1:0','40:0','1:3','1:1:1',' 1:1','1:-1']:
         run(train(root/'invalid',region=bad),False)
 
@@ -119,7 +119,7 @@ with tempfile.TemporaryDirectory(prefix='mus-region-tests-') as tmp:
         for a,b in rows(scores):
             run(read(scores,f'{a}:{b}',('--export-strategy',str(scores/f'score-{a:02d}-{b:02d}.txt')),target=40))
         generic=root/'public.cfr'
-        run(['--format','ordago-public','--iterations','1','--seed','7','--save',str(generic)])
+        run(['--format','ordago','--iterations','1','--seed','7','--save',str(generic)])
         queries=[]
         for a,b in [(35,35),(39,35),(35,39),(34,39),(39,34),(35,35)]:
             queries.append(dict(player=0,phase='grande',hand=[0]*7+[4],mus_stop_player=0,
@@ -135,6 +135,6 @@ with tempfile.TemporaryDirectory(prefix='mus-region-tests-') as tmp:
         for query,result in zip(queries,results):
             assert result['ok'],result
             a,b=query['hand_start_scores'];covered=a>=35 and b>=35
-            assert result['diagnostic']['strategy']==('ordago-score' if covered else 'ordago-public'),result
+            assert result['diagnostic']['strategy']==('ordago-score' if covered else 'ordago'),result
         assert hashes(scores)==before
 print('All closed-region checks passed.')

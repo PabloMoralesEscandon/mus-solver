@@ -191,7 +191,7 @@ static bool report(const Options *options, const MusMatchResult *r, double secon
     }
     return printf("],\"strategy_counts\":[[%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 "],"
         "[%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 "]],"
-        "\"strategy_order\":[\"ordago\",\"ordago-public\",\"ordago-score\",\"baseline\"]}\n",
+        "\"strategy_order\":[\"ordago-deprecated\",\"ordago\",\"ordago-score\",\"baseline\"]}\n",
         r->strategies[0][0],r->strategies[0][1],r->strategies[0][2],r->strategies[0][3],
         r->strategies[1][0],r->strategies[1][1],r->strategies[1][2],r->strategies[1][3]) >= 0 && fflush(stdout) == 0;
 }

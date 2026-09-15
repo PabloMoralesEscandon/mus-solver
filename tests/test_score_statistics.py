@@ -107,7 +107,7 @@ with tempfile.TemporaryDirectory(prefix='mus-statistics-') as tmp:
         run(train(root/'bad', extra), False)
     for value in ['0', '-1', 'nan', 'inf', 'abc', '1e9999']:
         run(train(root/'bad', ['--evaluation-min-samples', '10', '--evaluation-target-se', value]), False)
-    run(['--format', 'ordago-public', '--iterations', '1', *adaptive], False)
+    run(['--format', 'ordago', '--iterations', '1', *adaptive], False)
 
     # The manifest retains adaptive settings even if two settings happen to
     # stop at the same count. Extension sources are never rewritten.

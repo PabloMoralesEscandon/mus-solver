@@ -58,16 +58,16 @@ if "$solver" >"$tmp_dir/no-args.out" 2>"$tmp_dir/no-args.err"; then
     echo "el solver sin argumentos debio fallar" >&2
     exit 1
 fi
-if "$solver" --iterations 0 >"$tmp_dir/zero.out" 2>"$tmp_dir/zero.err"; then
+if "$solver" --format single-bet --iterations 0 >"$tmp_dir/zero.out" 2>"$tmp_dir/zero.err"; then
     echo "--iterations 0 debio fallar" >&2
     exit 1
 fi
-if "$solver" --iterations 1 --threads 0 \
+if "$solver" --format single-bet --iterations 1 --threads 0 \
     >"$tmp_dir/zero-threads.out" 2>"$tmp_dir/zero-threads.err"; then
     echo "--threads 0 debio fallar" >&2
     exit 1
 fi
-if "$solver" --evaluate --threads 2 \
+if "$solver" --format single-bet --evaluate --threads 2 \
     >"$tmp_dir/evaluate-threads.out" 2>"$tmp_dir/evaluate-threads.err"; then
     echo "--threads sin entrenamiento debio fallar" >&2
     exit 1
@@ -78,7 +78,7 @@ if "$solver" --format ordago-score --iterations 1 --threads-per-cell 0 \
     echo "--threads-per-cell 0 debio fallar" >&2
     exit 1
 fi
-for format in single-bet raises-to-eight ordago ordago-public; do
+for format in single-bet raises-to-eight ordago ordago-deprecated ordago-public; do
     if "$solver" --format "$format" --iterations 1 --threads-per-cell 2 \
         >"$tmp_dir/legacy-cell-threads.out" 2>"$tmp_dir/legacy-cell-threads.err"; then
         echo "--threads-per-cell requiere ordago-score" >&2
@@ -91,23 +91,23 @@ if "$solver" --format ordago-score --evaluate --threads-per-cell 2 \
     echo "--threads-per-cell sin entrenamiento debio fallar" >&2
     exit 1
 fi
-if "$solver" --iterations 1 --reserve-information-sets 0 \
+if "$solver" --format single-bet --iterations 1 --reserve-information-sets 0 \
     >"$tmp_dir/zero-reserve.out" 2>"$tmp_dir/zero-reserve.err"; then
     echo "--reserve-information-sets 0 debio fallar" >&2
     exit 1
 fi
 
-"$solver" --iterations 10 --seed 7 --save "$tmp_dir/first.cfr" \
+"$solver" --format single-bet --iterations 10 --seed 7 --save "$tmp_dir/first.cfr" \
     >"$tmp_dir/first.out"
-"$solver" --load "$tmp_dir/first.cfr" --iterations 10 \
+"$solver" --format single-bet --load "$tmp_dir/first.cfr" --iterations 10 \
     --save "$tmp_dir/resumed.cfr" >"$tmp_dir/resumed.out"
-"$solver" --iterations 20 --seed 7 --save "$tmp_dir/continuous.cfr" \
+"$solver" --format single-bet --iterations 20 --seed 7 --save "$tmp_dir/continuous.cfr" \
     --export-strategy "$tmp_dir/strategy.txt" >"$tmp_dir/continuous.out"
-"$solver" --iterations 20 --seed 7 --reserve-information-sets 64 \
+"$solver" --format single-bet --iterations 20 --seed 7 --reserve-information-sets 64 \
     --save "$tmp_dir/reserved.cfr" >"$tmp_dir/reserved.out"
-"$solver" --iterations 20 --threads 1 --seed 7 \
+"$solver" --format single-bet --iterations 20 --threads 1 --seed 7 \
     --save "$tmp_dir/one-thread.cfr" >"$tmp_dir/one-thread.out"
-"$solver" --iterations 20 --seed 7 \
+"$solver" --format single-bet --iterations 20 --seed 7 \
     --save-compressed "$tmp_dir/continuous.cfr.zst" \
     >"$tmp_dir/compressed.out"
 
@@ -119,40 +119,40 @@ grep -q 'mus-strategy version=1' "$tmp_dir/strategy.txt"
 grep -q 'posicion=' "$tmp_dir/strategy.txt"
 grep -q 'pasar=' "$tmp_dir/strategy.txt"
 
-"$solver" --iterations 12 --threads 3 --report-every 4 --seed 17 \
+"$solver" --format single-bet --iterations 12 --threads 3 --report-every 4 --seed 17 \
     --save "$tmp_dir/parallel.cfr" >"$tmp_dir/parallel.out"
 grep -q 'report iterations=12 threads=3' "$tmp_dir/parallel.out"
-"$solver" --load "$tmp_dir/parallel.cfr" --iterations 5 --threads 2 \
+"$solver" --format single-bet --load "$tmp_dir/parallel.cfr" --iterations 5 --threads 2 \
     --save "$tmp_dir/parallel-resumed.cfr" \
     >"$tmp_dir/parallel-resumed.out"
 grep -q 'report iterations=17 threads=2' "$tmp_dir/parallel-resumed.out"
-"$solver" --load "$tmp_dir/parallel-resumed.cfr" \
+"$solver" --format single-bet --load "$tmp_dir/parallel-resumed.cfr" \
     --export-strategy "$tmp_dir/parallel-strategy.txt"
 grep -q 'training_iterations=17' "$tmp_dir/parallel-strategy.txt"
 
-"$solver" --iterations 12 --threads 3 --report-every 5 --seed 17 \
+"$solver" --format single-bet --iterations 12 --threads 3 --report-every 5 --seed 17 \
     >"$tmp_dir/partial-workers.out"
 grep -q 'report iterations=5 threads=3' "$tmp_dir/partial-workers.out"
 grep -q 'report iterations=10 threads=3' "$tmp_dir/partial-workers.out"
 grep -q 'report iterations=12 threads=3' "$tmp_dir/partial-workers.out"
 [ "$(grep -c '^report ' "$tmp_dir/partial-workers.out")" -eq 3 ]
-"$solver" --iterations 5 --threads 8 --report-every 2 --seed 17 \
+"$solver" --format single-bet --iterations 5 --threads 8 --report-every 2 --seed 17 \
     >"$tmp_dir/fewer-active-workers.out"
 grep -q 'report iterations=5 threads=8' "$tmp_dir/fewer-active-workers.out"
 [ "$(grep -c '^report ' "$tmp_dir/fewer-active-workers.out")" -eq 3 ]
-"$solver" --iterations 3 --threads 8 --report-every 100 --seed 17 \
+"$solver" --format single-bet --iterations 3 --threads 8 --report-every 100 --seed 17 \
     >"$tmp_dir/large-report-interval.out"
 grep -q 'report iterations=3 threads=8' "$tmp_dir/large-report-interval.out"
 [ "$(grep -c '^report ' "$tmp_dir/large-report-interval.out")" -eq 1 ]
-"$solver" --iterations 20 --threads 1 --report-every 1 --seed 7 \
+"$solver" --format single-bet --iterations 20 --threads 1 --report-every 1 --seed 7 \
     --save "$tmp_dir/frequent-single-thread.cfr" \
     >"$tmp_dir/frequent-single-thread.out"
 cmp "$tmp_dir/frequent-single-thread.cfr" "$tmp_dir/continuous.cfr"
 
-"$solver" --load "$tmp_dir/continuous.cfr" \
+"$solver" --format single-bet --load "$tmp_dir/continuous.cfr" \
     --export-strategy "$tmp_dir/loaded-strategy.txt"
 cmp "$tmp_dir/strategy.txt" "$tmp_dir/loaded-strategy.txt"
-"$solver" --load-compressed "$tmp_dir/continuous.cfr.zst" \
+"$solver" --format single-bet --load-compressed "$tmp_dir/continuous.cfr.zst" \
     --export-strategy "$tmp_dir/compressed-strategy.txt"
 cmp "$tmp_dir/strategy.txt" "$tmp_dir/compressed-strategy.txt"
 
@@ -164,14 +164,14 @@ grep -q 'schema=mus.heads-up-single-hand.raises-to-eight/v1' \
     "$tmp_dir/raises-strategy.txt"
 grep -Eq 'subir_a_(4|8)=' "$tmp_dir/raises-strategy.txt"
 
-"$solver" --format ordago --iterations 2 --threads 1 --seed 13 \
+"$solver" --format ordago-deprecated --iterations 2 --threads 1 --seed 13 \
     --save "$tmp_dir/ordago-auto-reserve.cfr" >"$tmp_dir/ordago-auto-reserve.out"
-"$solver" --format ordago --iterations 2 --threads 1 --seed 13 \
+"$solver" --format ordago-deprecated --iterations 2 --threads 1 --seed 13 \
     --reserve-information-sets 100000 \
     --save "$tmp_dir/ordago-explicit-reserve.cfr" >"$tmp_dir/ordago-explicit-reserve.out"
 cmp "$tmp_dir/ordago-auto-reserve.cfr" "$tmp_dir/ordago-explicit-reserve.cfr"
 
-"$solver" --format ordago --iterations 2 --threads 2 --seed 13 \
+"$solver" --format ordago-deprecated --iterations 2 --threads 2 --seed 13 \
     --save "$tmp_dir/ordago.cfr" \
     --export-strategy "$tmp_dir/ordago-strategy.txt" \
     >"$tmp_dir/ordago.out"
@@ -188,23 +188,23 @@ grep -q 'cambiar_' "$tmp_dir/ordago-strategy.txt"
 # Exercises repeated hidden histories while another worker updates their
 # shared information sets. C-CFR must retain one strategy snapshot per
 # traversal instead of mixing a cached action with a later distribution.
-"$solver" --format ordago --iterations 10 --threads 2 --seed 0 \
+"$solver" --format ordago-deprecated --iterations 10 --threads 2 --seed 0 \
     --report-every 10 >"$tmp_dir/ordago-concurrent-snapshot.out"
 grep -q 'report iterations=10 threads=2' \
     "$tmp_dir/ordago-concurrent-snapshot.out"
 
-"$solver" --format ordago --load "$tmp_dir/ordago.cfr" --evaluate \
+"$solver" --format ordago-deprecated --load "$tmp_dir/ordago.cfr" --evaluate \
     >"$tmp_dir/ordago-evaluate.out"
 grep -q 'evaluation scope=bounded-final-lances iterations=2' \
     "$tmp_dir/ordago-evaluate.out"
 
-if "$solver" --load "$tmp_dir/raises.cfr" --iterations 1 \
+if "$solver" --format single-bet --load "$tmp_dir/raises.cfr" --iterations 1 \
     >"$tmp_dir/wrong-format.out" 2>"$tmp_dir/wrong-format.err"; then
     echo "cargar raises-to-eight como single-bet debio fallar" >&2
     exit 1
 fi
 
-if "$solver" --load "$tmp_dir/continuous.cfr" --iterations 1 \
+if "$solver" --format single-bet --load "$tmp_dir/continuous.cfr" --iterations 1 \
     --export-strategy "$tmp_dir/strategy.txt" \
     >"$tmp_dir/overwrite.out" 2>"$tmp_dir/overwrite.err"; then
     echo "sobrescribir una exportacion debio fallar" >&2
@@ -270,15 +270,15 @@ if "$solver" --format ordago-score --target 3 --score 3:0 \
     echo "un marcador inicial terminal debio fallar" >&2
     exit 1
 fi
-if "$solver" --format ordago --score 0:0 --iterations 1 \
+if "$solver" --format ordago-deprecated --score 0:0 --iterations 1 \
     >"$tmp_dir/score-old-format.out" 2>"$tmp_dir/score-old-format.err"; then
     echo "las opciones de marcador requieren ordago-score" >&2
     exit 1
 fi
 # Transfer the same source policy from plain and compressed checkpoints.
-"$solver" --format ordago --iterations 2 --seed 48 --reserve-information-sets 256 \
+"$solver" --format ordago-deprecated --iterations 2 --seed 48 --reserve-information-sets 256 \
     --save "$tmp_dir/prior.cfr" >"$tmp_dir/prior.out"
-"$solver" --format ordago --iterations 2 --seed 48 --reserve-information-sets 256 \
+"$solver" --format ordago-deprecated --iterations 2 --seed 48 --reserve-information-sets 256 \
     --save-compressed "$tmp_dir/prior.cfr.zst" >"$tmp_dir/prior-zstd.out"
 cp "$tmp_dir/prior.cfr" "$tmp_dir/prior-preserved.cfr"
 "$solver" --format ordago-score --target 3 --score 1:1 --iterations 2 --seed 7 \
@@ -340,7 +340,7 @@ for weight in 0 -1 nan inf 1e999; do
         exit 1
     fi
 done
-if "$solver" --format ordago --iterations 1 --preload-ordago "$tmp_dir/prior.cfr" \
+if "$solver" --format ordago-deprecated --iterations 1 --preload-ordago "$tmp_dir/prior.cfr" \
     >"$tmp_dir/preload-old.out" 2>"$tmp_dir/preload-old.err"; then
     echo "la precarga requiere ordago-score" >&2
     exit 1
@@ -595,37 +595,57 @@ if "$solver" --format ordago-score --target 3 --continuation "$tmp_dir/score" \
 fi
 
 # The public isolated-hand schema must resume, export, and reject legacy data.
-"$solver" --format ordago-public --iterations 10 --seed 7 \
+"$solver" --format ordago --iterations 10 --seed 7 \
     --save "$tmp_dir/public.cfr" >"$tmp_dir/public.out"
 "$solver" --format ordago-public --load "$tmp_dir/public.cfr" --iterations 10 \
     --save-compressed "$tmp_dir/public-resumed.zst" >"$tmp_dir/public-resumed.out"
-"$solver" --format ordago-public --iterations 20 --seed 7 \
+"$solver" --format ordago --iterations 20 --seed 7 \
     --save-compressed "$tmp_dir/public-continuous.zst" >"$tmp_dir/public-continuous.out"
 cmp "$tmp_dir/public-resumed.zst" "$tmp_dir/public-continuous.zst"
-"$solver" --format ordago-public --load-compressed "$tmp_dir/public-resumed.zst" \
+"$solver" --format ordago --load-compressed "$tmp_dir/public-resumed.zst" \
     --evaluate --export-strategy "$tmp_dir/public.txt" >"$tmp_dir/public-eval.out"
 grep -q 'scope=bounded-final-lances' "$tmp_dir/public-eval.out"
 grep -q 'schema=mus.heads-up-single-hand.ordago-public/v1-muses-' "$tmp_dir/public.txt"
 grep -q 'maximo_pagado=' "$tmp_dir/public.txt"
 grep -q 'envites_pendientes=' "$tmp_dir/public.txt"
-"$solver" --format ordago --iterations 10 --seed 7 --save "$tmp_dir/legacy.cfr" >"$tmp_dir/legacy.out"
-if "$solver" --format ordago --load "$tmp_dir/public.cfr" --iterations 1 >"$tmp_dir/wrong.out" 2>"$tmp_dir/wrong.err"; then
-    echo 'ordago accepted a public checkpoint' >&2; exit 1
+# The default and public alias select the same game and preserve its checkpoint.
+"$solver" --iterations 20 --seed 7 --save-compressed "$tmp_dir/default-public.zst" >"$tmp_dir/default-public.out"
+cmp "$tmp_dir/default-public.zst" "$tmp_dir/public-continuous.zst"
+"$solver" --load "$tmp_dir/public.cfr" --iterations 10 \
+    --save-compressed "$tmp_dir/default-resumed.zst" >"$tmp_dir/default-resumed.out"
+cmp "$tmp_dir/default-resumed.zst" "$tmp_dir/public-continuous.zst"
+"$solver" --format ordago-public --iterations 20 --seed 7 \
+    --save-compressed "$tmp_dir/public-alias.zst" >"$tmp_dir/public-alias.out"
+cmp "$tmp_dir/public-alias.zst" "$tmp_dir/public-continuous.zst"
+
+"$solver" --format ordago-deprecated --iterations 10 --seed 7 --save "$tmp_dir/legacy.cfr" >"$tmp_dir/legacy.out"
+"$solver" --format ordago-deprecated --load "$tmp_dir/legacy.cfr" --iterations 1 \
+    --save "$tmp_dir/legacy-deprecated.cfr" >"$tmp_dir/legacy-deprecated.out"
+"$solver" --format ordago-deprecated --iterations 11 --seed 7 \
+    --save "$tmp_dir/legacy-continuous.cfr" >"$tmp_dir/legacy-continuous.out"
+cmp "$tmp_dir/legacy-deprecated.cfr" "$tmp_dir/legacy-continuous.cfr"
+if "$solver" --format ordago-deprecated --load "$tmp_dir/public.cfr" --iterations 1 >"$tmp_dir/wrong.out" 2>"$tmp_dir/wrong.err"; then
+    echo 'ordago-deprecated accepted a public checkpoint' >&2; exit 1
 fi
-if "$solver" --format ordago-public --load "$tmp_dir/legacy.cfr" --iterations 1 >"$tmp_dir/wrong.out" 2>"$tmp_dir/wrong.err"; then
-    echo 'ordago-public accepted a legacy checkpoint' >&2; exit 1
+for format in ordago ordago-public; do
+    if "$solver" --format "$format" --load "$tmp_dir/legacy.cfr" --iterations 1 >"$tmp_dir/wrong.out" 2>"$tmp_dir/wrong.err"; then
+        echo "$format accepted a deprecated checkpoint" >&2; exit 1
+    fi
+done
+if "$solver" --load "$tmp_dir/legacy.cfr" --iterations 1 >"$tmp_dir/wrong.out" 2>"$tmp_dir/wrong.err"; then
+    echo 'The default format accepted a deprecated checkpoint' >&2; exit 1
 fi
 
-"$solver" --format ordago-public --iterations 12 --threads 2 --seed 7 \
+"$solver" --format ordago --iterations 12 --threads 2 --seed 7 \
     --save "$tmp_dir/public-parallel.cfr" >"$tmp_dir/public-parallel.out"
 grep -q 'report iterations=12 threads=2' "$tmp_dir/public-parallel.out"
-"$solver" --format ordago-public --load "$tmp_dir/public-parallel.cfr" \
+"$solver" --format ordago --load "$tmp_dir/public-parallel.cfr" \
     --iterations 2 --threads 2 >"$tmp_dir/public-parallel-resumed.out"
 grep -q 'report iterations=14 threads=2' "$tmp_dir/public-parallel-resumed.out"
 
 # Both public checkpoint encodings seed all score lances without changing the source.
 cp "$tmp_dir/public.cfr" "$tmp_dir/public-preserved.cfr"
-"$solver" --format ordago-public --iterations 10 --seed 7 \
+"$solver" --format ordago --iterations 10 --seed 7 \
     --save-compressed "$tmp_dir/public-prior.zst" >"$tmp_dir/public-prior.out"
 "$solver" --format ordago-score --target 3 --iterations 2 --seed 7 \
     --evaluation-samples 20 --continuation "$tmp_dir/public-score" \

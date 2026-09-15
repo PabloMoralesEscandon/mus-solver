@@ -291,7 +291,7 @@ static json_object *decision_json(const MusAdapterDecision *d) {
                            json_object_new_boolean(d->score_proxy));
     json_object_object_add(diagnostic, "strategy",
                            json_object_new_string(d->score_strategy ? "ordago-score"
-                               : d->public_strategy ? "ordago-public" : "ordago"));
+                               : d->public_strategy ? "ordago" : "ordago-deprecated"));
     json_object_object_add(diagnostic, "strategy_reason",
                            json_object_new_string(d->strategy_reason));
     json_object *scores = NULL;
@@ -375,10 +375,12 @@ int main(int argc, char **argv) {
                  "       mus-bot --load-compressed FILE [--seed N] "
                  "[--no-score-adjustment]\n"
                  "       mus-bot --load FILE [--seed N] [--no-score-adjustment]\n"
+                 "Use an ordago policy for new training (formerly ordago-public).\n"
+                 "Historical ordago policies (ordago-deprecated) remain supported.\n"
                  "Add --score-table values.txt --score-strategies DIR for hybrid play.\n"
                  "Hybrid observations require hand_start_scores. Trained betting\n"
                  "observations also require pending_wager_total.\n"
-                 "An ordago-public generic policy also requires these fields.\n"
+                 "An ordago generic policy also requires these fields.\n"
                  "Read one observation per JSON line. Write one decision per JSON "
                  "line.\n"
                  "The maximum input line length is 1 MiB. See docs/adapter.md.");

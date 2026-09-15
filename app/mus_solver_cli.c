@@ -36,7 +36,7 @@ enum { EXIT_RUNTIME_ERROR = 1, EXIT_USAGE_ERROR = 2 };
 typedef enum {
     CLI_FORMAT_SINGLE_BET,
     CLI_FORMAT_RAISES_TO_EIGHT,
-    CLI_FORMAT_ORDAGO,
+    CLI_FORMAT_ORDAGO_DEPRECATED,
     CLI_FORMAT_ORDAGO_PUBLIC,
     CLI_FORMAT_ORDAGO_SCORE,
     CLI_FORMAT_ORDAGO_SCORE_FOUR
@@ -122,18 +122,20 @@ static bool print_usage(FILE *stream, const char *program) {
                "                          score (1 por defecto).\n"
                "  --seed N               Semilla de un entrenamiento nuevo (0 por "
                "defecto).\n"
-               "  --format FORMAT        single-bet (por defecto) o "
-               "raises-to-eight, ordago, ordago-public, ordago-score\n"
-               "                          u ordago-score-four (parejas 0/2 y 1/3).\n"
+               "  --format FORMAT        ordago: mano aislada (por defecto).\n"
+               "                          ordago-score: marcador, dos jugadores.\n"
+               "                          ordago-score-four: marcador, parejas 0/2 y 1/3.\n"
+               "                          ordago-deprecated: estrategias historicas.\n"
+               "                          ordago-public: alias compatible de ordago.\n"
+               "                          single-bet y raises-to-eight: modelos reducidos.\n"
                "  --reserve-information-sets N\n"
-               "                          Sustituye la reserva automatica de "
-               "ordago.\n"
+               "                          Reserva capacidad para N conjuntos de informacion.\n"
                "  --load FILE            Carga un checkpoint reanudable.\n"
                "  --load-compressed FILE Carga un checkpoint Zstandard.\n"
                "  --save FILE            Guarda el checkpoint tras entrenar.\n"
                "  --save-compressed FILE Guarda un checkpoint Zstandard nivel 1.\n"
-               "  --evaluate             Evalua la estrategia media; ordago usa "
-               "un diagnostico acotado.\n"
+               "  --evaluate             Evalua la estrategia media. ordago y\n"
+               "                          ordago-deprecated usan un diagnostico acotado.\n"
                "  --export-strategy FILE Exporta la estrategia con etiquetas de "
                "mus.\n"
                "  --continuation DIR     Tabla y checkpoints de una version score.\n"
@@ -156,7 +158,7 @@ static bool print_usage(FILE *stream, const char *program) {
                "                          al checkpoint del marcador elegido.\n"
                "                          Requiere --save[-compressed] fuera de DIR;\n"
                "                          conserva values.txt y admite --report-every.\n"
-               "  --preload-ordago FILE   Precarga ordago u ordago-public.\n"
+               "  --preload-ordago FILE   Precarga ordago u ordago-deprecated.\n"
                "  --preload-ordago-compressed FILE\n"
                "                          Precarga desde un checkpoint Zstandard.\n"
                "  --preload-weight X     Peso inicial por nodo (1 por defecto).\n"
@@ -237,7 +239,7 @@ static bool option_value(int argc, char *argv[], int *index,
 }
 
 static bool parse_options(int argc, char *argv[], CliOptions *options) {
-    *options = (CliOptions){.threads = 1, .threads_per_cell = 1, .score_target = 40,
+    *options = (CliOptions){.format = CLI_FORMAT_ORDAGO_PUBLIC, .threads = 1, .threads_per_cell = 1, .score_target = 40,
                             .evaluation_samples = 10000,
                             .preload_weight = MUS_SCORE_PRELOAD_DEFAULT_WEIGHT};
     for (int index = 1; index < argc; index += 1) {
@@ -301,10 +303,11 @@ static bool parse_options(int argc, char *argv[], CliOptions *options) {
                 options->format = CLI_FORMAT_ORDAGO_SCORE_FOUR;
             } else if (strcmp(value, "ordago-score") == 0) {
                 options->format = CLI_FORMAT_ORDAGO_SCORE;
-            } else if (strcmp(value, "ordago-public") == 0) {
+            } else if (strcmp(value, "ordago") == 0 ||
+                       strcmp(value, "ordago-public") == 0) {
                 options->format = CLI_FORMAT_ORDAGO_PUBLIC;
-            } else if (strcmp(value, "ordago") == 0) {
-                options->format = CLI_FORMAT_ORDAGO;
+            } else if (strcmp(value, "ordago-deprecated") == 0) {
+                options->format = CLI_FORMAT_ORDAGO_DEPRECATED;
             } else {
                 return false;
             }
@@ -499,7 +502,7 @@ static const char *status_name(Status status) {
 
 static size_t automatic_information_set_reservation(
     const CliOptions *options) {
-    if ((options->format != CLI_FORMAT_ORDAGO &&
+    if ((options->format != CLI_FORMAT_ORDAGO_DEPRECATED &&
          options->format != CLI_FORMAT_ORDAGO_PUBLIC) ||
         !options->iterations_set || options->load_path != NULL) {
         return 0;
@@ -591,7 +594,7 @@ static Status export_strategy(const char *path, const Trainer *trainer,
         status = mus_raises_to_eight_strategy_write_text(stream, trainer);
     } else if (format == CLI_FORMAT_ORDAGO_PUBLIC) {
         status = mus_ordago_public_strategy_write_text(stream, trainer);
-    } else if (format == CLI_FORMAT_ORDAGO) {
+    } else if (format == CLI_FORMAT_ORDAGO_DEPRECATED) {
         status = mus_ordago_strategy_write_text(stream, trainer);
     } else {
         status = mus_single_bet_strategy_write_text(stream, trainer);
@@ -626,7 +629,7 @@ static bool print_report(const Trainer *trainer, size_t thread_count,
 
 static bool print_evaluation(size_t iterations, CliFormat format,
                              const EvaluationMetrics *metrics) {
-    const bool fixed_deals = format == CLI_FORMAT_ORDAGO || format == CLI_FORMAT_ORDAGO_PUBLIC;
+    const bool fixed_deals = format == CLI_FORMAT_ORDAGO_DEPRECATED || format == CLI_FORMAT_ORDAGO_PUBLIC;
     return printf(
                "evaluation scope=%s iterations=%zu "
                "profile_value_player_0=%.17g "
@@ -1646,7 +1649,7 @@ static int run(const CliOptions *options) {
         game = mus_raises_to_eight_game_descriptor();
     } else if (options->format == CLI_FORMAT_ORDAGO_PUBLIC) {
         game = mus_ordago_public_game_descriptor();
-    } else if (options->format == CLI_FORMAT_ORDAGO) {
+    } else if (options->format == CLI_FORMAT_ORDAGO_DEPRECATED) {
         game = mus_ordago_game_descriptor();
     } else {
         game = mus_single_bet_game_descriptor();
@@ -1660,7 +1663,7 @@ static int run(const CliOptions *options) {
         status = mus_raises_to_eight_game_state_init(state);
     } else if (options->format == CLI_FORMAT_ORDAGO_PUBLIC) {
         status = mus_ordago_public_game_state_init(state);
-    } else if (options->format == CLI_FORMAT_ORDAGO) {
+    } else if (options->format == CLI_FORMAT_ORDAGO_DEPRECATED) {
         status = mus_ordago_game_state_init(state);
     } else {
         status = mus_single_bet_game_state_init(state);
@@ -1743,7 +1746,7 @@ static int run(const CliOptions *options) {
                                                              &metrics);
         } else if (options->format == CLI_FORMAT_ORDAGO_PUBLIC) {
             status = mus_ordago_public_evaluation_metrics(&store, &metrics);
-        } else if (options->format == CLI_FORMAT_ORDAGO) {
+        } else if (options->format == CLI_FORMAT_ORDAGO_DEPRECATED) {
             status = mus_ordago_evaluation_metrics(&store, &metrics);
         } else {
             status = mus_single_bet_evaluation_metrics(&store, &metrics);
