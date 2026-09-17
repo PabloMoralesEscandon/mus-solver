@@ -4,9 +4,10 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import zlib
 
 SOLVER = str(Path(sys.argv[1]).resolve())
-SCHEMA = 'mus.four-partnership-single-hand.ordago/v1-muses-'
+SCHEMA = 'mus.four-partnership-single-hand.ordago/v2-muses-'
 
 
 def run(args, success=True, format='ordago-four'):
@@ -53,6 +54,15 @@ with tempfile.TemporaryDirectory(prefix='mus-four-single-') as temporary:
     run(['--load', first, '--iterations', '2', '--save', resumed])
     run(['--iterations', '4', '--seed', '7', '--save', whole])
     assert resumed.read_bytes() == whole.read_bytes()
+    # The previous per-seat allowance rules are incompatible with team allowances.
+    checkpoint = whole.read_bytes()
+    assert checkpoint.count(SCHEMA.encode()) == 1
+    assert zlib.crc32(checkpoint[:-4]) == int.from_bytes(checkpoint[-4:], 'little')
+    previous_payload = checkpoint[:-4].replace(SCHEMA.encode(), SCHEMA.replace('/v2-', '/v1-').encode())
+    previous = root / 'previous-rules.cfr'
+    previous.write_bytes(previous_payload + zlib.crc32(previous_payload).to_bytes(4, 'little'))
+    result = run(['--load', previous, '--evaluate', '--evaluation-samples', '2'], False)
+    assert 'incompatible game' in result.stderr
     run(['--iterations', '4', '--seed', '7', '--save-compressed', compressed])
     exported_plain, exported_compressed = root / 'plain.txt', root / 'compressed.txt'
     run(['--load', whole, '--export-strategy', exported_plain])

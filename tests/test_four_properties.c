@@ -523,6 +523,7 @@ static void oracle_action(ScoreOracle *oracle, Action action) {
     const int total = (wager->estado == ENVITE_AL_PASO ? 0 : wager->cantidad) + increment;
     CHECK(envidarMus(wager, team, total) == 0);
     CHECK((oracle->used_wager_action_masks[seat] & allowance) == 0);
+    CHECK((oracle->used_wager_action_masks[(seat + 2) % 4] & allowance) == 0);
     oracle->used_wager_action_masks[seat] |= (uint8_t)allowance;
     oracle->bettor = seat;
     ++oracle->offers;
@@ -882,11 +883,11 @@ static void chained_response_examples(MusScoreTable *table) {
         {0, MUS_ACTION_BET_TWO,  0, 1,  2, { 1,0,0,0}},
         {1, MUS_ACTION_BET_TWO,  0, 3,  2, { 1,0,0,0}},
         {3, MUS_ACTION_BET_TWO,  1, 2,  4, { 1,1,0,0}},
-        {2, MUS_ACTION_BET_TWO,  1, 0,  4, { 1,1,0,0}},
+        {2, MUS_ACTION_ACCEPT,   1, 0,  4, { 1,1,0,0}},
         {0, MUS_ACTION_BET_FOUR, 0, 1,  8, { 3,1,0,0}},
         {1, MUS_ACTION_BET_FOUR, 0, 3,  8, { 3,1,0,0}},
         {3, MUS_ACTION_BET_FOUR, 1, 2, 12, { 3,3,0,0}},
-        {2, MUS_ACTION_BET_FOUR, 1, 0, 12, { 3,3,0,0}},
+        {2, MUS_ACTION_ACCEPT,   1, 0, 12, { 3,3,0,0}},
         {0, MUS_ACTION_BET_TEN,  0, 1, 22, {11,3,0,0}},
         {1, MUS_ACTION_ORDAGO,   0, 3, 22, {11,3,0,0}},
         {3, MUS_ACTION_ACCEPT,   1, 2, 40, {11,3,0,0}},
@@ -927,12 +928,12 @@ static void chained_response_examples(MusScoreTable *table) {
             CHECK(memcmp(oracle.used_wager_action_masks, reply->masks, sizeof(reply->masks)) == 0);
             CHECK(state->model.current_wager == reply->wager);
             CHECK(oracle.finished == (step + 1 == counts[script]));
-            if (script == 0 && step == 2) CHECK(menu_has(&game, state, MUS_ACTION_BET_TWO));
+            if (script == 0 && step == 2) CHECK(!menu_has(&game, state, MUS_ACTION_BET_TWO));
             if (script == 0 && step == 3) {
                 CHECK(!menu_has(&game, state, MUS_ACTION_BET_TWO));
                 CHECK(menu_has(&game, state, MUS_ACTION_BET_FOUR));
             }
-            if (script == 0 && step == 6) CHECK(menu_has(&game, state, MUS_ACTION_BET_FOUR));
+            if (script == 0 && step == 6) CHECK(!menu_has(&game, state, MUS_ACTION_BET_FOUR));
             if (script == 0 && step == 7) {
                 CHECK(!menu_has(&game, state, MUS_ACTION_BET_FOUR));
                 CHECK(menu_has(&game, state, MUS_ACTION_BET_TEN));
@@ -1043,25 +1044,24 @@ static void joint_response_examples(MusScoreTable *table) {
         }
     }
 
-    /* Four successive +2 offers consume one allowance per seat. Both
-     * teammates can still propose +4 for the fifth offer; only the winning
-     * proposal consumes that final shared slot and its owner's allowance. */
+    /* Each team can use +2 and +4 once. Both teammates can propose +10
+     * for the fifth offer; only the selected proposal consumes that slot. */
     deal(&game, state, hands);
     apply(&game, state, MUS_ACTION_NO_MUS);
     apply(&game, state, MUS_ACTION_BET_TWO);
     for (unsigned int bidder = 1; bidder < 4; ++bidder) {
         CHECK(state->model.current_player == bidder);
-        apply(&game, state, MUS_ACTION_BET_TWO);
+        apply(&game, state, bidder == 1 ? MUS_ACTION_BET_TWO : MUS_ACTION_BET_FOUR);
         apply(&game, state, MUS_ACTION_REJECT);
         CHECK(state->model.bettor == bidder);
     }
-    CHECK(state->model.current_wager == 8 && state->model.current_player == 0);
-    apply(&game, state, MUS_ACTION_BET_FOUR);
-    CHECK(menu_has(&game, state, MUS_ACTION_BET_FOUR));
-    apply(&game, state, MUS_ACTION_BET_FOUR);
-    CHECK(state->model.current_wager == 12 && state->model.bettor == 0);
-    CHECK(state->model.used_wager_action_masks[0] == 3);
-    CHECK(state->model.used_wager_action_masks[2] == 1);
+    CHECK(state->model.current_wager == 12 && state->model.current_player == 0);
+    apply(&game, state, MUS_ACTION_BET_TEN);
+    CHECK(menu_has(&game, state, MUS_ACTION_BET_TEN));
+    apply(&game, state, MUS_ACTION_BET_TEN);
+    CHECK(state->model.current_wager == 22 && state->model.bettor == 0);
+    CHECK(state->model.used_wager_action_masks[0] == 9);
+    CHECK(state->model.used_wager_action_masks[2] == 2);
     CHECK(!menu_has(&game, state, MUS_ACTION_BET_FOUR));
     CHECK(!menu_has(&game, state, MUS_ACTION_BET_TEN));
     CHECK(menu_has(&game, state, MUS_ACTION_ORDAGO));
@@ -1302,9 +1302,106 @@ static void single_hand_examples(MusScoreTable *table) {
     free(state);
 }
 
+static void shared_wager_allowance_examples(MusScoreTable *table) {
+    static const uint8_t hands[4][8] = {
+        {4,0,0,0,0,0,0,0}, {0,0,0,0,0,0,0,4},
+        {0,4,0,0,0,0,0,0}, {0,0,4,0,0,0,0,0}};
+    static const Action wagers[] = {MUS_ACTION_BET_TWO, MUS_ACTION_BET_FOUR, MUS_ACTION_BET_TEN};
+    static const uint8_t amounts[] = {2, 4, 10};
+    static const uint8_t masks[] = {1, 2, 8};
+    static const uint8_t proposals[] = {
+        MUS_FOUR_RESPONSE_BET_TWO, MUS_FOUR_RESPONSE_BET_FOUR, MUS_FOUR_RESPONSE_BET_TEN};
+    MusScoreGame games[2] = {{.game = *mus_four_game_descriptor()}};
+    CHECK(mus_score_game_init(&games[1], table, 0, 0) == CFR_STATUS_SUCCESS);
+    MusFourGameState *state = malloc(sizeof(*state));
+    MusFourGameState *other = malloc(sizeof(*other));
+    CHECK(state != NULL && other != NULL);
+    for (unsigned int format = 0; format < 2; ++format) {
+        const MusScoreGame *game = &games[format];
+        for (unsigned int phase = MUS_FOUR_PHASE_GRANDE; phase <= MUS_FOUR_PHASE_PARES; ++phase) {
+            for (unsigned int opener = 0; opener < 4; ++opener) {
+                for (unsigned int w = 0; w < 3; ++w) {
+                    if (format == 0) {
+                        CHECK(mus_four_game_state_init(state) == CFR_STATUS_SUCCESS);
+                        for (unsigned int p = 0; p < 4; ++p)
+                            for (unsigned int c = 0; c < 8; ++c)
+                                for (unsigned int n = 0; n < hands[p][c]; ++n)
+                                    apply(game, state, (Action)c);
+                    } else {
+                        deal(game, state, hands);
+                    }
+                    apply(game, state, MUS_ACTION_NO_MUS);
+                    while (state->model.phase < phase) single_pass(game, state);
+                    CHECK(state->model.phase == phase);
+                    for (unsigned int p = 0; p < opener; ++p) apply(game, state, MUS_ACTION_PASS);
+                    apply(game, state, wagers[w]);
+                    /* The opponents can use the same increment. Both proposals
+                     * remain legal until the team's response is resolved. */
+                    CHECK(menu_has(game, state, wagers[w]));
+                    apply(game, state, wagers[w]);
+                    CHECK(menu_has(game, state, wagers[w]));
+                    apply(game, state, MUS_ACTION_REJECT);
+                    CHECK(state->model.current_wager == 2 * amounts[w]);
+                    const unsigned int partner = (opener + 2) % 4;
+                    CHECK(state->model.current_player == partner);
+                    CHECK(state->model.used_wager_action_masks[partner] == 0);
+                    CHECK(state->model.used_wager_action_masks[opener] == masks[w]);
+                    /* A history with a third use by the opener's teammate
+                     * cannot represent an information set under these rules. */
+                    const MusFourGameModel before = state->model;
+                    state->model.used_wager_action_masks[partner] = masks[w];
+                    state->model.previous_wager = (uint8_t)(2 * amounts[w]);
+                    state->model.current_wager = (uint8_t)(3 * amounts[w]);
+                    state->model.bettor = (uint8_t)partner;
+                    state->model.current_player = (uint8_t)((partner + 1) % 4);
+                    state->model.last_response_player = (uint8_t)partner;
+                    state->model.last_responses[0] = proposals[w];
+                    state->model.last_responses[1] = MUS_FOUR_RESPONSE_REJECT;
+                    CHECK(cfr_game_validate_state(&game->game, raw(state)) == CFR_STATUS_INVALID_ARGUMENT);
+                    InfoSetKey key = 123;
+                    CHECK(cfr_game_information_set_key(&game->game, raw(state), &key) ==
+                          CFR_STATUS_INVALID_ARGUMENT);
+                    CHECK(key == 123);
+                    state->model = before;
+                    for (unsigned int reply = 0; reply < 2; ++reply) {
+                        CHECK(state->model.current_player == (reply == 0 ? partner : opener));
+                        CHECK(!menu_has(game, state, wagers[w]));
+                        CHECK(menu_has(game, state, MUS_ACTION_ORDAGO));
+                        check_information(game, state, other);
+                        memcpy(other, state, sizeof(*state));
+                        CHECK(cfr_game_apply_action(&game->game, raw(state), wagers[w]) ==
+                              CFR_STATUS_ILLEGAL_ACTION);
+                        CHECK(memcmp(other, state, sizeof(*state)) == 0);
+                        CHECK(game->game.trusted_operations->apply_action(
+                                  game->game.context, raw(state), wagers[w]) == CFR_STATUS_ILLEGAL_ACTION);
+                        CHECK(memcmp(other, state, sizeof(*state)) == 0);
+                        if (reply == 1) {
+                            /* A pending proposal cannot reuse the team's increment. */
+                            state->model.pending_response = proposals[w];
+                            CHECK(cfr_game_validate_state(&game->game, raw(state)) ==
+                                  CFR_STATUS_INVALID_ARGUMENT);
+                            state->model = other->model;
+                        }
+                        apply(game, state, MUS_ACTION_REJECT);
+                    }
+                    CHECK(state->model.phase != phase);
+                    /* Starting the next lance restores both teams' allowances. */
+                    for (unsigned int p = 0; p < 4; ++p)
+                        CHECK(state->model.used_wager_action_masks[p] == 0);
+                    if (state->model.phase != MUS_FOUR_PHASE_TERMINAL)
+                        CHECK(menu_has(game, state, wagers[w]));
+                }
+            }
+        }
+    }
+    free(other);
+    free(state);
+}
+
 int main(void) {
     MusScoreTable table;
     init_table(&table);
+    shared_wager_allowance_examples(&table);
     rule_examples(&table);
     joint_response_examples(&table);
     chained_response_examples(&table);

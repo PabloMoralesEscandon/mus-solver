@@ -28,8 +28,10 @@ querer, subir 2, 4 o 10, o lanzar órdago. También se puede abrir con órdago.
 Las cantidades son **incrementos**: `+2 → +2 → +4` deja 8 tantos en juego.
 
 Cada respuesta numérica debe ser igual o mayor que el incremento anterior.
-Cada jugador puede usar cada incremento solo una vez por lance, y hay como
-máximo cinco envites numéricos, incluida la apertura. Después aún se puede
+En dos jugadores, cada jugador puede usar cada incremento solo una vez por lance.
+En cuatro jugadores, este límite es por pareja: si lo ejecuta uno de sus miembros,
+ninguno de los dos puede repetirlo en ese lance. Hay como máximo cinco envites
+numéricos, incluida la apertura. Después aún se puede
 querer, no querer o lanzar órdago. Son restricciones de la abstracción del
 solver; un motor externo puede ofrecer otras cantidades al bot.
 
@@ -134,7 +136,7 @@ conversión ni reentrenamiento. `ordago-public` sigue siendo un alias del actual
 | Variante | Esquema de mano aislada, con un mus cuando corresponde |
 |---|---|
 | `ordago` | `mus.heads-up-single-hand.ordago-public/v1-muses-1` |
-| `ordago-four` | `mus.four-partnership-single-hand.ordago/v1-muses-1` |
+| `ordago-four` | `mus.four-partnership-single-hand.ordago/v2-muses-1` |
 | `ordago-simplified` | `mus.heads-up-single-hand.ordago-simplified/v1-muses-1` |
 | `ordago-four-simplified` | `mus.four-partnership-single-hand.ordago-simplified/v1-muses-1` |
 | `ordago-deprecated` | `mus.heads-up-single-hand.ordago-with-mus/v9-muses-1` |

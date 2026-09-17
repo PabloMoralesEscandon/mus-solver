@@ -197,6 +197,8 @@ static void walk_betting_phase(const MusScoreGame *game, MusFourGameState *state
           CFR_STATUS_SUCCESS);
     CHECK(count == decoded_count);
     CHECK(memcmp(actions, decoded_actions, count * sizeof(Action)) == 0);
+    CHECK((observation.used_wager_action_masks[0] & observation.used_wager_action_masks[2]) == 0);
+    CHECK((observation.used_wager_action_masks[1] & observation.used_wager_action_masks[3]) == 0);
     unsigned int mask = 0;
     for (unsigned int p = 0; p < 4; ++p)
         mask |= (unsigned int)observation.used_wager_action_masks[p] << (4U * p);
@@ -446,7 +448,7 @@ static void test_reachable_betting_keys(void) {
     size_t masks = 0;
     for (size_t mask = 0; mask < sizeof(wager_masks) / sizeof(wager_masks[0]); ++mask)
         masks += wager_masks[mask] ? 1U : 0U;
-    CHECK(masks == 755);
+    CHECK(masks == 525);
     CHECK(betting_observations > 60000);
     CHECK(betting_expansions < betting_observations);
     printf("Four-player keys passed: %zu exact hands, %zu betting observations, "

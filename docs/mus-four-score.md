@@ -44,7 +44,8 @@ el signo opuesto. No hay cuatro marcadores independientes.
 Se mantienen grande, chica, pares y juego o punto; las equivalencias de la
 baraja de 40 cartas; las aperturas de 2, 4, 7, 10 u órdago; las subidas
 aditivas de 2, 4 o 10; el límite de cinco envites numéricos y la prohibición
-de que un jugador repita el mismo incremento en un lance. La cota numérica
+de que una pareja repita el mismo incremento en un lance, aunque lo haya usado
+el otro compañero. La pareja rival puede usar ese incremento una vez. La cota numérica
 conserva la regla de la versión score: mayor marcador público, más envites
 aceptados pendientes, más envite activo y nuevo incremento, debe ser menor
 que 40. En la mano aislada, el marcador público contiene únicamente los cobros
@@ -82,10 +83,11 @@ el historial de propuestas ni ofrece memoria perfecta.
 
 Ambos responden al mismo envite activo; una propuesta pendiente no aumenta
 todavía la apuesta ni consume un incremento. Solo la respuesta ejecutada
-consume el incremento del jugador que la propuso y cuenta para el límite de
+consume el incremento para toda su pareja y cuenta para el límite de
 cinco envites numéricos. Si las respuestas empatan, prevalece la del primero.
-Cada jugador conserva sus propias restricciones de incrementos usados. Si solo
-un miembro de la pareja es elegible para el lance, su respuesta se ejecuta
+El registro conserva quién ejecutó cada incremento, pero ambos compañeros
+comparten la restricción. Se restablecen los incrementos al empezar cada lance.
+Si solo un miembro de la pareja es elegible para el lance, su respuesta se ejecuta
 inmediatamente. Las aperturas se deciden por turno.
 Las funciones de comparación de manos y tanteo de `Simulador-Mus` se usan como
 referencia independiente; su negociador no implementa esta regla de respuestas.

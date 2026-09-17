@@ -17,8 +17,8 @@ static const Action wager_actions[4] = {
 };
 static const uint8_t game_values[8] = {33, 34, 35, 36, 37, 40, 32, 31};
 
-/* Rank only reachable masks. Raising increments never decrease. Each seat
- * uses an increment once, teams alternate, and the numeric total is < 40. */
+/* Keep the original per-seat mask ranks so existing simplified keys stay
+ * unchanged. Team-level reuse restrictions are checked separately. */
 #define MASK_RADIX 755
 #define PHASE_RADIX 16993
 #define RESPONSE_STAGE_RADIX 8
@@ -480,11 +480,13 @@ static Status observation_menu(const MusFourInformationSet *o,
         : o->previous_wager == 1 ? o->current_wager
                                 : o->current_wager - o->previous_wager;
     const unsigned int count_used = bit_count(all_masks(o->used_wager_action_masks));
+    const unsigned int team_used = o->used_wager_action_masks[o->player] |
+                                   o->used_wager_action_masks[(o->player + 2U) % 4];
     for (unsigned int i = 0; i < 4; ++i)
         if (count_used < MUS_ORDAGO_MAX_NUMERIC_WAGERS &&
             (!response || increments[i] != 7) &&
             increments[i] >= minimum &&
-            (o->used_wager_action_masks[o->player] & (1U << i)) == 0 &&
+            (team_used & (1U << i)) == 0 &&
             max_score + o->prior_wager_total + o->current_wager + increments[i] < 40)
             actions[(*count)++] = wager_actions[i];
     actions[(*count)++] = MUS_ACTION_ORDAGO;
@@ -883,6 +885,9 @@ static Status information_set_encode(
     for (unsigned int p = 0; p < 4; ++p)
         if (o->used_wager_action_masks[p] >= 16)
             return CFR_STATUS_INVALID_ARGUMENT;
+    if ((o->used_wager_action_masks[0] & o->used_wager_action_masks[2]) != 0 ||
+        (o->used_wager_action_masks[1] & o->used_wager_action_masks[3]) != 0)
+        return CFR_STATUS_INVALID_ARGUMENT;
     const unsigned int mask = all_masks(o->used_wager_action_masks);
     if (mask_codes[mask] == 0 || mask_codes[mask] > MASK_RADIX)
         return CFR_STATUS_INVALID_ARGUMENT;

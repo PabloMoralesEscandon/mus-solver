@@ -6,11 +6,11 @@
 #define MUS_FOUR_PLAYER_COUNT 4
 #define MUS_FOUR_UNDO_CAPACITY 256
 #if MUS_GAME_MAX_MUSES == 1
-#define MUS_FOUR_STRATEGY_SCHEMA_ID "mus.four-partnership-score/v3-muses-1"
-#define MUS_FOUR_SINGLE_HAND_STRATEGY_SCHEMA_ID "mus.four-partnership-single-hand.ordago/v1-muses-1"
+#define MUS_FOUR_STRATEGY_SCHEMA_ID "mus.four-partnership-score/v4-muses-1"
+#define MUS_FOUR_SINGLE_HAND_STRATEGY_SCHEMA_ID "mus.four-partnership-single-hand.ordago/v2-muses-1"
 #else
-#define MUS_FOUR_STRATEGY_SCHEMA_ID "mus.four-partnership-score/v3-muses-2"
-#define MUS_FOUR_SINGLE_HAND_STRATEGY_SCHEMA_ID "mus.four-partnership-single-hand.ordago/v1-muses-2"
+#define MUS_FOUR_STRATEGY_SCHEMA_ID "mus.four-partnership-score/v4-muses-2"
+#define MUS_FOUR_SINGLE_HAND_STRATEGY_SCHEMA_ID "mus.four-partnership-single-hand.ordago/v2-muses-2"
 #endif
 
 typedef enum {
