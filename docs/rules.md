@@ -22,7 +22,8 @@ es su equivalente para cuatro jugadores por parejas. `ordago-score` y
 
 ## Envites
 
-Las aperturas numéricas son 2, 4, 7 o 10. Ante un envite se puede no querer,
+En las cuatro variantes principales sin `-simplified`, las aperturas numéricas
+son 2, 4, 7 o 10. Ante un envite se puede no querer,
 querer, subir 2, 4 o 10, o lanzar órdago. También se puede abrir con órdago.
 Las cantidades son **incrementos**: `+2 → +2 → +4` deja 8 tantos en juego.
 
@@ -31,6 +32,24 @@ Cada jugador puede usar cada incremento solo una vez por lance, y hay como
 máximo cinco envites numéricos, incluida la apertura. Después aún se puede
 querer, no querer o lanzar órdago. Son restricciones de la abstracción del
 solver; un motor externo puede ofrecer otras cantidades al bot.
+
+### Variantes `-simplified`
+
+`ordago-simplified`, `ordago-four-simplified`, `ordago-score-simplified` y
+`ordago-score-four-simplified` reducen el menú a incrementos de 2, 4 y 10.
+No existe el envite de 7, ni siquiera como apertura. Cada subida debe ser
+**estrictamente mayor que el incremento anterior**, no que el total acumulado.
+Tras abrir con 2 se permite subir 4 o 10; tras subir 4, solo 10; tras subir 10,
+solo quedan querer, no querer u órdago. No se añade ningún límite de acciones:
+la secuencia numérica más larga es naturalmente `2 → +4 → +10`, con total 16.
+La restricción vuelve a empezar en cada lance.
+
+En parejas, ambos compañeros responden a la misma oferta. Pueden proponer
+la misma subida válida; solo la respuesta elegida al resolver la pareja
+se convierte en un nuevo incremento. Se mantienen mus, descartes, órdago,
+información, cobros, utilidad y cota pública de la variante de origen.
+
+### Cota pública y rechazos
 
 En los modelos públicos, toda propuesta numérica cumple:
 
@@ -116,6 +135,8 @@ conversión ni reentrenamiento. `ordago-public` sigue siendo un alias del actual
 |---|---|
 | `ordago` | `mus.heads-up-single-hand.ordago-public/v1-muses-1` |
 | `ordago-four` | `mus.four-partnership-single-hand.ordago/v1-muses-1` |
+| `ordago-simplified` | `mus.heads-up-single-hand.ordago-simplified/v1-muses-1` |
+| `ordago-four-simplified` | `mus.four-partnership-single-hand.ordago-simplified/v1-muses-1` |
 | `ordago-deprecated` | `mus.heads-up-single-hand.ordago-with-mus/v9-muses-1` |
 | `single-bet` | `mus.heads-up-single-hand/v1` |
 | `raises-to-eight` | `mus.heads-up-single-hand.raises-to-eight/v1` |

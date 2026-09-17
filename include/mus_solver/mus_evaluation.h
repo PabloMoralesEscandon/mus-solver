@@ -45,6 +45,8 @@ Status mus_ordago_evaluation_metrics_from_state(
  * best-response action. Averaging independent best responses does not do this. */
 Status mus_ordago_public_evaluation_metrics(const InfoStore *store,
                                             EvaluationMetrics *metrics_out);
+Status mus_ordago_simplified_evaluation_metrics(const InfoStore *store,
+                                                EvaluationMetrics *metrics_out);
 Status mus_ordago_public_evaluation_metrics_from_state(
     const MusOrdagoPublicGameState *root, const InfoStore *store,
     EvaluationMetrics *metrics_out);

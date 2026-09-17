@@ -191,7 +191,13 @@ build/release/mus-solver --format ordago-score --score 39:39 \
 ```
 
 La opción conserva su nombre por compatibilidad y también admite
-`ordago-deprecated`. No acepta TXT ni estrategias de cuatro jugadores.
+`ordago-deprecated` y `ordago-simplified` como origen. El destino puede ser
+`ordago-score` u `ordago-score-simplified`. Se filtran las acciones y los
+historiales del lance actual al menú de destino. Los lances anteriores se
+conservan como resúmenes agregados; la precarga exhaustiva de la API no certifica
+que cada resumen sea alcanzable bajo las nuevas reglas. La precarga del CLI
+solo inicializa nodos alcanzados durante el entrenamiento.
+No acepta TXT ni estrategias de cuatro jugadores.
 La precarga inicializa los nodos al crearlos y conserva los ya entrenados.
 Comparte un único almacén genérico en memoria entre las celdas activas.
 
@@ -278,12 +284,26 @@ continuaciones. Conserva los archivos de una misma tabla juntos.
 (o `muses-2`). Sus checkpoints no se intercambian con `ordago-score-four`
 ni con las variantes de dos jugadores.
 
+Las cuatro variantes `-simplified` usan las mismas opciones que sus originales,
+pero identificadores de archivo distintos: no se pueden cargar sus checkpoints
+ni ampliar sus tablas como si fueran variantes originales, o viceversa.
+Para entrenar la mano aislada simplificada de parejas, por ejemplo:
+
+```sh
+build/release/mus-solver --format ordago-four-simplified \
+    --iterations 100 --seed 7 --save-compressed cuatro-simplified.cfr.zst
+```
+
 | Tabla | Esquema |
 |---|---|
 | Dos jugadores | `mus.ordago-score/v4` |
 | Dos jugadores, región | `mus.ordago-score-region/v1` |
 | Cuatro jugadores | `mus.ordago-score-four/v1` |
 | Cuatro jugadores, región | `mus.ordago-score-four-region/v1` |
+| Dos jugadores, simplificada | `mus.ordago-score-simplified/v1` |
+| Dos jugadores, simplificada, región | `mus.ordago-score-simplified-region/v1` |
+| Cuatro jugadores, simplificada | `mus.ordago-score-four-simplified/v1` |
+| Cuatro jugadores, simplificada, región | `mus.ordago-score-four-simplified-region/v1` |
 
 Las tablas completas y las regionales no intercambian checkpoints, incluso
 con una región 0:0. Las versiones de dos jugadores anteriores a v4 requieren

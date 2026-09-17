@@ -43,9 +43,21 @@ antes de compilar.
 | `ordago-four` | 4, por parejas | Mano aislada con las reglas de parejas, sin marcador inicial ni continuación; utilidad en tantos. |
 | `ordago-score` | 2 | Con marcador: optimiza el valor de ganar la partida mediante una tabla de continuación. |
 | `ordago-score-four` | 4, por parejas | Con marcador: cada jugador decide con sus propias cartas. |
+| `ordago-simplified` | 2 | Mano aislada con envites simplificados. |
+| `ordago-four-simplified` | 4, por parejas | Mano aislada con envites simplificados. |
+| `ordago-score-simplified` | 2 | Con marcador y envites simplificados. |
+| `ordago-score-four-simplified` | 4, por parejas | Con marcador y envites simplificados. |
 | `ordago-deprecated` | 2 | **Obsoleta:** compatibilidad con estrategias históricas de órdago. |
 | `single-bet` | 2 | Modelo reducido: pasar o envidar 2, sin mus ni descartes. |
 | `raises-to-eight` | 2 | Modelo reducido: subidas 2 → 4 → 8, sin mus ni descartes. |
+
+Las cuatro variantes `-simplified` permiten únicamente incrementos de 2, 4 y
+10, siempre estrictamente crecientes dentro del lance. Por ejemplo,
+`2 → +4 → +10` deja 16 tantos en juego; después de `+4` no se puede subir
+ni 2 ni 4. Se elimina la apertura de 7 y se conserva el órdago. No hay un
+límite adicional de acciones. Mus, descartes, tanteo y reglas de parejas
+se mantienen. Usa el sufijo en los mismos comandos de entrenamiento;
+estas variantes tienen archivos propios, incompatibles con los originales.
 
 ### Comandos anteriores y estrategias guardadas
 

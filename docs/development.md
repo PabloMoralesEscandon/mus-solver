@@ -65,6 +65,7 @@ Los sanitizers requieren un compilador y un entorno que los admitan.
 |---|---|
 | [mus_game.h](../include/mus_solver/mus_game.h) | Descriptores, estado reversible, acciones y claves de dos jugadores. |
 | [mus_four.h](../include/mus_solver/mus_four.h) | Modelo y observaciones de cuatro jugadores. |
+| [mus_simplified.h](../include/mus_solver/mus_simplified.h) | Descriptores y menús de las variantes simplificadas. |
 | [mus_training.h](../include/mus_solver/mus_training.h) | Entrenamiento compartido. |
 | [mus_score.h](../include/mus_solver/mus_score.h) | Tablas, celdas, continuaciones y precarga. |
 | [mus_strategy.h](../include/mus_solver/mus_strategy.h) | Exportación de estrategias. |
@@ -81,6 +82,16 @@ Para `ordago-four`, usa `mus_four_game_state_init` y
 `mus_four_game_descriptor`, con un `MusFourGameState`. No necesita
 `MusScoreTable`. Las funciones `mus_four_score_*` mantienen sus contratos
 para el modelo con marcador.
+
+Para las manos aisladas simplificadas usa `mus_simplified_game_descriptor`,
+con `false` para dos jugadores o `true` para cuatro, y el inicializador del
+estado original. Para tablas simplificadas, fija `table.simplified = true`
+antes de inicializar `MusScoreGame`. Los códecs de claves siguen siendo los
+originales; los menús se consultan con las funciones de `mus_simplified.h`.
+El contexto de las reglas simplificadas es estático y compartido entre celdas.
+Como en las variantes originales, `game.strategy_schema_id` apunta al campo
+`schema` del propio `MusScoreGame`: inicializa el objeto en su dirección final
+o reinicialízalo después de moverlo.
 
 C-CFR consume el descriptor `Game` y un estado reversible. Conserva el
 contexto, la tabla y el estado vivos mientras el entrenador los use. Cada

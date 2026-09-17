@@ -6,6 +6,7 @@
 #include "mus_solver/mus_game.h"
 #include "mus_solver/mus_score.h"
 #include "mus_solver/mus_four.h"
+#include "mus_simplified_internal.h"
 
 #define MUS_HAND_CODE_RADIX 390625
 #define MUS_INFORMATION_PHASE_COUNT 5
@@ -338,6 +339,15 @@ static const Game MUS_ORDAGO_PUBLIC_GAME = {
     .strategic_player_count = MUS_GAME_PLAYER_COUNT,
     .max_legal_actions = MUS_GAME_MAX_LEGAL_ACTIONS,
     .strategy_schema_id = MUS_ORDAGO_PUBLIC_STRATEGY_SCHEMA_ID,
+    .trusted_operations = &MUS_ORDAGO_TRUSTED_OPERATIONS,
+};
+
+/* Shared operations only. Each score cell supplies its own schema. */
+static const Game MUS_SCORE_GAME = {
+    .operations = &MUS_OPERATIONS,
+    .context = &MUS_SCORE_FORMAT,
+    .strategic_player_count = MUS_GAME_PLAYER_COUNT,
+    .max_legal_actions = MUS_GAME_MAX_LEGAL_ACTIONS,
     .trusted_operations = &MUS_ORDAGO_TRUSTED_OPERATIONS,
 };
 
@@ -4254,6 +4264,7 @@ Status mus_score_information_set_ordago_candidates(
 
 /* Each score cell uses a separate store and a distinct checkpoint schema. */
 bool mus_score_game_matches(const Game *game) {
+    game = mus_simplified_game_base(game);
     return game != NULL && game->context == &MUS_SCORE_FORMAT &&
            game->operations == &MUS_OPERATIONS &&
            game->trusted_operations == &MUS_ORDAGO_TRUSTED_OPERATIONS &&
@@ -4274,10 +4285,12 @@ Status mus_score_game_init(MusScoreGame *score_game, const MusScoreTable *table,
     score_game->continuation = table;
     score_game->initial_scores[0] = (uint8_t)a;
     score_game->initial_scores[1] = (uint8_t)b;
-    score_game->game = MUS_ORDAGO_GAME;
-    score_game->game.context = &MUS_SCORE_FORMAT;
+    score_game->game = MUS_SCORE_GAME;
     score_game->game.strategy_schema_id = score_game->schema;
-    return mus_score_game_set_schema(score_game);
+    Status status = mus_score_game_set_schema(score_game);
+    if (status == CFR_STATUS_SUCCESS && table->simplified)
+        mus_simplified_game_wrap(&score_game->game, &MUS_SCORE_GAME, score_game->schema);
+    return status;
 }
 
 Status mus_score_game_state_init(MusGameState *state, const MusScoreGame *game) {

@@ -9,14 +9,23 @@
 #include "mus_solver/mus_score.h"
 #include "mus_solver/mus_four.h"
 #include "mus_solver/mus_training.h"
+#include "mus_solver/mus_simplified.h"
 
 static const char *table_schema(const MusScoreTable *table) {
+    if (table->simplified) {
+        if (table->four_player)
+            return table->region_enabled ? MUS_SCORE_FOUR_SIMPLIFIED_REGION_SCHEMA_ID
+                                         : MUS_SCORE_FOUR_SIMPLIFIED_SCHEMA_ID;
+        return table->region_enabled ? MUS_SCORE_SIMPLIFIED_REGION_SCHEMA_ID : MUS_SCORE_SIMPLIFIED_SCHEMA_ID;
+    }
     if (table->four_player)
         return table->region_enabled ? MUS_SCORE_FOUR_REGION_SCHEMA_ID : MUS_SCORE_FOUR_SCHEMA_ID;
     return table->region_enabled ? MUS_SCORE_REGION_SCHEMA_ID : MUS_SCORE_SCHEMA_ID;
 }
 
 static const char *table_base_schema(const MusScoreTable *table) {
+    if (table->simplified)
+        return table->four_player ? MUS_FOUR_SIMPLIFIED_STRATEGY_SCHEMA_ID : MUS_SIMPLIFIED_STRATEGY_SCHEMA_ID;
     return table->four_player ? MUS_FOUR_STRATEGY_SCHEMA_ID : MUS_ORDAGO_STRATEGY_SCHEMA_ID;
 }
 
@@ -168,25 +177,34 @@ Status mus_score_table_read(FILE *stream, MusScoreTable *table) {
     uintmax_t parsed_target, a_bound = 0, b_bound = 0;
     const int fields = sscanf(header, "%63s base=%127s target=%31s orientation=mano "
         "utility=signed-one region=%31[^:]:%31s", schema, base, target_token, region_a, region_b);
+    const bool simplified = strcmp(schema, MUS_SCORE_SIMPLIFIED_SCHEMA_ID) == 0 ||
+        strcmp(schema, MUS_SCORE_SIMPLIFIED_REGION_SCHEMA_ID) == 0 ||
+        strcmp(schema, MUS_SCORE_FOUR_SIMPLIFIED_SCHEMA_ID) == 0 ||
+        strcmp(schema, MUS_SCORE_FOUR_SIMPLIFIED_REGION_SCHEMA_ID) == 0;
     const bool four_player = strcmp(schema, MUS_SCORE_FOUR_SCHEMA_ID) == 0 ||
-        strcmp(schema, MUS_SCORE_FOUR_REGION_SCHEMA_ID) == 0;
-    if (fields < 3 || strcmp(base, four_player ? MUS_FOUR_STRATEGY_SCHEMA_ID :
-                                               MUS_ORDAGO_STRATEGY_SCHEMA_ID) != 0 ||
+        strcmp(schema, MUS_SCORE_FOUR_REGION_SCHEMA_ID) == 0 ||
+        strcmp(schema, MUS_SCORE_FOUR_SIMPLIFIED_SCHEMA_ID) == 0 ||
+        strcmp(schema, MUS_SCORE_FOUR_SIMPLIFIED_REGION_SCHEMA_ID) == 0;
+    const MusScoreTable kind = {.four_player = four_player, .simplified = simplified};
+    if (fields < 3 || strcmp(base, table_base_schema(&kind)) != 0 ||
         !parse_unsigned_token(target_token, MUS_ORDAGO_WAGER, &parsed_target) || parsed_target == 0)
         return CFR_STATUS_FORMAT_ERROR;
     target = (unsigned int)parsed_target;
     const bool region = strcmp(schema, MUS_SCORE_REGION_SCHEMA_ID) == 0 ||
-        strcmp(schema, MUS_SCORE_FOUR_REGION_SCHEMA_ID) == 0;
+        strcmp(schema, MUS_SCORE_FOUR_REGION_SCHEMA_ID) == 0 ||
+        strcmp(schema, MUS_SCORE_SIMPLIFIED_REGION_SCHEMA_ID) == 0 ||
+        strcmp(schema, MUS_SCORE_FOUR_SIMPLIFIED_REGION_SCHEMA_ID) == 0;
     if (region) {
         if (fields != 5 || !parse_unsigned_token(region_a, target - 1, &a_bound) ||
             !parse_unsigned_token(region_b, target - 1, &b_bound) || a_bound > b_bound ||
             mus_score_table_init_region(&temporary, target, (unsigned int)a_bound,
                                         (unsigned int)b_bound) != CFR_STATUS_SUCCESS)
             return CFR_STATUS_FORMAT_ERROR;
-    } else if (fields != 3 || (!four_player && strcmp(schema, MUS_SCORE_SCHEMA_ID) != 0) ||
+    } else if (fields != 3 || strcmp(schema, table_schema(&kind)) != 0 ||
                mus_score_table_init(&temporary, target) != CFR_STATUS_SUCCESS)
         return CFR_STATUS_FORMAT_ERROR;
     temporary.four_player = four_player;
+    temporary.simplified = simplified;
     char coverage[64] = "";
     if (region) (void)snprintf(coverage, sizeof(coverage), " region=%u:%u",
                                (unsigned int)a_bound, (unsigned int)b_bound);
@@ -444,7 +462,7 @@ Status mus_score_evaluate_with_options(const MusScoreGame *game, const InfoStore
     return status;
 }
 
-Status mus_four_evaluate_with_options(const InfoStore *store,
+static Status four_evaluate_with_options(const Game *game, const InfoStore *store,
     const MusScoreEvaluationOptions *options, uint64_t seed, MusScoreEvaluation *result) {
     if (store == NULL || result == NULL || !valid_evaluation_options(options))
         return CFR_STATUS_INVALID_ARGUMENT;
@@ -453,11 +471,21 @@ Status mus_four_evaluate_with_options(const InfoStore *store,
         return CFR_STATUS_OUT_OF_MEMORY;
     Status status = mus_four_game_state_init(state);
     if (status == CFR_STATUS_SUCCESS)
-        status = evaluate_policy(mus_four_game_descriptor(), (GameState *)state,
+        status = evaluate_policy(game, (GameState *)state,
                                  offsetof(MusFourGameState, undo_history), true,
                                  store, options, seed, result);
     free(state);
     return status;
+}
+
+Status mus_four_evaluate_with_options(const InfoStore *store,
+    const MusScoreEvaluationOptions *options, uint64_t seed, MusScoreEvaluation *result) {
+    return four_evaluate_with_options(mus_four_game_descriptor(), store, options, seed, result);
+}
+
+Status mus_four_simplified_evaluate_with_options(const InfoStore *store,
+    const MusScoreEvaluationOptions *options, uint64_t seed, MusScoreEvaluation *result) {
+    return four_evaluate_with_options(mus_simplified_game_descriptor(true), store, options, seed, result);
 }
 
 Status mus_score_evaluate(const MusScoreGame *game, const InfoStore *store,
@@ -640,6 +668,7 @@ Status mus_score_train(MusScoreTable *table, unsigned int minimum_sum,
         if (extension->table == table || !valid_table(extension->table) ||
             extension->table->target != table->target ||
             extension->table->four_player != table->four_player ||
+            extension->table->simplified != table->simplified ||
             (table->four_player && extension->load_cell != NULL) ||
             (extension->load_cell == NULL && extension->load_cell_generic == NULL))
             return CFR_STATUS_INVALID_ARGUMENT;

@@ -8,6 +8,12 @@ parejas: 0 y 2 contra 1 y 3. Cada jugador decide con sus cartas y la informació
 pública; no conoce las cartas del compañero. El bot y el evaluador de partidas
 incluidos en el repositorio admiten únicamente dos jugadores.
 
+`ordago-four-simplified` y `ordago-score-four-simplified` conservan estas
+reglas y flujos de trabajo, pero solo permiten incrementos de 2, 4 y 10,
+estrictamente crecientes. No ofrecen 7 ni añaden un límite de acciones;
+mantienen el órdago. Las propuestas de ambos compañeros se comparan con la
+oferta rival, no entre sí. Consulta las [reglas simplificadas](rules.md#variantes--simplified).
+
 ## Mano aislada sin marcador
 
 `ordago-four` es el equivalente de `ordago` para parejas. Empieza sin tantos

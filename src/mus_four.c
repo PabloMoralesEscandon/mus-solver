@@ -6,6 +6,7 @@
 #include "cfr/info_node.h"
 #include "cfr/info_store.h"
 #include "mus_solver/mus_four.h"
+#include "mus_simplified_internal.h"
 
 static const uint8_t capacities[8] = {8, 4, 4, 4, 4, 4, 4, 8};
 static const uint8_t values[8] = {1, 4, 5, 6, 7, 10, 10, 10};
@@ -1613,6 +1614,7 @@ Status mus_four_game_state_init(MusFourGameState *state) {
 }
 
 bool mus_four_score_game_matches(const Game *game) {
+    game = mus_simplified_game_base(game);
     return game != NULL && game->operations == &four_operations &&
            game->trusted_operations == &trusted_operations && game->context == NULL &&
            game->strategic_player_count == 4 && game->max_legal_actions == 16;
@@ -1620,6 +1622,12 @@ bool mus_four_score_game_matches(const Game *game) {
 
 Status mus_four_score_game_init(MusScoreGame *game, const MusScoreTable *table,
                                 unsigned int a, unsigned int b) {
+    static const Game base = {
+        .operations = &four_operations,
+        .strategic_player_count = 4,
+        .max_legal_actions = 16,
+        .trusted_operations = &trusted_operations
+    };
     if (game == NULL || table == NULL || !table->four_player ||
         table->target == 0 || table->target > 40 || a >= table->target || b >= table->target)
         return CFR_STATUS_INVALID_ARGUMENT;
@@ -1629,14 +1637,12 @@ Status mus_four_score_game_init(MusScoreGame *game, const MusScoreTable *table,
     game->continuation = table;
     game->initial_scores[0] = (uint8_t)a;
     game->initial_scores[1] = (uint8_t)b;
-    game->game = (Game){
-        .operations = &four_operations,
-        .strategic_player_count = 4,
-        .max_legal_actions = 16,
-        .strategy_schema_id = game->schema,
-        .trusted_operations = &trusted_operations
-    };
-    return mus_score_game_set_schema(game);
+    game->game = base;
+    game->game.strategy_schema_id = game->schema;
+    Status status = mus_score_game_set_schema(game);
+    if (status == CFR_STATUS_SUCCESS && table->simplified)
+        mus_simplified_game_wrap(&game->game, &base, game->schema);
+    return status;
 }
 
 Status mus_four_score_game_state_init(MusFourGameState *state, const MusScoreGame *game) {
@@ -1677,6 +1683,7 @@ typedef struct {
     FILE *stream;
     uint8_t initial_scores[2];
     bool single_hand;
+    bool simplified;
 } FourStrategyWriter;
 
 static Status write_hand(FILE *stream, const MusFourInformationSet *o) {
@@ -1725,7 +1732,9 @@ static Status write_node(const InfoNode *node, void *context) {
     Status status = information_set_decode(node->key, &o, writer->single_hand);
     if (status != CFR_STATUS_SUCCESS)
         return status;
-    status = information_set_legal_actions(&o, actions, 16, &count, writer->single_hand);
+    status = writer->simplified
+        ? mus_simplified_four_information_set_legal_actions(&o, !writer->single_hand, actions, 16, &count)
+        : information_set_legal_actions(&o, actions, 16, &count, writer->single_hand);
     if (status != CFR_STATUS_SUCCESS)
         return status;
     if (node->action_count != count)
@@ -1792,9 +1801,9 @@ static Status write_node(const InfoNode *node, void *context) {
 
 static Status strategy_write_text(FILE *stream, const Trainer *trainer, bool single_hand) {
     if (stream == NULL || trainer == NULL || trainer->state == NULL || trainer->store == NULL ||
-        (single_hand ? trainer->game != mus_four_game_descriptor()
+        (single_hand ? mus_simplified_game_base(trainer->game) != mus_four_game_descriptor()
                      : !mus_four_score_game_matches(trainer->game)) ||
-        validate(trainer->game->context, trainer->state) != CFR_STATUS_SUCCESS)
+        cfr_game_validate_state(trainer->game, trainer->state) != CFR_STATUS_SUCCESS)
         return CFR_STATUS_INVALID_ARGUMENT;
     InfoStoreStats stats;
     Status status = cfr_info_store_get_stats(trainer->store, &stats);
@@ -1806,7 +1815,8 @@ static Status strategy_write_text(FILE *stream, const Trainer *trainer, bool sin
                 trainer->game->strategy_schema_id, variant, trainer->training_iterations, stats.size) < 0)
         return CFR_STATUS_IO_ERROR;
     const MusFourGameState *state = (const MusFourGameState *)trainer->state;
-    FourStrategyWriter writer = {.stream = stream, .single_hand = single_hand};
+    FourStrategyWriter writer = {.stream = stream, .single_hand = single_hand,
+                                .simplified = mus_simplified_game_matches(trainer->game)};
     memcpy(writer.initial_scores, state->model.initial_scores, sizeof(writer.initial_scores));
     status = cfr_info_store_visit_sorted(trainer->store, write_node, &writer);
     return status != CFR_STATUS_SUCCESS ? status

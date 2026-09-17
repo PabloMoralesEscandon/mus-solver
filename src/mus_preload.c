@@ -3,6 +3,7 @@
 
 #include "cfr/info_node.h"
 #include "mus_solver/mus_score.h"
+#include "mus_simplified_internal.h"
 
 typedef struct {
     const MusScoreGame *game;
@@ -12,7 +13,7 @@ typedef struct {
 } PreloadContext;
 
 static bool public_source(const MusScorePreloadOptions *options) {
-    return options->source->game->context == mus_ordago_public_game_descriptor()->context;
+    return mus_simplified_game_base(options->source->game)->context == mus_ordago_public_game_descriptor()->context;
 }
 
 static Status decode_source(const MusScorePreloadOptions *options, InfoSetKey key,
@@ -40,7 +41,9 @@ static Status preload_node(const InfoNode *source, void *raw_context) {
         context->stats.skipped_history_nodes += 1;
         return CFR_STATUS_SUCCESS;
     }
-    status = mus_ordago_game_information_set_legal_actions(
+    status = (mus_simplified_game_matches(context->options->source->game)
+        ? mus_simplified_ordago_information_set_legal_actions
+        : mus_ordago_game_information_set_legal_actions)(
         &information, old_actions, MUS_GAME_MAX_LEGAL_ACTIONS, &old_count);
     if (status != CFR_STATUS_SUCCESS || source->action_count != old_count)
         return CFR_STATUS_FORMAT_ERROR;
@@ -61,7 +64,14 @@ static Status preload_node(const InfoNode *source, void *raw_context) {
         key, context->game->continuation->target, &information);
     if (status != CFR_STATUS_SUCCESS)
         return status;
-    status = mus_ordago_game_information_set_legal_actions(
+    if (context->game->continuation->simplified &&
+        !mus_simplified_wager_masks_valid(information.used_wager_action_masks, 2)) {
+        context->stats.skipped_illegal_nodes += 1;
+        return CFR_STATUS_SUCCESS;
+    }
+    status = (context->game->continuation->simplified
+        ? mus_simplified_ordago_information_set_legal_actions
+        : mus_ordago_game_information_set_legal_actions)(
         &information, new_actions, MUS_GAME_MAX_LEGAL_ACTIONS, &new_count);
     if (status != CFR_STATUS_SUCCESS)
         return status;
@@ -131,8 +141,10 @@ static Status validate_preload(const MusScoreGame *game,
         !isfinite(options->uniform_mix) || options->uniform_mix <= 0 || options->uniform_mix > 1)
         return CFR_STATUS_INVALID_ARGUMENT;
     const Trainer *source = options->source;
-    const Game *expected = source->game != NULL && public_source(options)
-        ? mus_ordago_public_game_descriptor() : mus_ordago_game_descriptor();
+    const Game *expected = mus_simplified_game_matches(source->game)
+        ? mus_simplified_game_descriptor(false)
+        : source->game != NULL && public_source(options)
+            ? mus_ordago_public_game_descriptor() : mus_ordago_game_descriptor();
     if (source->game == NULL || source->game->context != expected->context ||
         source->game->operations != expected->operations ||
         source->game->trusted_operations != expected->trusted_operations ||
@@ -178,7 +190,9 @@ static Status initialize_from_ordago(InfoNode *node, void *raw_context) {
         return status;
     const bool later = information.hand_kind != MUS_ORDAGO_HAND_EXACT &&
                        information.phase != MUS_PHASE_GRANDE;
-    status = mus_ordago_game_information_set_legal_actions(&information, actions,
+    status = (context->game->continuation->simplified
+        ? mus_simplified_ordago_information_set_legal_actions
+        : mus_ordago_game_information_set_legal_actions)(&information, actions,
         MUS_GAME_MAX_LEGAL_ACTIONS, &count);
     if (status != CFR_STATUS_SUCCESS || count != node->action_count)
         return CFR_STATUS_INVALID_ARGUMENT;
@@ -203,7 +217,9 @@ static Status initialize_from_ordago(InfoNode *node, void *raw_context) {
         size_t old_count = 0;
         status = decode_source(options, source->key, &information);
         if (status == CFR_STATUS_SUCCESS)
-            status = mus_ordago_game_information_set_legal_actions(&information, old_actions,
+            status = (mus_simplified_game_matches(options->source->game)
+                ? mus_simplified_ordago_information_set_legal_actions
+                : mus_ordago_game_information_set_legal_actions)(&information, old_actions,
                 MUS_GAME_MAX_LEGAL_ACTIONS, &old_count);
         if (status != CFR_STATUS_SUCCESS || source->action_count != old_count)
             return CFR_STATUS_FORMAT_ERROR;

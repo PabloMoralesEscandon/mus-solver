@@ -7,6 +7,7 @@
 #include "mus_solver/mus_adapter.h"
 #include "mus_solver/mus_score.h"
 #include "mus_solver/mus_strategy.h"
+#include "mus_solver/mus_simplified.h"
 
 static int failures;
 #define CHECK(x)                                                                       \
@@ -784,6 +785,45 @@ static void test_public_adapter(void) {
     mus_adapter_destroy(reference); mus_adapter_destroy(adapter); OK(cfr_info_store_destroy(&store));
 }
 
+static void test_simplified_adapter(void) {
+    InfoStore store = {0}; OK(cfr_info_store_init(&store));
+    MusAdapter *adapter = NULL;
+    MusAdapterConfig config = mus_adapter_default_config(); config.score_adjustment = false;
+    OK(mus_adapter_create_simplified(&store, &config, 7, &adapter));
+    const MusBotEvent history[] = {{0, {MUS_BOT_PASS, 0}}, {1, {MUS_BOT_RAISE, 2}},
+                                  {0, {MUS_BOT_RAISE, 4}}, {1, {MUS_BOT_RAISE, 10}}};
+    MusOrdagoInformationSet infos[] = {info_base(MUS_PHASE_GRANDE, 0),
+        offered(2, 1, 0, 0, 1, 1, false), offered(6, 2, 1, 2, 1, 2, false),
+        offered(16, 6, 0, 2, 9, 3, false)};
+    for (size_t i = 0; i < 4; ++i) {
+        Action actions[MUS_GAME_MAX_LEGAL_ACTIONS]; size_t count;
+        InfoSetKey key; InfoNode *node = NULL;
+        OK(mus_ordago_public_game_information_set_encode(&infos[i], &key));
+        OK(mus_simplified_ordago_information_set_legal_actions(&infos[i], actions,
+                                                              MUS_GAME_MAX_LEGAL_ACTIONS, &count));
+        OK(cfr_info_store_get_or_create(&store, key, count, &node));
+        if (node == NULL) break;
+        for (size_t a = 0; a < count; ++a)
+            node->strategy_sums[a] = actions[a] == MUS_ACTION_ORDAGO ? 0.25
+                : actions[a] == (i == 0 ? MUS_ACTION_PASS : MUS_ACTION_ACCEPT) ? 0.75 : 0;
+        MusAdapterObservation o = observation();
+        o.player = infos[i].player;
+        o.has_hand_start_scores = o.has_pending_wager_total = true;
+        o.history = history; o.history_count = i == 0 ? 0 : i + 1;
+        if (i != 0) {
+            o.legal_actions = response;
+            o.legal_action_count = sizeof(response) / sizeof(*response);
+        }
+        MusAdapterDecision d;
+        OK(mus_adapter_decide(adapter, &o, &d));
+        CHECK(d.method == MUS_ADAPTER_EXACT && d.public_strategy && d.simplified_strategy);
+        CHECK(fabs(probability(&d, MUS_BOT_ORDAGO, 0) - 0.25) < 1e-12);
+        CHECK(fabs(probability(&d, i == 0 ? MUS_BOT_PASS : MUS_BOT_ACCEPT, 0) - 0.75) < 1e-12);
+        check_distribution(&o, &d);
+    }
+    mus_adapter_destroy(adapter); OK(cfr_info_store_destroy(&store));
+}
+
 static void write_public_fixture(const char *path) {
     InfoStore store = {0}; OK(cfr_info_store_init(&store)); populate_public_fixture(&store);
     MusGameState state; Trainer trainer;
@@ -815,6 +855,7 @@ int main(int argc, char **argv) {
     test_score_and_fallback();
     test_missing_corrupt_and_legal_gaps();
     test_public_adapter();
+    test_simplified_adapter();
     if (argc == 3 && strcmp(argv[1], "--public-fixture") == 0)
         write_public_fixture(argv[2]);
     else if (argc >= 2)
