@@ -137,6 +137,7 @@ test-core: $(TEST_BINARY) $(DEBUG_BINARY) $(DEBUG_DIR)/mus_hotpaths_tests \
 	./$(DEBUG_DIR)/mus_four_keys_tests
 	./$(DEBUG_DIR)/mus_score_api_tests
 	./tests/test_cli.sh ./$(DEBUG_BINARY)
+	python3 tests/test_four_cli.py ./$(DEBUG_BINARY)
 	python3 tests/test_four_score_cli.py ./$(DEBUG_BINARY)
 
 test: test-core $(DEBUG_DIR)/mus-bot $(DEBUG_DIR)/mus_adapter_tests \

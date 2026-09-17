@@ -2,7 +2,8 @@
 
 [Volver al README](../README.md) · [Entrenamiento](training.md)
 
-`ordago` es el modelo normal de mano aislada. `ordago-score` y
+`ordago` es el modelo normal de mano aislada para dos jugadores; `ordago-four`
+es su equivalente para cuatro jugadores por parejas. `ordago-score` y
 `ordago-score-four` añaden el marcador y el valor de continuar la partida.
 `ordago-deprecated` existe para conservar las estrategias históricas.
 
@@ -57,10 +58,12 @@ el lance y corresponden al apostador en ese caso.
 
 | Modelo | Final ordinario | Órdago querido |
 |---|---|---|
-| `ordago` | Cuenta todos los lances, limita cada total a 40 y usa la diferencia de tantos. | Termina la mano y sustituye todos los pagos por 40:0 o 0:40. |
+| `ordago` y `ordago-four` | Cuenta todos los lances, limita cada total a 40 y usa la diferencia de tantos. | Termina la mano y sustituye todos los pagos por 40:0 o 0:40. |
 | `ordago-score` y `ordago-score-four` | Detiene el cobro cuando se alcanza el objetivo; si la partida continúa, consulta su valor futuro. | Decide la partida inmediatamente, sin cobrar pendientes. |
 
-Así, un resultado ordinario 40:1 vale +39 para mano en `ordago`.
+Así, un resultado ordinario 40:1 vale +39 para mano en `ordago` o para la pareja
+de mano en `ordago-four`. Alcanzar 40 en estas variantes no interrumpe los
+lances pendientes; sigue siendo posible pasar o lanzar órdago.
 En las variantes con marcador, ganar la partida vale +1 y perderla −1.
 Desde 39:39, grande al paso sigue pendiente mientras se negocia chica: un
 deje decisivo o un órdago querido en chica puede resolver antes la partida.
@@ -112,6 +115,7 @@ conversión ni reentrenamiento. `ordago-public` sigue siendo un alias del actual
 | Variante | Esquema de mano aislada, con un mus cuando corresponde |
 |---|---|
 | `ordago` | `mus.heads-up-single-hand.ordago-public/v1-muses-1` |
+| `ordago-four` | `mus.four-partnership-single-hand.ordago/v1-muses-1` |
 | `ordago-deprecated` | `mus.heads-up-single-hand.ordago-with-mus/v9-muses-1` |
 | `single-bet` | `mus.heads-up-single-hand/v1` |
 | `raises-to-eight` | `mus.heads-up-single-hand.raises-to-eight/v1` |

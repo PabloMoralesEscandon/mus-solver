@@ -329,31 +329,19 @@ static bool evaluation_target_reached(size_t samples, double variance, double ta
     return target > 0 && samples >= 2 && sqrt(variance / (double)samples) <= target;
 }
 
-Status mus_score_evaluate_with_options(const MusScoreGame *game, const InfoStore *store,
-    const MusScoreEvaluationOptions *options, uint64_t seed, MusScoreEvaluation *result) {
-    if (game == NULL || !mus_score_game_matches_any(&game->game) || store == NULL ||
-        result == NULL || !valid_evaluation_options(options))
-        return CFR_STATUS_INVALID_ARGUMENT;
-    GameState *state = malloc(mus_score_game_state_size(game));
-    if (state == NULL)
-        return CFR_STATUS_OUT_OF_MEMORY;
-    const GameOperations *ops = game->game.trusted_operations == NULL
-        ? game->game.operations : game->game.trusted_operations;
-    const void *context = game->game.context;
+static Status evaluate_policy(const Game *game, GameState *state, size_t root_size,
+    bool four_player, const InfoStore *store, const MusScoreEvaluationOptions *options,
+    uint64_t seed, MusScoreEvaluation *result) {
+    const GameOperations *ops = game->trusted_operations == NULL
+        ? game->operations : game->trusted_operations;
+    const void *context = game->context;
     double mean = 0, m2 = 0;
     MusScoreEvaluation evaluation = {0};
-    Status status = mus_score_game_state_init_generic(state, game);
-    if (status != CFR_STATUS_SUCCESS) {
-        free(state);
-        return status;
-    }
+    Status status = CFR_STATUS_SUCCESS;
     /* Only the active state needs resetting. Each action writes its undo
      * entry before that entry can be read. */
-    const bool four_player = mus_four_score_game_matches(&game->game);
-    const size_t root_size = four_player
-        ? offsetof(MusFourGameState, undo_history) : offsetof(MusGameState, undo_history);
     unsigned char *root = malloc(root_size);
-    if (root == NULL) { free(state); return CFR_STATUS_OUT_OF_MEMORY; }
+    if (root == NULL) return CFR_STATUS_OUT_OF_MEMORY;
     memcpy(root, state, root_size);
     for (size_t sample = 0; sample < options->max_samples; sample += 1) {
         memcpy(state, root, root_size);
@@ -424,7 +412,6 @@ Status mus_score_evaluate_with_options(const MusScoreGame *game, const InfoStore
         }
     }
     free(root);
-    free(state);
     if (status == CFR_STATUS_SUCCESS) {
         evaluation.value = mean;
         evaluation.variance_known = evaluation.samples >= 2;
@@ -434,6 +421,42 @@ Status mus_score_evaluate_with_options(const MusScoreGame *game, const InfoStore
         }
         *result = evaluation;
     }
+    return status;
+}
+
+Status mus_score_evaluate_with_options(const MusScoreGame *game, const InfoStore *store,
+    const MusScoreEvaluationOptions *options, uint64_t seed, MusScoreEvaluation *result) {
+    if (game == NULL || !mus_score_game_matches_any(&game->game) || store == NULL ||
+        result == NULL || !valid_evaluation_options(options))
+        return CFR_STATUS_INVALID_ARGUMENT;
+    GameState *state = malloc(mus_score_game_state_size(game));
+    if (state == NULL)
+        return CFR_STATUS_OUT_OF_MEMORY;
+    Status status = mus_score_game_state_init_generic(state, game);
+    if (status == CFR_STATUS_SUCCESS) {
+        const bool four_player = mus_four_score_game_matches(&game->game);
+        const size_t root_size = four_player
+            ? offsetof(MusFourGameState, undo_history) : offsetof(MusGameState, undo_history);
+        status = evaluate_policy(&game->game, state, root_size, four_player,
+                                 store, options, seed, result);
+    }
+    free(state);
+    return status;
+}
+
+Status mus_four_evaluate_with_options(const InfoStore *store,
+    const MusScoreEvaluationOptions *options, uint64_t seed, MusScoreEvaluation *result) {
+    if (store == NULL || result == NULL || !valid_evaluation_options(options))
+        return CFR_STATUS_INVALID_ARGUMENT;
+    MusFourGameState *state = malloc(sizeof(*state));
+    if (state == NULL)
+        return CFR_STATUS_OUT_OF_MEMORY;
+    Status status = mus_four_game_state_init(state);
+    if (status == CFR_STATUS_SUCCESS)
+        status = evaluate_policy(mus_four_game_descriptor(), (GameState *)state,
+                                 offsetof(MusFourGameState, undo_history), true,
+                                 store, options, seed, result);
+    free(state);
     return status;
 }
 

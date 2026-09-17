@@ -7,8 +7,10 @@
 #define MUS_FOUR_UNDO_CAPACITY 256
 #if MUS_GAME_MAX_MUSES == 1
 #define MUS_FOUR_STRATEGY_SCHEMA_ID "mus.four-partnership-score/v3-muses-1"
+#define MUS_FOUR_SINGLE_HAND_STRATEGY_SCHEMA_ID "mus.four-partnership-single-hand.ordago/v1-muses-1"
 #else
 #define MUS_FOUR_STRATEGY_SCHEMA_ID "mus.four-partnership-score/v3-muses-2"
+#define MUS_FOUR_SINGLE_HAND_STRATEGY_SCHEMA_ID "mus.four-partnership-single-hand.ordago/v1-muses-2"
 #endif
 
 typedef enum {
@@ -51,7 +53,7 @@ typedef struct {
     uint8_t discard_masks[MUS_GAME_MAX_MUSES][MUS_FOUR_PLAYER_COUNT];
     bool mus_stopped;
     uint8_t mus_stop_player;
-    uint8_t score_target;
+    uint8_t score_target; /* Zero selects single-hand utility, capped at 40 per team. */
     uint8_t initial_scores[2];
     uint8_t settled_scores[2];
     uint8_t paid_scores[2];
@@ -114,6 +116,26 @@ typedef struct {
     uint8_t last_responses[2];
     uint8_t used_wager_action_masks[MUS_FOUR_PLAYER_COUNT];
 } MusFourInformationSet;
+
+/* Single hand: no initial match score or continuation table. Team utility is
+ * the difference of the hand's points. An accepted ordago replaces all points
+ * with 40:0 or 0:40. Other hands count every lance before applying the cap. */
+const Game *mus_four_game_descriptor(void);
+Status mus_four_game_state_init(MusFourGameState *state);
+Status mus_four_game_observe(const MusFourGameState *state,
+                             MusFourInformationSet *information);
+Status mus_four_information_set_encode(
+    const MusFourInformationSet *information, InfoSetKey *key);
+Status mus_four_information_set_decode(
+    InfoSetKey key, MusFourInformationSet *information);
+Status mus_four_information_set_legal_actions(
+    const MusFourInformationSet *information, Action *actions,
+    size_t capacity, size_t *required_count);
+Status mus_four_strategy_write_text(FILE *stream, const Trainer *trainer);
+/* Samples the average policy from the deal. Missing nodes use a uniform
+ * policy. Values and standard errors are in points, not win probabilities. */
+Status mus_four_evaluate_with_options(const InfoStore *store,
+    const MusScoreEvaluationOptions *options, uint64_t seed, MusScoreEvaluation *result);
 
 Status mus_four_score_game_init(MusScoreGame *game, const MusScoreTable *table,
                                 unsigned int a, unsigned int b);

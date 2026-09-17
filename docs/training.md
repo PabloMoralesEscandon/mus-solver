@@ -13,6 +13,11 @@ acumuladas, los regrets —valores que orientan el aprendizaje—, los contadore
 y el estado aleatorio. Un TXT exportado contiene probabilidades para consulta;
 no permite reanudar el entrenamiento.
 
+Para cuatro jugadores por parejas usa `ordago-four` en los mismos comandos.
+Entrena una sola estrategia para la mano, sin tabla de continuación ni marcador
+inicial. Admite `--threads`, guardado, reanudación y exportación como `ordago`.
+Sus TXT se consultan mediante la API C; el bot admite únicamente dos jugadores.
+
 ```sh
 build/release/mus-solver --format ordago \
     --iterations 100 --seed 7 --report-every 50 \
@@ -208,6 +213,7 @@ a la genérica para nodos ausentes.
 | Variante | Alcance de `--evaluate` |
 |---|---|
 | `ordago`, `ordago-deprecated` | Diagnóstico de dos repartos fijos en juego y punto, con ambas manos fijadas. No es explotabilidad desde la raíz. |
+| `ordago-four` | Diferencia de tantos por muestreo de manos completas con la estrategia media, sin continuación. |
 | `ordago-score`, `ordago-score-four` | Valor por muestreo de la estrategia media con continuaciones fijas. |
 | `single-bet`, `raises-to-eight` | Evaluación exacta de sus árboles: valor, mejores respuestas, NashConv y explotabilidad. |
 
@@ -215,6 +221,20 @@ El diagnóstico de mano aislada informa `scope=bounded-final-lances` y
 `root_bound=none`. No constituye una cota global ni restablece garantías de
 convergencia. Para medir el bot con sus traducciones y respaldos, usa la
 [evaluación de partidas](match-evaluation.md).
+
+Para evaluar una estrategia de parejas sin marcador:
+
+```sh
+build/release/mus-solver --format ordago-four \
+    --load-compressed cuatro.cfr.zst --evaluate --evaluation-samples 1000
+```
+
+La salida identifica `scope=single-hand-sampled` y `utility=points`. Informa el
+valor de los cuatro jugadores, con igual valor entre compañeros y signo opuesto
+entre parejas. `standard_error` se expresa en tantos. No informa probabilidad
+de victoria, mejores respuestas ni explotabilidad. Las opciones de muestreo
+adaptativo también se admiten con `--evaluate`. Sin checkpoint se evalúa una
+política uniforme; los nodos ausentes de una estrategia también usan esa política.
 
 Para evaluar y exportar una celda publicada:
 
@@ -253,6 +273,10 @@ presupuesto fijo para comparaciones que necesiten el mismo número de muestras.
 Los nombres de CLI no cambian los esquemas guardados. El cargador comprueba
 variante, límite de muses y, para tablas, objetivo, marcador y huella de las
 continuaciones. Conserva los archivos de una misma tabla juntos.
+
+`ordago-four` usa `mus.four-partnership-single-hand.ordago/v1-muses-1`
+(o `muses-2`). Sus checkpoints no se intercambian con `ordago-score-four`
+ni con las variantes de dos jugadores.
 
 | Tabla | Esquema |
 |---|---|

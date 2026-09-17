@@ -25,6 +25,7 @@
 #include "cfr/trainer.h"
 #include "mus_solver/mus_evaluation.h"
 #include "mus_solver/mus_game.h"
+#include "mus_solver/mus_four.h"
 #include "mus_solver/mus_strategy.h"
 #include "mus_solver/mus_score.h"
 #include "mus_solver/mus_training.h"
@@ -38,6 +39,7 @@ typedef enum {
     CLI_FORMAT_RAISES_TO_EIGHT,
     CLI_FORMAT_ORDAGO_DEPRECATED,
     CLI_FORMAT_ORDAGO_PUBLIC,
+    CLI_FORMAT_ORDAGO_FOUR,
     CLI_FORMAT_ORDAGO_SCORE,
     CLI_FORMAT_ORDAGO_SCORE_FOUR
 } CliFormat;
@@ -123,6 +125,7 @@ static bool print_usage(FILE *stream, const char *program) {
                "  --seed N               Semilla de un entrenamiento nuevo (0 por "
                "defecto).\n"
                "  --format FORMAT        ordago: mano aislada (por defecto).\n"
+               "                          ordago-four: mano aislada, parejas 0/2 y 1/3.\n"
                "                          ordago-score: marcador, dos jugadores.\n"
                "                          ordago-score-four: marcador, parejas 0/2 y 1/3.\n"
                "                          ordago-deprecated: estrategias historicas.\n"
@@ -136,6 +139,7 @@ static bool print_usage(FILE *stream, const char *program) {
                "  --save-compressed FILE Guarda un checkpoint Zstandard nivel 1.\n"
                "  --evaluate             Evalua la estrategia media. ordago y\n"
                "                          ordago-deprecated usan un diagnostico acotado.\n"
+               "                          ordago-four estima tantos por muestreo.\n"
                "  --export-strategy FILE Exporta la estrategia con etiquetas de "
                "mus.\n"
                "  --continuation DIR     Tabla y checkpoints de una version score.\n"
@@ -147,7 +151,7 @@ static bool print_usage(FILE *stream, const char *program) {
                "  --score-region A:B     Limita la tabla a continuaciones de A:B y B:A.\n"
                "                          Sin --score, empieza desde A:B.\n"
                "  --target N             Objetivo de una version score (40 por defecto).\n"
-               "  --evaluation-samples N Manos para evaluar cada celda (10000).\n"
+               "  --evaluation-samples N Manos para evaluar una celda u ordago-four (10000).\n"
                "  --evaluation-min-samples N\n"
                "  --evaluation-target-se X\n"
                "                          Juntas: muestreo adaptativo desde N manos,\n"
@@ -303,6 +307,8 @@ static bool parse_options(int argc, char *argv[], CliOptions *options) {
                 options->format = CLI_FORMAT_ORDAGO_SCORE_FOUR;
             } else if (strcmp(value, "ordago-score") == 0) {
                 options->format = CLI_FORMAT_ORDAGO_SCORE;
+            } else if (strcmp(value, "ordago-four") == 0) {
+                options->format = CLI_FORMAT_ORDAGO_FOUR;
             } else if (strcmp(value, "ordago") == 0 ||
                        strcmp(value, "ordago-public") == 0) {
                 options->format = CLI_FORMAT_ORDAGO_PUBLIC;
@@ -451,10 +457,13 @@ static bool parse_options(int argc, char *argv[], CliOptions *options) {
                (options->iterations_set || options->evaluate || options->export_path != NULL);
     }
     if (options->continuation_dir != NULL || options->extend_continuation_dir != NULL || options->score_set ||
-        options->target_set || options->score_region_set || options->evaluation_samples_set ||
-        options->evaluation_min_samples_set || options->evaluation_target_se_set ||
+        options->target_set || options->score_region_set ||
         options->preload_ordago_path != NULL || options->preload_weight_set ||
         options->threads_per_cell_set)
+        return false;
+    if ((options->evaluation_samples_set || options->evaluation_min_samples_set ||
+         options->evaluation_target_se_set) &&
+        (options->format != CLI_FORMAT_ORDAGO_FOUR || !options->evaluate))
         return false;
     if (!options->iterations_set && !options->evaluate &&
         !(options->load_path != NULL && options->export_path != NULL))
@@ -590,6 +599,8 @@ static Status export_strategy(const char *path, const Trainer *trainer,
         return CFR_STATUS_IO_ERROR;
     if (is_score_format(format)) {
         status = mus_score_strategy_write_text(stream, trainer);
+    } else if (format == CLI_FORMAT_ORDAGO_FOUR) {
+        status = mus_four_strategy_write_text(stream, trainer);
     } else if (format == CLI_FORMAT_RAISES_TO_EIGHT) {
         status = mus_raises_to_eight_strategy_write_text(stream, trainer);
     } else if (format == CLI_FORMAT_ORDAGO_PUBLIC) {
@@ -1637,7 +1648,7 @@ done:
 static int run(const CliOptions *options) {
     if (is_score_format(options->format))
         return run_score(options);
-    MusGameState *state = NULL;
+    void *state = NULL;
     InfoStore store = {0};
     Trainer trainer;
     const Game *game;
@@ -1645,7 +1656,9 @@ static int run(const CliOptions *options) {
     int result = EXIT_RUNTIME_ERROR;
     Status status;
 
-    if (options->format == CLI_FORMAT_RAISES_TO_EIGHT) {
+    if (options->format == CLI_FORMAT_ORDAGO_FOUR) {
+        game = mus_four_game_descriptor();
+    } else if (options->format == CLI_FORMAT_RAISES_TO_EIGHT) {
         game = mus_raises_to_eight_game_descriptor();
     } else if (options->format == CLI_FORMAT_ORDAGO_PUBLIC) {
         game = mus_ordago_public_game_descriptor();
@@ -1654,12 +1667,15 @@ static int run(const CliOptions *options) {
     } else {
         game = mus_single_bet_game_descriptor();
     }
-    state = malloc(sizeof(*state));
+    state = malloc(options->format == CLI_FORMAT_ORDAGO_FOUR
+                       ? sizeof(MusFourGameState) : sizeof(MusGameState));
     if (state == NULL) {
         status = CFR_STATUS_OUT_OF_MEMORY;
         goto runtime_error;
     }
-    if (options->format == CLI_FORMAT_RAISES_TO_EIGHT) {
+    if (options->format == CLI_FORMAT_ORDAGO_FOUR) {
+        status = mus_four_game_state_init(state);
+    } else if (options->format == CLI_FORMAT_RAISES_TO_EIGHT) {
         status = mus_raises_to_eight_game_state_init(state);
     } else if (options->format == CLI_FORMAT_ORDAGO_PUBLIC) {
         status = mus_ordago_public_game_state_init(state);
@@ -1672,7 +1688,7 @@ static int run(const CliOptions *options) {
         goto runtime_error;
     if (options->load_path != NULL) {
         status = load_checkpoint(options->load_path, game,
-                                 mus_game_state_as_game_state(state),
+                                 (GameState *)state,
                                  &store, &trainer,
                                  options->load_compressed);
         if (status != CFR_STATUS_SUCCESS) {
@@ -1688,7 +1704,7 @@ static int run(const CliOptions *options) {
         store_initialized = true;
         status = cfr_trainer_init_mccfr(
             &trainer, game,
-            mus_game_state_as_game_state(state), &store, options->seed);
+            (GameState *)state, &store, options->seed);
         if (status != CFR_STATUS_SUCCESS)
             goto runtime_error;
     }
@@ -1738,7 +1754,31 @@ static int run(const CliOptions *options) {
             goto cleanup;
         }
     }
-    if (options->evaluate) {
+    if (options->evaluate && options->format == CLI_FORMAT_ORDAGO_FOUR) {
+        const MusScoreEvaluationOptions evaluation_options = {
+            .min_samples = options->evaluation_min_samples_set
+                ? options->evaluation_min_samples : options->evaluation_samples,
+            .max_samples = options->evaluation_samples,
+            .target_standard_error = options->evaluation_target_se
+        };
+        MusScoreEvaluation evaluation;
+        status = mus_four_evaluate_with_options(&store, &evaluation_options,
+                                                options->seed, &evaluation);
+        if (status != CFR_STATUS_SUCCESS)
+            goto runtime_error;
+        if (printf("evaluation scope=single-hand-sampled iterations=%zu "
+                   "players=4 teams=0+2:1+3 utility=points samples=%zu "
+                   "profile_value_player_0=%.17g profile_value_player_1=%.17g "
+                   "profile_value_player_2=%.17g profile_value_player_3=%.17g "
+                   "variance_known=%u sample_variance=%.17g standard_error=%.17g\n",
+                   trainer.training_iterations, evaluation.samples,
+                   evaluation.value, -evaluation.value, evaluation.value, -evaluation.value,
+                   evaluation.variance_known ? 1U : 0U, evaluation.sample_variance,
+                   evaluation.standard_error) < 0) {
+            status = CFR_STATUS_IO_ERROR;
+            goto runtime_error;
+        }
+    } else if (options->evaluate) {
         EvaluationMetrics metrics;
 
         if (options->format == CLI_FORMAT_RAISES_TO_EIGHT) {

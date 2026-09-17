@@ -47,6 +47,7 @@ static bool supported_game(const Game *game) {
          game == mus_single_bet_game_descriptor() ||
          game == mus_raises_to_eight_game_descriptor() ||
          game == mus_ordago_game_descriptor() ||
+         game == mus_four_game_descriptor() ||
          game == mus_ordago_public_game_descriptor() || mus_score_game_matches_any(game));
 }
 
@@ -227,7 +228,8 @@ Status mus_training_run(Trainer *trainer, size_t iterations,
         active_count = report_every;
 
     TrainingWorker *workers = calloc(active_count, sizeof(*workers));
-    const size_t state_size = mus_four_score_game_matches(trainer->game)
+    const size_t state_size = (mus_four_score_game_matches(trainer->game) ||
+                              trainer->game == mus_four_game_descriptor())
         ? sizeof(MusFourGameState) : sizeof(MusGameState);
     unsigned char *states = NULL;
     pthread_t *thread_handles = NULL;

@@ -128,12 +128,17 @@ static void check_information(const MusScoreGame *game, MusFourGameState *state,
     size_t count = 0, decoded_count = 0;
     CHECK(cfr_game_information_set_key(&game->game, raw(state), &key) == CFR_STATUS_SUCCESS);
     CHECK(key >= 0);
-    CHECK(mus_four_score_information_set_decode(key, &information) == CFR_STATUS_SUCCESS);
-    CHECK(mus_four_score_information_set_encode(&information, &encoded) == CFR_STATUS_SUCCESS);
+    const bool single_hand = state->model.score_target == 0;
+    CHECK((single_hand ? mus_four_information_set_decode(key, &information)
+                       : mus_four_score_information_set_decode(key, &information)) == CFR_STATUS_SUCCESS);
+    CHECK((single_hand ? mus_four_information_set_encode(&information, &encoded)
+                       : mus_four_score_information_set_encode(&information, &encoded)) == CFR_STATUS_SUCCESS);
     CHECK(encoded == key);
     CHECK(cfr_game_legal_actions(&game->game, raw(state), actions, 16, &count) == CFR_STATUS_SUCCESS);
-    CHECK(mus_four_score_information_set_legal_actions(&information, decoded_actions, 16,
-                                                      &decoded_count) == CFR_STATUS_SUCCESS);
+    CHECK((single_hand
+        ? mus_four_information_set_legal_actions(&information, decoded_actions, 16, &decoded_count)
+        : mus_four_score_information_set_legal_actions(&information, decoded_actions, 16,
+                                                      &decoded_count)) == CFR_STATUS_SUCCESS);
     CHECK(count == decoded_count && memcmp(actions, decoded_actions, count * sizeof(Action)) == 0);
 
     /* Swap an opponent's cards with the teammate's cards. Preserve every
@@ -163,29 +168,41 @@ static void check_information(const MusScoreGame *game, MusFourGameState *state,
 
 static void check_utility(const MusScoreGame *game, MusFourGameState *state) {
     double utility[4];
+    const bool single_hand = state->model.score_target == 0;
     for (unsigned int p = 0; p < 4; ++p) {
         CHECK(cfr_game_terminal_utility(&game->game, raw(state), (Player)p,
                                          &utility[p]) == CFR_STATUS_SUCCESS);
-        CHECK(isfinite(utility[p]) && utility[p] >= -1 && utility[p] <= 1);
+        const double limit = single_hand ? 40 : 1;
+        CHECK(isfinite(utility[p]) && utility[p] >= -limit && utility[p] <= limit);
     }
     CHECK(utility[0] == utility[2] && utility[1] == utility[3] && utility[0] == -utility[1]);
     const unsigned int a = state->model.initial_scores[0] + state->model.settled_scores[0];
     const unsigned int b = state->model.initial_scores[1] + state->model.settled_scores[1];
+    if (single_hand) {
+        CHECK(state->continuation == NULL);
+        CHECK(utility[0] == (double)a - b);
+        return;
+    }
     if (a >= 40) CHECK(utility[0] == 1);
     else if (b >= 40) CHECK(utility[0] == -1);
     else CHECK(utility[0] == -state->continuation->cells[b][a].value);
 }
 
-static void random_properties(MusScoreTable *table) {
+static void random_properties(MusScoreTable *table, bool single_hand) {
     MusFourGameState *state = malloc(sizeof(*state));
     MusFourGameState *other = malloc(sizeof(*other));
     CHECK(state != NULL && other != NULL);
     for (unsigned int trial = 0; trial < 1200; ++trial) {
         MusScoreGame game;
         const bool passive = trial < 400;
-        CHECK(mus_score_game_init(&game, table, passive ? 0 : random_number() % 40,
-                                   passive ? 0 : random_number() % 40) == CFR_STATUS_SUCCESS);
-        CHECK(mus_four_score_game_state_init(state, &game) == CFR_STATUS_SUCCESS);
+        if (single_hand) {
+            game = (MusScoreGame){.game = *mus_four_game_descriptor()};
+            CHECK(mus_four_game_state_init(state) == CFR_STATUS_SUCCESS);
+        } else {
+            CHECK(mus_score_game_init(&game, table, passive ? 0 : random_number() % 40,
+                                       passive ? 0 : random_number() % 40) == CFR_STATUS_SUCCESS);
+            CHECK(mus_four_score_game_state_init(state, &game) == CFR_STATUS_SUCCESS);
+        }
         size_t steps = 0;
         while (state->model.phase != MUS_FOUR_PHASE_TERMINAL) {
             CHECK(++steps < MUS_FOUR_UNDO_CAPACITY);
@@ -1158,6 +1175,133 @@ static void error_contracts(MusScoreTable *table) {
     free(state);
 }
 
+static void single_reply(const MusScoreGame *game, MusFourGameState *state,
+                          Action first, Action second) {
+    CHECK(state->model.current_wager != 0);
+    apply(game, state, first);
+    if (state->model.pending_response != MUS_FOUR_RESPONSE_NONE)
+        apply(game, state, second);
+}
+
+static void single_pass(const MusScoreGame *game, MusFourGameState *state) {
+    const unsigned int phase = state->model.phase;
+    while (state->model.phase == phase)
+        apply(game, state, MUS_ACTION_PASS);
+}
+
+static void single_deal(const MusScoreGame *game, MusFourGameState *state) {
+    const uint8_t hands[4][8] = {
+        {2,0,0,0,0,0,0,2}, {0,0,2,0,0,0,2,0},
+        {1,1,1,1,0,0,0,0}, {0,1,1,1,1,0,0,0}
+    };
+    CHECK(mus_four_game_state_init(state) == CFR_STATUS_SUCCESS);
+    for (unsigned int p = 0; p < 4; ++p)
+        for (unsigned int c = 0; c < 8; ++c)
+            for (unsigned int n = 0; n < hands[p][c]; ++n)
+                apply(game, state, (Action)c);
+    apply(game, state, MUS_ACTION_NO_MUS);
+}
+
+static void single_hand_examples(MusScoreTable *table) {
+    const MusScoreGame game = {.game = *mus_four_game_descriptor()};
+    MusFourGameState *state = malloc(sizeof(*state));
+    MusFourGameState *other = malloc(sizeof(*other));
+    CHECK(state != NULL && other != NULL);
+    CHECK(!mus_four_score_game_matches(mus_four_game_descriptor()));
+    CHECK(!mus_score_game_matches_any(mus_four_game_descriptor()));
+    CHECK(mus_four_game_state_init(NULL) == CFR_STATUS_INVALID_ARGUMENT);
+    single_deal(&game, state);
+    MusFourInformationSet information;
+    CHECK(mus_four_game_observe(state, &information) == CFR_STATUS_SUCCESS);
+    CHECK(mus_four_score_game_observe(state, &information) == CFR_STATUS_INVALID_ARGUMENT);
+
+    /* Grande 30 and chica 8 go to team 0. Its duples reach the cap before
+     * punto, but team 1 must still collect its point: utility is 39, not 40. */
+    apply(&game, state, MUS_ACTION_BET_TWO);
+    single_reply(&game, state, MUS_ACTION_BET_FOUR, MUS_ACTION_REJECT);
+    single_reply(&game, state, MUS_ACTION_BET_FOUR, MUS_ACTION_REJECT);
+    single_reply(&game, state, MUS_ACTION_BET_TEN, MUS_ACTION_REJECT);
+    single_reply(&game, state, MUS_ACTION_BET_TEN, MUS_ACTION_REJECT);
+    single_reply(&game, state, MUS_ACTION_ACCEPT, MUS_ACTION_ACCEPT);
+    CHECK(state->model.prior_wager_total == 30);
+    apply(&game, state, MUS_ACTION_BET_FOUR);
+    single_reply(&game, state, MUS_ACTION_BET_FOUR, MUS_ACTION_REJECT);
+    single_reply(&game, state, MUS_ACTION_ACCEPT, MUS_ACTION_ACCEPT);
+    CHECK(state->model.prior_wager_total == 38);
+    single_pass(&game, state);
+    single_pass(&game, state);
+    CHECK(state->model.phase == MUS_FOUR_PHASE_TERMINAL);
+    CHECK(state->model.settled_scores[0] == 40 && state->model.settled_scores[1] == 1);
+    check_utility(&game, state);
+
+    /* Rejected raises pay 17 and 22, then an opening ordago pays 1.
+     * The hand continues at 40 public points, with pass and ordago only. */
+    single_deal(&game, state);
+    apply(&game, state, MUS_ACTION_BET_SEVEN);
+    single_reply(&game, state, MUS_ACTION_BET_TEN, MUS_ACTION_REJECT);
+    single_reply(&game, state, MUS_ACTION_BET_TEN, MUS_ACTION_REJECT);
+    single_reply(&game, state, MUS_ACTION_REJECT, MUS_ACTION_REJECT);
+    CHECK(state->model.paid_scores[0] == 17);
+    apply(&game, state, MUS_ACTION_PASS);
+    apply(&game, state, MUS_ACTION_BET_TWO);
+    single_reply(&game, state, MUS_ACTION_BET_TEN, MUS_ACTION_REJECT);
+    single_reply(&game, state, MUS_ACTION_BET_TEN, MUS_ACTION_REJECT);
+    single_reply(&game, state, MUS_ACTION_ORDAGO, MUS_ACTION_REJECT);
+    single_reply(&game, state, MUS_ACTION_REJECT, MUS_ACTION_REJECT);
+    CHECK(state->model.paid_scores[0] == 39);
+    apply(&game, state, MUS_ACTION_ORDAGO);
+    single_reply(&game, state, MUS_ACTION_REJECT, MUS_ACTION_REJECT);
+    CHECK(state->model.phase == MUS_FOUR_PHASE_PUNTO && state->model.paid_scores[0] == 40);
+    check_information(&game, state, other);
+    Action actions[16]; size_t count;
+    CHECK(cfr_game_legal_actions(&game.game, raw(state), actions, 16, &count) == CFR_STATUS_SUCCESS);
+    CHECK(count == 2 && actions[0] == MUS_ACTION_PASS && actions[1] == MUS_ACTION_ORDAGO);
+    CHECK(mus_four_game_observe(state, &information) == CFR_STATUS_SUCCESS);
+    InfoSetKey key;
+    CHECK(mus_four_score_information_set_encode(&information, &key) == CFR_STATUS_INVALID_ARGUMENT);
+    /* Exercise both score boundaries and every pending-wager total in the
+     * new key block. These combinations must retain distinct observations. */
+    for (unsigned int team = 0; team < 2; ++team)
+        for (unsigned int points = 0; points <= 40; ++points)
+            for (unsigned int prior = 0; prior < 40; ++prior) {
+                MusFourInformationSet boundary = information, decoded;
+                boundary.scores[team] = 40;
+                boundary.scores[1 - team] = (uint8_t)points;
+                boundary.prior_wager_total = (uint8_t)prior;
+                CHECK(mus_four_information_set_encode(&boundary, &key) == CFR_STATUS_SUCCESS);
+                CHECK(mus_four_information_set_decode(key, &decoded) == CFR_STATUS_SUCCESS);
+                CHECK(memcmp(boundary.scores, decoded.scores, sizeof(boundary.scores)) == 0);
+                CHECK(decoded.prior_wager_total == prior);
+                CHECK(mus_four_information_set_legal_actions(&decoded, actions, 16, &count)
+                      == CFR_STATUS_SUCCESS);
+                CHECK(count == 2 && actions[0] == MUS_ACTION_PASS && actions[1] == MUS_ACTION_ORDAGO);
+            }
+    const MusFourGameModel before = state->model;
+    apply(&game, state, MUS_ACTION_ORDAGO);
+    check_information(&game, state, other);
+    apply(&game, state, MUS_ACTION_REJECT);
+    check_information(&game, state, other);
+    apply(&game, state, MUS_ACTION_ACCEPT);
+    /* Team 1 wins punto: the earlier 40 points of team 0 disappear. */
+    CHECK(state->model.settled_scores[0] == 0 && state->model.settled_scores[1] == 40);
+    check_utility(&game, state);
+    for (unsigned int n = 0; n < 3; ++n)
+        CHECK(cfr_game_undo_action(&game.game, raw(state)) == CFR_STATUS_SUCCESS);
+    CHECK(memcmp(&before, &state->model, sizeof(before)) == 0);
+    single_pass(&game, state);
+    CHECK(state->model.settled_scores[0] == 40 && state->model.settled_scores[1] == 1);
+
+    MusScoreGame score;
+    CHECK(mus_four_score_game_init(&score, table, 0, 0) == CFR_STATUS_SUCCESS);
+    CHECK(mus_four_score_game_state_init(state, &score) == CFR_STATUS_SUCCESS);
+    CHECK(cfr_game_validate_state(&game.game, raw(state)) == CFR_STATUS_INVALID_ARGUMENT);
+    CHECK(mus_four_game_observe(state, &information) == CFR_STATUS_INVALID_ARGUMENT);
+    CHECK(mus_four_game_state_init(state) == CFR_STATUS_SUCCESS);
+    CHECK(cfr_game_validate_state(&score.game, raw(state)) == CFR_STATUS_INVALID_ARGUMENT);
+    free(other);
+    free(state);
+}
+
 int main(void) {
     MusScoreTable table;
     init_table(&table);
@@ -1165,10 +1309,12 @@ int main(void) {
     joint_response_examples(&table);
     chained_response_examples(&table);
     single_eligible_response_examples(&table);
-    random_properties(&table);
+    random_properties(&table, false);
+    random_properties(&table, true);
+    single_hand_examples(&table);
     scoring_examples(&table);
     random_scoring_oracle();
     error_contracts(&table);
-    puts("Four-player rules and properties passed (400 passive simulator comparisons, 1200 property hands, 2400 scoring replays).");
+    puts("Four-player rules and properties passed (800 passive simulator comparisons, 2400 property hands, 2400 scoring replays).");
     return EXIT_SUCCESS;
 }

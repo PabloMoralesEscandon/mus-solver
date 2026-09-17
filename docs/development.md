@@ -77,6 +77,11 @@ identifican el formato histórico o utilidades compartidas; no se han renombrado
 para conservar compatibilidad. `mus_game_*`, `mus_evaluation_*` y
 `mus_strategy_write_text` siguen representando el modelo reducido `single-bet`.
 
+Para `ordago-four`, usa `mus_four_game_state_init` y
+`mus_four_game_descriptor`, con un `MusFourGameState`. No necesita
+`MusScoreTable`. Las funciones `mus_four_score_*` mantienen sus contratos
+para el modelo con marcador.
+
 C-CFR consume el descriptor `Game` y un estado reversible. Conserva el
 contexto, la tabla y el estado vivos mientras el entrenador los use. Cada
 almacén de una variante con marcador pertenece a una única celda. La

@@ -1,11 +1,32 @@
-# Órdago con marcador: cuatro jugadores
+# Órdago: cuatro jugadores
 
 [Volver al README](../README.md) · [Entrenamiento](training.md) · [Reglas comunes](rules.md)
 
-`ordago-score-four` es la variante con marcador para cuatro jugadores por
+`ordago-four` juega una mano aislada y `ordago-score-four` añade el marcador
+y la continuación de la partida. Ambas son para cuatro jugadores por
 parejas: 0 y 2 contra 1 y 3. Cada jugador decide con sus cartas y la información
 pública; no conoce las cartas del compañero. El bot y el evaluador de partidas
 incluidos en el repositorio admiten únicamente dos jugadores.
+
+## Mano aislada sin marcador
+
+`ordago-four` es el equivalente de `ordago` para parejas. Empieza sin tantos
+previos, cuenta todos los lances y limita el total de cada pareja a 40. La
+utilidad es la diferencia de tantos: 40:1 vale +39 para los jugadores 0 y 2,
+y −39 para 1 y 3. Alcanzar 40 no termina anticipadamente la mano. Un órdago
+querido sí la termina y sustituye todos los cobros por 40:0 o 0:40.
+
+```sh
+make solver
+build/release/mus-solver --format ordago-four \
+    --iterations 100 --seed 7 --save-compressed cuatro.cfr.zst \
+    --export-strategy cuatro.txt --evaluate --evaluation-samples 1000
+```
+
+Admite reanudación y varios hilos como `ordago`. No admite `--score`, `--target`
+ni las opciones de tablas de continuación. La evaluación estima la diferencia
+de tantos con la estrategia media, sin calcular explotabilidad. Sus checkpoints
+tienen un esquema propio y no se cargan como `ordago-score-four`.
 
 ## Reglas y marcador
 
@@ -20,7 +41,9 @@ aditivas de 2, 4 o 10; el límite de cinco envites numéricos y la prohibición
 de que un jugador repita el mismo incremento en un lance. La cota numérica
 conserva la regla de la versión score: mayor marcador público, más envites
 aceptados pendientes, más envite activo y nuevo incremento, debe ser menor
-que 40. `--target` cambia el objetivo de victoria, como en dos jugadores.
+que 40. En la mano aislada, el marcador público contiene únicamente los cobros
+de esa mano. En `ordago-score-four`, `--target` cambia el objetivo de victoria,
+como en dos jugadores.
 
 Los cuatro deben dar mus para descartar. Cada uno elige un subconjunto no
 vacío de su mano canónica. Se conservan las máscaras equivalentes de cartas
@@ -63,12 +86,13 @@ referencia independiente; su negociador no implementa esta regla de respuestas.
 
 Los dejes y las cantidades cubiertas rechazadas se cobran inmediatamente.
 Los envites aceptados y los tantos intrínsecos esperan al recuento final,
-en orden de lances. Un órdago querido termina la partida antes de ese recuento.
-El marcador se comprueba después de cada cobro. Si la mano termina sin
+en orden de lances. En `ordago-score-four`, un órdago querido termina la partida
+antes de ese recuento y el marcador se comprueba después de cada cobro.
+Si la mano termina sin
 ganador de partida, la siguiente mano pasa al equipo contrario: desde el
 equipo que era mano, la continuación es `-V[B][A]` con los tantos actualizados.
 
-## Entrenamiento
+## Entrenamiento con marcador
 
 ```sh
 make solver
@@ -111,6 +135,17 @@ propias, descartes públicos, fuerza por equipo, declaraciones, cobros,
 pendientes, límites de apuestas y las respuestas de pareja descritas arriba.
 La exportación muestra la última respuesta como, por ejemplo,
 `ultima_respuesta=0:querer/2:ordago`.
+
+Para una mano aislada, inicializa `MusFourGameState` con
+`mus_four_game_state_init` y usa `mus_four_game_descriptor()` con C-CFR.
+`mus_four_game_observe`, `mus_four_information_set_encode`,
+`mus_four_information_set_decode` y `mus_four_information_set_legal_actions`
+permiten consultar la estrategia. `mus_four_strategy_write_text` la exporta.
+El campo `score_target` del modelo es cero y `continuation` es `NULL`.
+`mus_four_evaluate_with_options` usa los tipos compartidos
+`MusScoreEvaluationOptions` y `MusScoreEvaluation`, pero devuelve valores y
+errores en tantos. Las funciones `mus_four_score_*` siguen siendo específicas
+de la variante con marcador; usa el codec que corresponda al checkpoint.
 
 Para usar [mus_score.h](../include/mus_solver/mus_score.h):
 
