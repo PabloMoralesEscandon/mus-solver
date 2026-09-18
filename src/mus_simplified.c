@@ -70,7 +70,7 @@ static bool proposal_valid(unsigned int proposal, unsigned int current, unsigned
 }
 
 static bool four_information_valid(const MusFourInformationSet *information) {
-    return mus_simplified_wager_masks_valid(information->used_wager_action_masks, 4) &&
+    return mus_simplified_wager_masks_valid(information->used_team_wager_action_masks, 2) &&
         proposal_valid(information->pending_response, information->current_wager,
                        information->previous_wager);
 }

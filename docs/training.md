@@ -280,11 +280,15 @@ Los nombres de CLI no cambian los esquemas guardados. El cargador comprueba
 variante, límite de muses y, para tablas, objetivo, marcador y huella de las
 continuaciones. Conserva los archivos de una misma tabla juntos.
 
-`ordago-four` usa `mus.four-partnership-single-hand.ordago/v2-muses-1`
+`ordago-four` usa `mus.four-partnership-single-hand.ordago/v3-muses-1`
 (o `muses-2`). Sus checkpoints no se intercambian con `ordago-score-four`
-ni con las variantes de dos jugadores. Los checkpoints v1 usaban el límite de
-incrementos por jugador, no por pareja: requieren la versión anterior del solver
-o entrenamiento nuevo. Las variantes `-simplified` conservan sus reglas y esquemas.
+ni con las variantes de dos jugadores. Los checkpoints v1/v2 requieren la versión
+correspondiente del solver o entrenamiento nuevo. La v3 agrupa los incrementos
+por pareja y olvida las respuestas individuales al terminar cada lance.
+Las variantes de parejas `-simplified` adoptan la misma abstracción con el esquema
+base `mus.four-partnership-single-hand.ordago-simplified/v2-muses-1` (o `muses-2`);
+sus archivos v1 también requieren la versión anterior o entrenamiento nuevo.
+Las variantes de dos jugadores no cambian.
 
 Las cuatro variantes `-simplified` usan las mismas opciones que sus originales,
 pero identificadores de archivo distintos: no se pueden cargar sus checkpoints
@@ -310,7 +314,7 @@ build/release/mus-solver --format ordago-four-simplified \
 Las tablas completas y las regionales no intercambian checkpoints, incluso
 con una región 0:0. Las versiones de dos jugadores anteriores a v4 requieren
 reentrenar. En cuatro jugadores, las reglas actuales son
-`mus.four-partnership-score/v4-muses-1` o `v4-muses-2`; archivos de reglas v1/v2/v3
+`mus.four-partnership-score/v5-muses-1` o `v5-muses-2`; archivos de reglas v1–v4
 requieren la versión correspondiente del solver o entrenamiento nuevo.
 
 `values.txt` puede incluir `statistics=sample-variance-v1`. El lector actual

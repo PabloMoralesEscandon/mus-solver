@@ -7,7 +7,7 @@ import tempfile
 import zlib
 
 SOLVER = str(Path(sys.argv[1]).resolve())
-SCHEMA = 'mus.four-partnership-single-hand.ordago/v2-muses-'
+SCHEMA = 'mus.four-partnership-single-hand.ordago/v3-muses-'
 
 
 def run(args, success=True, format='ordago-four'):
@@ -50,19 +50,23 @@ with tempfile.TemporaryDirectory(prefix='mus-four-single-') as temporary:
         fields = dict(token.split('=', 1) for token in line.split()[1:])
         assert int(fields['equipo']) == int(fields['jugador']) % 2
         assert int(fields['jugador']) in range(4)
+        assert len(fields['usados_pareja'].split('/')) == 2 and 'usados' not in fields
+        if fields['cubierto'] == '0' or (fields['cubierto'] == '1' and fields['actual'] != '40'):
+            assert fields['ultima_respuesta'] == 'ninguna'
 
     run(['--load', first, '--iterations', '2', '--save', resumed])
     run(['--iterations', '4', '--seed', '7', '--save', whole])
     assert resumed.read_bytes() == whole.read_bytes()
-    # The previous per-seat allowance rules are incompatible with team allowances.
+    # Both previous single-hand schemas are incompatible with this abstraction.
     checkpoint = whole.read_bytes()
     assert checkpoint.count(SCHEMA.encode()) == 1
     assert zlib.crc32(checkpoint[:-4]) == int.from_bytes(checkpoint[-4:], 'little')
-    previous_payload = checkpoint[:-4].replace(SCHEMA.encode(), SCHEMA.replace('/v2-', '/v1-').encode())
-    previous = root / 'previous-rules.cfr'
-    previous.write_bytes(previous_payload + zlib.crc32(previous_payload).to_bytes(4, 'little'))
-    result = run(['--load', previous, '--evaluate', '--evaluation-samples', '2'], False)
-    assert 'incompatible game' in result.stderr
+    for version in (1, 2):
+        previous_payload = checkpoint[:-4].replace(SCHEMA.encode(), SCHEMA.replace('/v3-', f'/v{version}-').encode())
+        previous = root / f'previous-v{version}-rules.cfr'
+        previous.write_bytes(previous_payload + zlib.crc32(previous_payload).to_bytes(4, 'little'))
+        result = run(['--load', previous, '--evaluate', '--evaluation-samples', '2'], False)
+        assert 'incompatible game' in result.stderr
     run(['--iterations', '4', '--seed', '7', '--save-compressed', compressed])
     exported_plain, exported_compressed = root / 'plain.txt', root / 'compressed.txt'
     run(['--load', whole, '--export-strategy', exported_plain])

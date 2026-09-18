@@ -17,17 +17,17 @@ static const Action wager_actions[4] = {
 };
 static const uint8_t game_values[8] = {33, 34, 35, 36, 37, 40, 32, 31};
 
-/* Keep the original per-seat mask ranks so existing simplified keys stay
- * unchanged. Team-level reuse restrictions are checked separately. */
-#define MASK_RADIX 755
+/* Rank the reachable team masks. Teams alternate and cannot reuse an
+ * increment. The executing seat is not part of this history. */
+#define MASK_RADIX 51
 #define PHASE_RADIX 16993
 #define RESPONSE_STAGE_RADIX 8
 /* Rank masks together with their score budgets, ordago flag and the last
  * resolved response. Numeric offers constrain the remaining score budget. */
-#define BOARD_RADIX UINT64_C(58585332)
+#define BOARD_RADIX UINT64_C(5912626)
 /* A single hand can reach 40 public points before its final lance. These
  * boards have no numeric wager masks: only pass and ordago remain legal. */
-#define SINGLE_HAND_BOARD_RADIX (BOARD_RADIX + UINT64_C(81) * 40 * 50)
+#define SINGLE_HAND_BOARD_RADIX (BOARD_RADIX + UINT64_C(81) * 40 * 2)
 #if MUS_GAME_MAX_MUSES == 1
 #define PUBLIC_MUS_RADIX 260
 #define EXACT_KEY_BOUND UINT64_C(1650000)
@@ -51,8 +51,8 @@ _Static_assert(16 + 24 * MUS_GAME_MAX_MUSES +
                    4 * (3 + 1 + 2 * (MUS_ORDAGO_MAX_NUMERIC_WAGERS + 1)) <=
                    MUS_FOUR_UNDO_CAPACITY,
                "Four-player undo holds both teammates' replies");
-static uint16_t mask_codes[65536];
-static uint16_t masks_by_code[MASK_RADIX];
+static uint8_t mask_codes[256];
+static uint8_t masks_by_code[MASK_RADIX];
 static uint8_t mask_totals[MASK_RADIX];
 static uint8_t mask_counts[MASK_RADIX];
 static uint8_t mask_last_responses[MASK_RADIX];
@@ -65,8 +65,8 @@ static unsigned int sum_squares(unsigned int n) {
 
 static unsigned int memory_radix(unsigned int mask_code, bool ordago) {
     if (ordago)
-        return mask_counts[mask_code] == 0 ? 25 : 12;
-    return mask_counts[mask_code] <= 1 ? 25
+        return mask_counts[mask_code] == 0 ? 1 : 12;
+    return mask_counts[mask_code] <= 1 ? 1
                                        : 2U * mask_last_responses[mask_code];
 }
 
@@ -80,15 +80,15 @@ static void visit_masks(unsigned int mask, int last, unsigned int minimum,
     mask_codes[mask] = 1;
     if (count == MUS_ORDAGO_MAX_NUMERIC_WAGERS)
         return;
-    for (int p = 0; p < 4; ++p) {
-        if (last >= 0 && p % 2 == last % 2)
+    for (int team = 0; team < 2; ++team) {
+        if (team == last)
             continue;
         for (unsigned int i = minimum; i < 4; ++i) {
             if (count != 0 && i == 2)
                 continue;
-            const unsigned int bit = 1U << (4U * (unsigned int)p + i);
+            const unsigned int bit = 1U << (4U * (unsigned int)team + i);
             if ((mask & bit) == 0 && total + increments[i] < 40)
-                visit_masks(mask | bit, p, i, count + 1,
+                visit_masks(mask | bit, team, i, count + 1,
                             total + increments[i]);
         }
     }
@@ -97,17 +97,17 @@ static void visit_masks(unsigned int mask, int last, unsigned int minimum,
 static void initialize_masks(void) {
     visit_masks(0, -1, 0, 0, 0);
     unsigned int code = 0;
-    for (unsigned int mask = 0; mask < 65536; ++mask) {
+    for (unsigned int mask = 0; mask < 256; ++mask) {
         if (mask_codes[mask] != 0) {
             if (code < MASK_RADIX)
-                masks_by_code[code] = (uint16_t)mask;
-            mask_codes[mask] = (uint16_t)(++code);
+                masks_by_code[code] = (uint8_t)mask;
+            mask_codes[mask] = (uint8_t)(++code);
         }
     }
     for (unsigned int i = 0; i < MASK_RADIX; ++i) {
         const unsigned int mask = masks_by_code[i];
         unsigned int last = 0;
-        for (unsigned int p = 0; p < 4; ++p)
+        for (unsigned int p = 0; p < 2; ++p)
             for (unsigned int w = 0; w < 4; ++w)
                 if ((mask & (1U << (p * 4 + w))) != 0) {
                     mask_totals[i] += increments[w];
@@ -322,6 +322,8 @@ static void start_lance(MusFourGameState *state, unsigned int phase) {
         }
         m->passed_mask = 0;
         m->pending_response = MUS_FOUR_RESPONSE_NONE;
+        m->last_response_player = 0;
+        memset(m->last_responses, 0, sizeof(m->last_responses));
         m->bettor = m->current_wager = m->previous_wager = 0;
         m->current_wager_is_ordago = false;
         m->current_strength = MUS_LANCE_STRENGTH_NONE;
@@ -408,17 +410,17 @@ static unsigned int compact_hand(unsigned int phase, const uint8_t hand[8],
                                           : (unsigned int)summary->point_value - 4;
 }
 
-static unsigned int all_masks(const uint8_t masks[4]) {
+static unsigned int all_masks(const uint8_t masks[2]) {
     unsigned int result = 0;
-    for (unsigned int p = 0; p < 4; ++p)
+    for (unsigned int p = 0; p < 2; ++p)
         result |= (unsigned int)masks[p] << (p * 4);
     return result;
 }
 
-static unsigned int numeric_total(const uint8_t masks[4], unsigned int *last) {
+static unsigned int numeric_total(const uint8_t masks[2], unsigned int *last) {
     unsigned int total = 0;
     *last = 0;
-    for (unsigned int p = 0; p < 4; ++p)
+    for (unsigned int p = 0; p < 2; ++p)
         for (unsigned int i = 0; i < 4; ++i)
             if ((masks[p] & (1U << i)) != 0) {
                 total += increments[i];
@@ -479,9 +481,8 @@ static Status observation_menu(const MusFourInformationSet *o,
     const unsigned int minimum = !response ? 0
         : o->previous_wager == 1 ? o->current_wager
                                 : o->current_wager - o->previous_wager;
-    const unsigned int count_used = bit_count(all_masks(o->used_wager_action_masks));
-    const unsigned int team_used = o->used_wager_action_masks[o->player] |
-                                   o->used_wager_action_masks[(o->player + 2U) % 4];
+    const unsigned int count_used = bit_count(all_masks(o->used_team_wager_action_masks));
+    const unsigned int team_used = o->used_team_wager_action_masks[o->player % 2];
     for (unsigned int i = 0; i < 4; ++i)
         if (count_used < MUS_ORDAGO_MAX_NUMERIC_WAGERS &&
             (!response || increments[i] != 7) &&
@@ -562,8 +563,9 @@ static Status observe(const MusFourGameState *state,
         o.pending_response = m->pending_response;
         o.last_response_player = m->last_response_player;
         memcpy(o.last_responses, m->last_responses, sizeof(o.last_responses));
-        memcpy(o.used_wager_action_masks, m->used_wager_action_masks,
-               sizeof(o.used_wager_action_masks));
+        for (unsigned int team = 0; team < 2; ++team)
+            o.used_team_wager_action_masks[team] = m->used_wager_action_masks[team] |
+                                                 m->used_wager_action_masks[team + 2];
     }
     *information = o;
     return CFR_STATUS_SUCCESS;
@@ -690,21 +692,12 @@ static Status response_memory_encode(const MusFourInformationSet *o,
         second > MUS_FOUR_RESPONSE_ORDAGO)
         return CFR_STATUS_INVALID_ARGUMENT;
     const unsigned int radix = memory_radix(mask_code, o->current_wager_is_ordago);
-    if (radix == 25) {
-        /* Before the first raise, any remembered response closed an older
-         * lance. That lance's eligible seats need not be eligible now. */
-        if (first == MUS_FOUR_RESPONSE_NONE) {
-            if (second != MUS_FOUR_RESPONSE_NONE || o->last_response_player != 0)
-                return CFR_STATUS_INVALID_ARGUMENT;
-            *result = 0;
-        } else if (first > MUS_FOUR_RESPONSE_ACCEPT || second > MUS_FOUR_RESPONSE_ACCEPT) {
+    if (radix == 1) {
+        /* No reply has resolved in this lance before its first raise. */
+        if (first != MUS_FOUR_RESPONSE_NONE || second != MUS_FOUR_RESPONSE_NONE ||
+            o->last_response_player != 0)
             return CFR_STATUS_INVALID_ARGUMENT;
-        } else if (second == MUS_FOUR_RESPONSE_NONE) {
-            *result = 1U + o->last_response_player * 2U + first - 1U;
-        } else {
-            *result = 9U + o->last_response_player * 4U +
-                      (first - 1U) * 2U + second - 1U;
-        }
+        *result = 0;
         return CFR_STATUS_SUCCESS;
     }
     /* After a raise, its winning proposal and author are already encoded
@@ -729,19 +722,7 @@ static Status response_memory_encode(const MusFourInformationSet *o,
 static void response_memory_decode(unsigned int code, unsigned int mask_code,
                                     MusFourInformationSet *o) {
     const unsigned int radix = memory_radix(mask_code, o->current_wager_is_ordago);
-    if (radix == 25) {
-        if (code == 0)
-            return;
-        if (code < 9) {
-            --code;
-            o->last_response_player = (uint8_t)(code / 2);
-            o->last_responses[0] = (uint8_t)(code % 2 + 1);
-        } else {
-            code -= 9;
-            o->last_response_player = (uint8_t)(code / 4);
-            o->last_responses[0] = (uint8_t)(code / 2 % 2 + 1);
-            o->last_responses[1] = (uint8_t)(code % 2 + 1);
-        }
+    if (radix == 1) {
         return;
     }
     const unsigned int winner = radix / 2;
@@ -767,8 +748,8 @@ static Status board_encode(const MusFourInformationSet *o, unsigned int mask_cod
         if (mask_counts[mask_code] != 0)
             return CFR_STATUS_INVALID_ARGUMENT;
         const unsigned int pair = o->scores[0] == 40 ? o->scores[1] : 41U + o->scores[0];
-        *result = (unsigned int)BOARD_RADIX + (pair * 40 + o->prior_wager_total) * 50 +
-                  (o->current_wager_is_ordago ? 25U : 0U) + memory;
+        *result = (unsigned int)BOARD_RADIX + (pair * 40 + o->prior_wager_total) * 2 +
+                  (o->current_wager_is_ordago ? 1U : 0U);
         return CFR_STATUS_SUCCESS;
     }
     unsigned int score;
@@ -799,12 +780,10 @@ static Status board_decode(unsigned int code, MusFourInformationSet *o) {
         return CFR_STATUS_INVALID_ARGUMENT;
     if (code >= BOARD_RADIX) {
         code -= (unsigned int)BOARD_RADIX;
-        const unsigned int memory = code % 25; code /= 25;
         o->current_wager_is_ordago = code % 2 != 0; code /= 2;
         o->prior_wager_total = (uint8_t)(code % 40); code /= 40;
         o->scores[0] = (uint8_t)(code <= 40 ? 40 : code - 41);
         o->scores[1] = (uint8_t)(code <= 40 ? code : 40);
-        response_memory_decode(memory, 0, o);
         return CFR_STATUS_SUCCESS;
     }
     unsigned int low = 0, high = MASK_RADIX;
@@ -825,8 +804,8 @@ static Status board_decode(unsigned int code, MusFourInformationSet *o) {
     const unsigned int memory = code % radix;
     code /= radix;
     unsigned int mask = masks_by_code[mask_code];
-    for (unsigned int p = 0; p < 4; ++p) {
-        o->used_wager_action_masks[p] = (uint8_t)(mask % 16);
+    for (unsigned int p = 0; p < 2; ++p) {
+        o->used_team_wager_action_masks[p] = (uint8_t)(mask % 16);
         mask /= 16;
     }
     if (mask_counts[mask_code] == 0) {
@@ -882,18 +861,15 @@ static Status information_set_encode(
         o->scores[1] > (single_hand ? 40 : 39) || o->prior_wager_total >= 40)
         return CFR_STATUS_INVALID_ARGUMENT;
     pthread_once(&mask_once, initialize_masks);
-    for (unsigned int p = 0; p < 4; ++p)
-        if (o->used_wager_action_masks[p] >= 16)
+    for (unsigned int p = 0; p < 2; ++p)
+        if (o->used_team_wager_action_masks[p] >= 16)
             return CFR_STATUS_INVALID_ARGUMENT;
-    if ((o->used_wager_action_masks[0] & o->used_wager_action_masks[2]) != 0 ||
-        (o->used_wager_action_masks[1] & o->used_wager_action_masks[3]) != 0)
-        return CFR_STATUS_INVALID_ARGUMENT;
-    const unsigned int mask = all_masks(o->used_wager_action_masks);
+    const unsigned int mask = all_masks(o->used_team_wager_action_masks);
     if (mask_codes[mask] == 0 || mask_codes[mask] > MASK_RADIX)
         return CFR_STATUS_INVALID_ARGUMENT;
     const bool response = o->current_wager != 0;
     unsigned int last;
-    const unsigned int total = numeric_total(o->used_wager_action_masks, &last);
+    const unsigned int total = numeric_total(o->used_team_wager_action_masks, &last);
     const unsigned int expected_current = o->current_wager_is_ordago ? 40 : total;
     const unsigned int expected_previous = o->current_wager_is_ordago
         ? (total != 0 ? total : 1) : (total == last ? 1 : total - last);
@@ -987,7 +963,7 @@ static Status information_set_decode(
         phase_decode((unsigned int)code, &o);
         if (stage != 0) {
             unsigned int last;
-            const unsigned int total = numeric_total(o.used_wager_action_masks, &last);
+            const unsigned int total = numeric_total(o.used_team_wager_action_masks, &last);
             o.pending_response = (uint8_t)(stage - 1);
             o.current_wager = (uint8_t)(o.current_wager_is_ordago ? 40 : total);
             o.previous_wager = (uint8_t)(o.current_wager_is_ordago
@@ -1029,6 +1005,9 @@ static Status validate(const void *context, const GameState *raw) {
         s->model.mus_count > MUS_GAME_MAX_MUSES)
         return CFR_STATUS_INVALID_ARGUMENT;
     const MusFourGameModel *m = &s->model;
+    if ((m->used_wager_action_masks[0] & m->used_wager_action_masks[2]) != 0 ||
+        (m->used_wager_action_masks[1] & m->used_wager_action_masks[3]) != 0)
+        return CFR_STATUS_INVALID_ARGUMENT;
     if (single_hand) {
         if (s->continuation != NULL || m->score_target != 0 ||
             m->initial_scores[0] != 0 || m->initial_scores[1] != 0)
@@ -1759,10 +1738,9 @@ static Status write_node(const InfoNode *node, void *context) {
                 o.current_wager, o.previous_wager) < 0)
         return CFR_STATUS_IO_ERROR;
     if (fputs(" mano=", stream) == EOF || write_hand(stream, &o) != CFR_STATUS_SUCCESS ||
-        fprintf(stream, " pendientes=%u usados=%u/%u/%u/%u fuerza_previa=%u/%u/%u"
+        fprintf(stream, " pendientes=%u usados_pareja=%u/%u fuerza_previa=%u/%u/%u"
                 " respuesta_companero=%s corte=%s", o.prior_wager_total,
-                o.used_wager_action_masks[0], o.used_wager_action_masks[1],
-                o.used_wager_action_masks[2], o.used_wager_action_masks[3],
+                o.used_team_wager_action_masks[0], o.used_team_wager_action_masks[1],
                 o.previous_strengths[0], o.previous_strengths[1], o.previous_strengths[2],
                 o.pending_response == MUS_FOUR_RESPONSE_NONE ? "ninguna"
                     : action_name(response_action(o.pending_response)),

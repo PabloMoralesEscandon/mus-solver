@@ -110,6 +110,12 @@ ninguno, mano, postre o ambos. Envidar, subir y querer muestran fuerza. Se
 conserva también quién tiene pares cuando ese lance no se negocia, los
 descartes públicos y los datos necesarios para determinar el menú actual.
 
+En las cuatro variantes de parejas, las claves agrupan los incrementos usados
+por equipo, sin recordar qué compañero ejecutó cada incremento antiguo.
+Se conservan el apostador actual, la respuesta pendiente y la última respuesta
+resuelta dentro del lance. Al empezar el siguiente lance se borran las respuestas
+individuales; permanece el resumen de fuerza de los lances anteriores.
+
 Las claves conservan los cobros públicos y el total de envites aceptados
 pendientes, sin separar sus cantidades por lance. Grande 2/chica 4 y grande
 4/chica 2 pueden compartir política; el estado conserva los importes exactos
@@ -136,9 +142,9 @@ conversión ni reentrenamiento. `ordago-public` sigue siendo un alias del actual
 | Variante | Esquema de mano aislada, con un mus cuando corresponde |
 |---|---|
 | `ordago` | `mus.heads-up-single-hand.ordago-public/v1-muses-1` |
-| `ordago-four` | `mus.four-partnership-single-hand.ordago/v2-muses-1` |
+| `ordago-four` | `mus.four-partnership-single-hand.ordago/v3-muses-1` |
 | `ordago-simplified` | `mus.heads-up-single-hand.ordago-simplified/v1-muses-1` |
-| `ordago-four-simplified` | `mus.four-partnership-single-hand.ordago-simplified/v1-muses-1` |
+| `ordago-four-simplified` | `mus.four-partnership-single-hand.ordago-simplified/v2-muses-1` |
 | `ordago-deprecated` | `mus.heads-up-single-hand.ordago-with-mus/v9-muses-1` |
 | `single-bet` | `mus.heads-up-single-hand/v1` |
 | `raises-to-eight` | `mus.heads-up-single-hand.raises-to-eight/v1` |

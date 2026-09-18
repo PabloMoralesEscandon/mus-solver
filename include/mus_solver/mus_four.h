@@ -6,11 +6,11 @@
 #define MUS_FOUR_PLAYER_COUNT 4
 #define MUS_FOUR_UNDO_CAPACITY 256
 #if MUS_GAME_MAX_MUSES == 1
-#define MUS_FOUR_STRATEGY_SCHEMA_ID "mus.four-partnership-score/v4-muses-1"
-#define MUS_FOUR_SINGLE_HAND_STRATEGY_SCHEMA_ID "mus.four-partnership-single-hand.ordago/v2-muses-1"
+#define MUS_FOUR_STRATEGY_SCHEMA_ID "mus.four-partnership-score/v5-muses-1"
+#define MUS_FOUR_SINGLE_HAND_STRATEGY_SCHEMA_ID "mus.four-partnership-single-hand.ordago/v3-muses-1"
 #else
-#define MUS_FOUR_STRATEGY_SCHEMA_ID "mus.four-partnership-score/v4-muses-2"
-#define MUS_FOUR_SINGLE_HAND_STRATEGY_SCHEMA_ID "mus.four-partnership-single-hand.ordago/v2-muses-2"
+#define MUS_FOUR_STRATEGY_SCHEMA_ID "mus.four-partnership-score/v5-muses-2"
+#define MUS_FOUR_SINGLE_HAND_STRATEGY_SCHEMA_ID "mus.four-partnership-single-hand.ordago/v3-muses-2"
 #endif
 
 typedef enum {
@@ -63,8 +63,9 @@ typedef struct {
     /* The first teammate's public proposal, while current_player responds.
      * Its author is current_player's teammate. The offer stays unchanged. */
     uint8_t pending_response;
-    /* Most recent resolved reply, retained across lances until another reply
-     * resolves. The second proposal belongs to the first player's teammate;
+    /* Most recent resolved reply in the current lance. Clear this memory
+     * when a new lance starts. The second proposal belongs to the first
+     * responder's teammate.
      * NONE means that only the first player was eligible. Both NONE means
      * no reply has resolved. Earlier resolved replies are abstracted away. */
     uint8_t last_response_player;
@@ -73,6 +74,8 @@ typedef struct {
     uint8_t current_wager;
     uint8_t previous_wager;
     bool current_wager_is_ordago;
+    /* Record executed increments by seat for state validation and undo.
+     * Strategy observations combine these masks by team. */
     uint8_t used_wager_action_masks[MUS_FOUR_PLAYER_COUNT];
     uint8_t current_strength;
     uint8_t outcomes[MUS_GAME_LANCE_COUNT];
@@ -112,9 +115,12 @@ typedef struct {
     uint8_t previous_wager;
     bool current_wager_is_ordago;
     uint8_t pending_response;
+    /* Last resolved reply in this lance. All fields are zero in a new lance. */
     uint8_t last_response_player;
     uint8_t last_responses[2];
-    uint8_t used_wager_action_masks[MUS_FOUR_PLAYER_COUNT];
+    /* Team 0 is seats 0+2. Team 1 is seats 1+3. These masks do not identify
+     * the seat that executed an earlier increment. */
+    uint8_t used_team_wager_action_masks[2];
 } MusFourInformationSet;
 
 /* Single hand: no initial match score or continuation table. Team utility is

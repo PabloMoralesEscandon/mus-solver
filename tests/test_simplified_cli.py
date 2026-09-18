@@ -2,20 +2,24 @@
 import hashlib
 import json
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
+import zlib
 
 SOLVER = str(Path(sys.argv[1]).resolve())
 BOT = str(Path(sys.argv[2]).resolve()) if len(sys.argv) > 2 else None
+FOUR_SCHEMA = b'mus.four-partnership-single-hand.ordago-simplified/v2-muses-'
+PREVIOUS_FOUR_SCHEMA = FOUR_SCHEMA.replace(b'/v2-', b'/v1-')
 
 
-def run(variant, args, success=True):
+def run(variant, args, success=True, expected_error='incompatible game'):
     result = subprocess.run([SOLVER, '--format', variant, *map(str, args)],
                             capture_output=True, text=True, timeout=120)
     assert (result.returncode == 0) == success, (variant, args, result)
     if not success:
-        assert result.returncode == 1 and 'incompatible game' in result.stderr, result
+        assert result.returncode == 1 and expected_error in result.stderr, result
     return result.stdout
 
 
@@ -25,6 +29,10 @@ def check_export(path):
     numeric_responses = 0
     for line in lines[1:]:
         fields = dict(token.split('=', 1) for token in line.split()[1:])
+        if 'equipo' in fields:
+            assert len(fields['usados_pareja'].split('/')) == 2 and 'usados' not in fields
+            if fields['cubierto'] == '0' or (fields['cubierto'] == '1' and fields['actual'] != '40'):
+                assert fields['ultima_respuesta'] == 'ninguna'
         raises = {int(key[8:]) for key in fields if key.startswith('envidar_')}
         assert raises <= {2, 4, 10}, line
         current = fields.get('actual', 'inicio')
@@ -49,6 +57,14 @@ def score_args(path, extra=(), score='1:1', target=3):
             '--evaluation-samples', 20, *extra]
 
 
+def previous_four_checkpoint(source, destination):
+    checkpoint = source.read_bytes()
+    assert checkpoint.count(FOUR_SCHEMA) == 1
+    assert zlib.crc32(checkpoint[:-4]) == int.from_bytes(checkpoint[-4:], 'little')
+    payload = checkpoint[:-4].replace(FOUR_SCHEMA, PREVIOUS_FOUR_SCHEMA)
+    destination.write_bytes(payload + zlib.crc32(payload).to_bytes(4, 'little'))
+
+
 with tempfile.TemporaryDirectory(prefix='mus-simplified-') as temporary:
     root = Path(temporary)
     for base in ('ordago', 'ordago-four'):
@@ -62,6 +78,10 @@ with tempfile.TemporaryDirectory(prefix='mus-simplified-') as temporary:
         run(variant, ['--load', first, '--iterations', 1, '--save', resumed])
         run(variant, ['--iterations', 3, '--seed', 7, '--save', whole])
         assert resumed.read_bytes() == whole.read_bytes()
+        if base == 'ordago-four':
+            previous = root / 'previous-four-simplified.cfr'
+            previous_four_checkpoint(whole, previous)
+            run(variant, ['--load', previous, '--evaluate', '--evaluation-samples', 2], False)
         other_export = root / (variant + '-compressed.txt')
         run(variant, ['--load-compressed', compressed, '--export-strategy', other_export])
         assert exported.read_bytes() == other_export.read_bytes()
@@ -85,7 +105,8 @@ with tempfile.TemporaryDirectory(prefix='mus-simplified-') as temporary:
         assert output.count('score-cell ') == 6, output
         lines = (scores / 'values.txt').read_text().splitlines()
         assert lines[0].startswith(f'mus.{variant}/v1 '), lines[0]
-        assert 'simplified/v1-muses-' in lines[0]
+        version = 2 if base == 'ordago-score-four' else 1
+        assert f'simplified/v{version}-muses-' in lines[0]
         assert len(lines) == 7
         before = artifacts(scores)
         assert 'score-cell ' not in run(variant, score_args(scores, train))
@@ -100,6 +121,10 @@ with tempfile.TemporaryDirectory(prefix='mus-simplified-') as temporary:
         run(variant, score_args(scores, ['--load', first, '--iterations', 1, '--save', resumed]))
         run(variant, score_args(scores, ['--load-compressed', source, '--iterations', 2, '--save', whole]))
         assert resumed.read_bytes() == whole.read_bytes()
+        if base == 'ordago-score-four':
+            previous = root / 'previous-four-score-simplified.cfr'
+            previous_four_checkpoint(whole, previous)
+            run(variant, score_args(scores, ['--load', previous, '--evaluate']), False)
         parallel = root / (variant + '-parallel')
         run(variant, score_args(parallel, [*train, '--threads', 3]))
         assert artifacts(parallel) == before
@@ -119,6 +144,20 @@ with tempfile.TemporaryDirectory(prefix='mus-simplified-') as temporary:
         run(base, score_args(standard, ['--load-compressed', source, '--evaluate']), False)
         run(variant, score_args(root / (variant + '-wrong-extension'), ['--iterations', 2, '--extend-continuation', standard]), False)
         assert artifacts(standard) == standard_before and artifacts(scores) == before
+        if base == 'ordago-score-four':
+            for current in (scores, region):
+                previous_table = root / ('previous-' + current.name)
+                shutil.copytree(current, previous_table)
+                values = previous_table / 'values.txt'
+                content = values.read_bytes()
+                assert content.count(FOUR_SCHEMA) == 1
+                values.write_bytes(content.replace(FOUR_SCHEMA, PREVIOUS_FOUR_SCHEMA))
+                previous_before = artifacts(previous_table)
+                run(variant, score_args(previous_table, ['--evaluate']), False, 'invalid checkpoint format')
+                run(variant, score_args(previous_table, train), False, 'invalid checkpoint format')
+                run(variant, score_args(root / ('extend-' + previous_table.name),
+                    ['--iterations', 2, '--extend-continuation', previous_table]), False, 'invalid checkpoint format')
+                assert artifacts(previous_table) == previous_before
 
     # Test both transfer directions. Exact filtering is checked by the C fixtures.
     for prior, target in (('ordago', 'ordago-score-simplified'),

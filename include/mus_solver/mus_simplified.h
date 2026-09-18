@@ -5,10 +5,10 @@
 
 #if MUS_GAME_MAX_MUSES == 1
 #define MUS_SIMPLIFIED_STRATEGY_SCHEMA_ID "mus.heads-up-single-hand.ordago-simplified/v1-muses-1"
-#define MUS_FOUR_SIMPLIFIED_STRATEGY_SCHEMA_ID "mus.four-partnership-single-hand.ordago-simplified/v1-muses-1"
+#define MUS_FOUR_SIMPLIFIED_STRATEGY_SCHEMA_ID "mus.four-partnership-single-hand.ordago-simplified/v2-muses-1"
 #else
 #define MUS_SIMPLIFIED_STRATEGY_SCHEMA_ID "mus.heads-up-single-hand.ordago-simplified/v1-muses-2"
-#define MUS_FOUR_SIMPLIFIED_STRATEGY_SCHEMA_ID "mus.four-partnership-single-hand.ordago-simplified/v1-muses-2"
+#define MUS_FOUR_SIMPLIFIED_STRATEGY_SCHEMA_ID "mus.four-partnership-single-hand.ordago-simplified/v2-muses-2"
 #endif
 
 /* Use the corresponding public single-hand state initializer. The simplified

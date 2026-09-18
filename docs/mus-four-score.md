@@ -74,8 +74,8 @@ Entre subidas numéricas gana la de mayor incremento. Por ejemplo, si 0 quiere
 y 2 propone órdago, la pareja lanza órdago.
 
 Al resolver la respuesta, se conservan públicamente las dos propuestas y sus
-autores, incluida la propuesta que no se ejecutó. Esta memoria pasa al siguiente
-lance y se sustituye únicamente cuando se resuelve otra respuesta de pareja.
+autores, incluida la propuesta que no se ejecutó. Esta memoria se sustituye
+cuando se resuelve otra respuesta de pareja y se borra al empezar otro lance.
 La primera propuesta pendiente de un nuevo envite no borra la respuesta anterior.
 Si solo hay un miembro elegible, se conserva su única propuesta y su autor.
 La abstracción recuerda solo esta última respuesta completa: no conserva todo
@@ -85,8 +85,10 @@ Ambos responden al mismo envite activo; una propuesta pendiente no aumenta
 todavía la apuesta ni consume un incremento. Solo la respuesta ejecutada
 consume el incremento para toda su pareja y cuenta para el límite de
 cinco envites numéricos. Si las respuestas empatan, prevalece la del primero.
-El registro conserva quién ejecutó cada incremento, pero ambos compañeros
-comparten la restricción. Se restablecen los incrementos al empezar cada lance.
+El estado reversible conserva quién ejecutó cada incremento, pero la observación
+y la clave de estrategia solo guardan los incrementos usados por cada pareja.
+El apostador actual y los autores de la última respuesta del lance sí se conservan.
+Se restablecen los incrementos al empezar cada lance.
 Si solo un miembro de la pareja es elegible para el lance, su respuesta se ejecuta
 inmediatamente. Las aperturas se deciden por turno.
 Las funciones de comparación de manos y tanteo de `Simulador-Mus` se usan como
@@ -140,7 +142,10 @@ rechaza esta variante.
 [mus_four.h](../include/mus_solver/mus_four.h) expone el estado reversible,
 las observaciones, las claves y los menús. La observación conserva cartas
 propias, descartes públicos, fuerza por equipo, declaraciones, cobros,
-pendientes, límites de apuestas y las respuestas de pareja descritas arriba.
+pendientes, límites de apuestas y las respuestas del lance activo descritas arriba.
+`used_team_wager_action_masks[2]` agrupa los incrementos por pareja; el estado
+interno mantiene `used_wager_action_masks[4]` por asiento. La exportación usa
+`usados_pareja=A/B`, en orden 0+2 y 1+3.
 La exportación muestra la última respuesta como, por ejemplo,
 `ultima_respuesta=0:querer/2:ordago`.
 
