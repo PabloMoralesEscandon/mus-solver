@@ -6,6 +6,7 @@
 #include "cfr/info_node.h"
 #include "cfr/info_store.h"
 #include "mus_solver/mus_four.h"
+#include "mus_simplified_internal.h"
 
 static const uint8_t capacities[8] = {8, 4, 4, 4, 4, 4, 4, 8};
 static const uint8_t values[8] = {1, 4, 5, 6, 7, 10, 10, 10};
@@ -16,14 +17,17 @@ static const Action wager_actions[4] = {
 };
 static const uint8_t game_values[8] = {33, 34, 35, 36, 37, 40, 32, 31};
 
-/* Rank only reachable masks. Raising increments never decrease. Each seat
- * uses an increment once, teams alternate, and the numeric total is < 40. */
-#define MASK_RADIX 755
+/* Rank the reachable team masks. Teams alternate and cannot reuse an
+ * increment. The executing seat is not part of this history. */
+#define MASK_RADIX 51
 #define PHASE_RADIX 16993
 #define RESPONSE_STAGE_RADIX 8
 /* Rank masks together with their score budgets, ordago flag and the last
  * resolved response. Numeric offers constrain the remaining score budget. */
-#define BOARD_RADIX UINT64_C(58585332)
+#define BOARD_RADIX UINT64_C(5912626)
+/* A single hand can reach 40 public points before its final lance. These
+ * boards have no numeric wager masks: only pass and ordago remain legal. */
+#define SINGLE_HAND_BOARD_RADIX (BOARD_RADIX + UINT64_C(81) * 40 * 2)
 #if MUS_GAME_MAX_MUSES == 1
 #define PUBLIC_MUS_RADIX 260
 #define EXACT_KEY_BOUND UINT64_C(1650000)
@@ -33,7 +37,11 @@ static const uint8_t game_values[8] = {33, 34, 35, 36, 37, 40, 32, 31};
 #endif
 #define BET_KEY_BOUND (UINT64_C(1) * PHASE_RADIX * PUBLIC_MUS_RADIX * \
                       BOARD_RADIX * 4 * RESPONSE_STAGE_RADIX * 2)
-_Static_assert(BET_KEY_BOUND + EXACT_KEY_BOUND <= INT64_MAX, "Four-player keys fit int64_t");
+#define SINGLE_HAND_BET_KEY_BOUND (UINT64_C(1) * PHASE_RADIX * PUBLIC_MUS_RADIX * \
+                                  SINGLE_HAND_BOARD_RADIX * 4 * RESPONSE_STAGE_RADIX * 2)
+_Static_assert(SINGLE_HAND_BET_KEY_BOUND + EXACT_KEY_BOUND <= INT64_MAX,
+               "Four-player keys fit int64_t");
+static const bool single_hand_context = true;
 _Static_assert(RESPONSE_STAGE_RADIX == MUS_FOUR_RESPONSE_ORDAGO + 2,
                "Response stages cover opening, first reply and all proposals");
 /* Initial deal; unanimous mus, discards and redraws; and four lances with
@@ -43,8 +51,8 @@ _Static_assert(16 + 24 * MUS_GAME_MAX_MUSES +
                    4 * (3 + 1 + 2 * (MUS_ORDAGO_MAX_NUMERIC_WAGERS + 1)) <=
                    MUS_FOUR_UNDO_CAPACITY,
                "Four-player undo holds both teammates' replies");
-static uint16_t mask_codes[65536];
-static uint16_t masks_by_code[MASK_RADIX];
+static uint8_t mask_codes[256];
+static uint8_t masks_by_code[MASK_RADIX];
 static uint8_t mask_totals[MASK_RADIX];
 static uint8_t mask_counts[MASK_RADIX];
 static uint8_t mask_last_responses[MASK_RADIX];
@@ -57,8 +65,8 @@ static unsigned int sum_squares(unsigned int n) {
 
 static unsigned int memory_radix(unsigned int mask_code, bool ordago) {
     if (ordago)
-        return mask_counts[mask_code] == 0 ? 25 : 12;
-    return mask_counts[mask_code] <= 1 ? 25
+        return mask_counts[mask_code] == 0 ? 1 : 12;
+    return mask_counts[mask_code] <= 1 ? 1
                                        : 2U * mask_last_responses[mask_code];
 }
 
@@ -72,15 +80,15 @@ static void visit_masks(unsigned int mask, int last, unsigned int minimum,
     mask_codes[mask] = 1;
     if (count == MUS_ORDAGO_MAX_NUMERIC_WAGERS)
         return;
-    for (int p = 0; p < 4; ++p) {
-        if (last >= 0 && p % 2 == last % 2)
+    for (int team = 0; team < 2; ++team) {
+        if (team == last)
             continue;
         for (unsigned int i = minimum; i < 4; ++i) {
             if (count != 0 && i == 2)
                 continue;
-            const unsigned int bit = 1U << (4U * (unsigned int)p + i);
+            const unsigned int bit = 1U << (4U * (unsigned int)team + i);
             if ((mask & bit) == 0 && total + increments[i] < 40)
-                visit_masks(mask | bit, p, i, count + 1,
+                visit_masks(mask | bit, team, i, count + 1,
                             total + increments[i]);
         }
     }
@@ -89,17 +97,17 @@ static void visit_masks(unsigned int mask, int last, unsigned int minimum,
 static void initialize_masks(void) {
     visit_masks(0, -1, 0, 0, 0);
     unsigned int code = 0;
-    for (unsigned int mask = 0; mask < 65536; ++mask) {
+    for (unsigned int mask = 0; mask < 256; ++mask) {
         if (mask_codes[mask] != 0) {
             if (code < MASK_RADIX)
-                masks_by_code[code] = (uint16_t)mask;
-            mask_codes[mask] = (uint16_t)(++code);
+                masks_by_code[code] = (uint8_t)mask;
+            mask_codes[mask] = (uint8_t)(++code);
         }
     }
     for (unsigned int i = 0; i < MASK_RADIX; ++i) {
         const unsigned int mask = masks_by_code[i];
         unsigned int last = 0;
-        for (unsigned int p = 0; p < 4; ++p)
+        for (unsigned int p = 0; p < 2; ++p)
             for (unsigned int w = 0; w < 4; ++w)
                 if ((mask & (1U << (p * 4 + w))) != 0) {
                     mask_totals[i] += increments[w];
@@ -236,12 +244,13 @@ static unsigned int winning_team(const MusFourGameState *state,
 
 static bool pay(MusFourGameModel *m, unsigned int team, unsigned int amount,
                 bool immediate) {
-    unsigned int available = m->score_target - m->initial_scores[team];
+    const unsigned int cap = m->score_target == 0 ? 40 : m->score_target;
+    unsigned int available = cap - m->initial_scores[team];
     unsigned int total = m->settled_scores[team] + amount;
     m->settled_scores[team] = (uint8_t)(total > available ? available : total);
     if (immediate)
         m->paid_scores[team] = m->settled_scores[team];
-    if (total >= available) {
+    if (m->score_target != 0 && total >= available) {
         m->phase = MUS_FOUR_PHASE_TERMINAL;
         return true;
     }
@@ -313,6 +322,8 @@ static void start_lance(MusFourGameState *state, unsigned int phase) {
         }
         m->passed_mask = 0;
         m->pending_response = MUS_FOUR_RESPONSE_NONE;
+        m->last_response_player = 0;
+        memset(m->last_responses, 0, sizeof(m->last_responses));
         m->bettor = m->current_wager = m->previous_wager = 0;
         m->current_wager_is_ordago = false;
         m->current_strength = MUS_LANCE_STRENGTH_NONE;
@@ -349,7 +360,12 @@ static void finish_lance(MusFourGameState *state, unsigned int outcome) {
     m->outcome_bettors[lance] = m->bettor;
     m->outcome_strengths[lance] = m->current_strength;
     if (accepted && m->current_wager_is_ordago) {
-        pay(m, winning_team(state, phase), m->score_target, true);
+        if (m->score_target == 0) {
+            memset(m->settled_scores, 0, sizeof(m->settled_scores));
+            memset(m->paid_scores, 0, sizeof(m->paid_scores));
+        }
+        pay(m, winning_team(state, phase), 40, true);
+        m->phase = MUS_FOUR_PHASE_TERMINAL;
         return;
     }
     if (rejected && pay(m, m->bettor % 2, m->previous_wager, true))
@@ -394,17 +410,17 @@ static unsigned int compact_hand(unsigned int phase, const uint8_t hand[8],
                                           : (unsigned int)summary->point_value - 4;
 }
 
-static unsigned int all_masks(const uint8_t masks[4]) {
+static unsigned int all_masks(const uint8_t masks[2]) {
     unsigned int result = 0;
-    for (unsigned int p = 0; p < 4; ++p)
+    for (unsigned int p = 0; p < 2; ++p)
         result |= (unsigned int)masks[p] << (p * 4);
     return result;
 }
 
-static unsigned int numeric_total(const uint8_t masks[4], unsigned int *last) {
+static unsigned int numeric_total(const uint8_t masks[2], unsigned int *last) {
     unsigned int total = 0;
     *last = 0;
-    for (unsigned int p = 0; p < 4; ++p)
+    for (unsigned int p = 0; p < 2; ++p)
         for (unsigned int i = 0; i < 4; ++i)
             if ((masks[p] & (1U << i)) != 0) {
                 total += increments[i];
@@ -465,25 +481,29 @@ static Status observation_menu(const MusFourInformationSet *o,
     const unsigned int minimum = !response ? 0
         : o->previous_wager == 1 ? o->current_wager
                                 : o->current_wager - o->previous_wager;
-    const unsigned int count_used = bit_count(all_masks(o->used_wager_action_masks));
+    const unsigned int count_used = bit_count(all_masks(o->used_team_wager_action_masks));
+    const unsigned int team_used = o->used_team_wager_action_masks[o->player % 2];
     for (unsigned int i = 0; i < 4; ++i)
         if (count_used < MUS_ORDAGO_MAX_NUMERIC_WAGERS &&
             (!response || increments[i] != 7) &&
             increments[i] >= minimum &&
-            (o->used_wager_action_masks[o->player] & (1U << i)) == 0 &&
+            (team_used & (1U << i)) == 0 &&
             max_score + o->prior_wager_total + o->current_wager + increments[i] < 40)
             actions[(*count)++] = wager_actions[i];
     actions[(*count)++] = MUS_ACTION_ORDAGO;
     return CFR_STATUS_SUCCESS;
 }
 
-Status mus_four_score_information_set_legal_actions(
+static Status information_set_legal_actions(
     const MusFourInformationSet *information, Action *actions,
-    size_t capacity, size_t *required_count) {
+    size_t capacity, size_t *required_count, bool single_hand) {
     if (information == NULL || actions == NULL || required_count == NULL)
         return CFR_STATUS_INVALID_ARGUMENT;
     InfoSetKey key;
-    if (mus_four_score_information_set_encode(information, &key) != CFR_STATUS_SUCCESS)
+    const Status encoded = single_hand
+        ? mus_four_information_set_encode(information, &key)
+        : mus_four_score_information_set_encode(information, &key);
+    if (encoded != CFR_STATUS_SUCCESS)
         return CFR_STATUS_INVALID_ARGUMENT;
     Action temporary[16];
     size_t count;
@@ -497,6 +517,18 @@ Status mus_four_score_information_set_legal_actions(
     memcpy(actions, temporary, count * sizeof(*actions));
     *required_count = count;
     return CFR_STATUS_SUCCESS;
+}
+
+Status mus_four_score_information_set_legal_actions(
+    const MusFourInformationSet *information, Action *actions,
+    size_t capacity, size_t *required_count) {
+    return information_set_legal_actions(information, actions, capacity, required_count, false);
+}
+
+Status mus_four_information_set_legal_actions(
+    const MusFourInformationSet *information, Action *actions,
+    size_t capacity, size_t *required_count) {
+    return information_set_legal_actions(information, actions, capacity, required_count, true);
 }
 
 static Status observe(const MusFourGameState *state,
@@ -531,8 +563,9 @@ static Status observe(const MusFourGameState *state,
         o.pending_response = m->pending_response;
         o.last_response_player = m->last_response_player;
         memcpy(o.last_responses, m->last_responses, sizeof(o.last_responses));
-        memcpy(o.used_wager_action_masks, m->used_wager_action_masks,
-               sizeof(o.used_wager_action_masks));
+        for (unsigned int team = 0; team < 2; ++team)
+            o.used_team_wager_action_masks[team] = m->used_wager_action_masks[team] |
+                                                 m->used_wager_action_masks[team + 2];
     }
     *information = o;
     return CFR_STATUS_SUCCESS;
@@ -659,21 +692,12 @@ static Status response_memory_encode(const MusFourInformationSet *o,
         second > MUS_FOUR_RESPONSE_ORDAGO)
         return CFR_STATUS_INVALID_ARGUMENT;
     const unsigned int radix = memory_radix(mask_code, o->current_wager_is_ordago);
-    if (radix == 25) {
-        /* Before the first raise, any remembered response closed an older
-         * lance. That lance's eligible seats need not be eligible now. */
-        if (first == MUS_FOUR_RESPONSE_NONE) {
-            if (second != MUS_FOUR_RESPONSE_NONE || o->last_response_player != 0)
-                return CFR_STATUS_INVALID_ARGUMENT;
-            *result = 0;
-        } else if (first > MUS_FOUR_RESPONSE_ACCEPT || second > MUS_FOUR_RESPONSE_ACCEPT) {
+    if (radix == 1) {
+        /* No reply has resolved in this lance before its first raise. */
+        if (first != MUS_FOUR_RESPONSE_NONE || second != MUS_FOUR_RESPONSE_NONE ||
+            o->last_response_player != 0)
             return CFR_STATUS_INVALID_ARGUMENT;
-        } else if (second == MUS_FOUR_RESPONSE_NONE) {
-            *result = 1U + o->last_response_player * 2U + first - 1U;
-        } else {
-            *result = 9U + o->last_response_player * 4U +
-                      (first - 1U) * 2U + second - 1U;
-        }
+        *result = 0;
         return CFR_STATUS_SUCCESS;
     }
     /* After a raise, its winning proposal and author are already encoded
@@ -698,19 +722,7 @@ static Status response_memory_encode(const MusFourInformationSet *o,
 static void response_memory_decode(unsigned int code, unsigned int mask_code,
                                     MusFourInformationSet *o) {
     const unsigned int radix = memory_radix(mask_code, o->current_wager_is_ordago);
-    if (radix == 25) {
-        if (code == 0)
-            return;
-        if (code < 9) {
-            --code;
-            o->last_response_player = (uint8_t)(code / 2);
-            o->last_responses[0] = (uint8_t)(code % 2 + 1);
-        } else {
-            code -= 9;
-            o->last_response_player = (uint8_t)(code / 4);
-            o->last_responses[0] = (uint8_t)(code / 2 % 2 + 1);
-            o->last_responses[1] = (uint8_t)(code % 2 + 1);
-        }
+    if (radix == 1) {
         return;
     }
     const unsigned int winner = radix / 2;
@@ -729,6 +741,17 @@ static Status board_encode(const MusFourInformationSet *o, unsigned int mask_cod
                             unsigned int *result) {
     if (board_offsets[MASK_RADIX] != BOARD_RADIX)
         return CFR_STATUS_INVALID_ARGUMENT;
+    unsigned int memory;
+    if (response_memory_encode(o, mask_code, &memory) != CFR_STATUS_SUCCESS)
+        return CFR_STATUS_INVALID_ARGUMENT;
+    if (o->scores[0] == 40 || o->scores[1] == 40) {
+        if (mask_counts[mask_code] != 0)
+            return CFR_STATUS_INVALID_ARGUMENT;
+        const unsigned int pair = o->scores[0] == 40 ? o->scores[1] : 41U + o->scores[0];
+        *result = (unsigned int)BOARD_RADIX + (pair * 40 + o->prior_wager_total) * 2 +
+                  (o->current_wager_is_ordago ? 1U : 0U);
+        return CFR_STATUS_SUCCESS;
+    }
     unsigned int score;
     if (mask_counts[mask_code] == 0) {
         /* An opening ordago can be rejected after earlier accepted wagers.
@@ -744,9 +767,6 @@ static Status board_encode(const MusFourInformationSet *o, unsigned int mask_cod
         score = sum_squares(limit) - sum_squares(width) +
                 o->scores[0] * width + o->scores[1];
     }
-    unsigned int memory;
-    if (response_memory_encode(o, mask_code, &memory) != CFR_STATUS_SUCCESS)
-        return CFR_STATUS_INVALID_ARGUMENT;
     unsigned int code = board_offsets[mask_code];
     if (o->current_wager_is_ordago)
         code += score_radix(mask_code) * memory_radix(mask_code, false);
@@ -756,8 +776,16 @@ static Status board_encode(const MusFourInformationSet *o, unsigned int mask_cod
 }
 
 static Status board_decode(unsigned int code, MusFourInformationSet *o) {
-    if (code >= BOARD_RADIX || board_offsets[MASK_RADIX] != BOARD_RADIX)
+    if (code >= SINGLE_HAND_BOARD_RADIX || board_offsets[MASK_RADIX] != BOARD_RADIX)
         return CFR_STATUS_INVALID_ARGUMENT;
+    if (code >= BOARD_RADIX) {
+        code -= (unsigned int)BOARD_RADIX;
+        o->current_wager_is_ordago = code % 2 != 0; code /= 2;
+        o->prior_wager_total = (uint8_t)(code % 40); code /= 40;
+        o->scores[0] = (uint8_t)(code <= 40 ? 40 : code - 41);
+        o->scores[1] = (uint8_t)(code <= 40 ? code : 40);
+        return CFR_STATUS_SUCCESS;
+    }
     unsigned int low = 0, high = MASK_RADIX;
     while (low + 1 < high) {
         const unsigned int middle = low + (high - low) / 2;
@@ -776,8 +804,8 @@ static Status board_decode(unsigned int code, MusFourInformationSet *o) {
     const unsigned int memory = code % radix;
     code /= radix;
     unsigned int mask = masks_by_code[mask_code];
-    for (unsigned int p = 0; p < 4; ++p) {
-        o->used_wager_action_masks[p] = (uint8_t)(mask % 16);
+    for (unsigned int p = 0; p < 2; ++p) {
+        o->used_team_wager_action_masks[p] = (uint8_t)(mask % 16);
         mask /= 16;
     }
     if (mask_counts[mask_code] == 0) {
@@ -798,8 +826,8 @@ static Status board_decode(unsigned int code, MusFourInformationSet *o) {
     return CFR_STATUS_SUCCESS;
 }
 
-Status mus_four_score_information_set_encode(
-    const MusFourInformationSet *o, InfoSetKey *key) {
+static Status information_set_encode(
+    const MusFourInformationSet *o, InfoSetKey *key, bool single_hand) {
     if (o == NULL || key == NULL || o->player >= 4 ||
         o->pending_response > MUS_FOUR_RESPONSE_ORDAGO)
         return CFR_STATUS_INVALID_ARGUMENT;
@@ -829,18 +857,19 @@ Status mus_four_score_information_set_encode(
     unsigned int phase, mus;
     if (phase_encode(o, &phase) != CFR_STATUS_SUCCESS ||
         public_mus_encode(o, &mus) != CFR_STATUS_SUCCESS ||
-        o->scores[0] >= 40 || o->scores[1] >= 40 || o->prior_wager_total >= 40)
+        o->scores[0] > (single_hand ? 40 : 39) ||
+        o->scores[1] > (single_hand ? 40 : 39) || o->prior_wager_total >= 40)
         return CFR_STATUS_INVALID_ARGUMENT;
     pthread_once(&mask_once, initialize_masks);
-    for (unsigned int p = 0; p < 4; ++p)
-        if (o->used_wager_action_masks[p] >= 16)
+    for (unsigned int p = 0; p < 2; ++p)
+        if (o->used_team_wager_action_masks[p] >= 16)
             return CFR_STATUS_INVALID_ARGUMENT;
-    const unsigned int mask = all_masks(o->used_wager_action_masks);
+    const unsigned int mask = all_masks(o->used_team_wager_action_masks);
     if (mask_codes[mask] == 0 || mask_codes[mask] > MASK_RADIX)
         return CFR_STATUS_INVALID_ARGUMENT;
     const bool response = o->current_wager != 0;
     unsigned int last;
-    const unsigned int total = numeric_total(o->used_wager_action_masks, &last);
+    const unsigned int total = numeric_total(o->used_team_wager_action_masks, &last);
     const unsigned int expected_current = o->current_wager_is_ordago ? 40 : total;
     const unsigned int expected_previous = o->current_wager_is_ordago
         ? (total != 0 ? total : 1) : (total == last ? 1 : total - last);
@@ -884,18 +913,18 @@ Status mus_four_score_information_set_encode(
         return CFR_STATUS_INVALID_ARGUMENT;
     uint64_t code = phase;
     code = code * PUBLIC_MUS_RADIX + mus;
-    code = code * BOARD_RADIX + board;
+    code = code * (single_hand ? SINGLE_HAND_BOARD_RADIX : BOARD_RADIX) + board;
     code = code * 4 + o->player;
     code = code * RESPONSE_STAGE_RADIX + (response ? 1U + o->pending_response : 0);
     code = code * 2 + (response ? o->bettor / 2 : 0);
-    if (code >= BET_KEY_BOUND)
+    if (code >= (single_hand ? SINGLE_HAND_BET_KEY_BOUND : BET_KEY_BOUND))
         return CFR_STATUS_INVALID_ARGUMENT;
     *key = (InfoSetKey)(code + EXACT_KEY_BOUND);
     return CFR_STATUS_SUCCESS;
 }
 
-Status mus_four_score_information_set_decode(
-    InfoSetKey key, MusFourInformationSet *information) {
+static Status information_set_decode(
+    InfoSetKey key, MusFourInformationSet *information, bool single_hand) {
     if (information == NULL || key < 0)
         return CFR_STATUS_INVALID_ARGUMENT;
     MusFourInformationSet o = {0};
@@ -915,7 +944,7 @@ Status mus_four_score_information_set_decode(
         exact_hand_decode((unsigned int)code, o.hand);
     } else {
         uint64_t code = (uint64_t)key - EXACT_KEY_BOUND;
-        if (code >= BET_KEY_BOUND)
+        if (code >= (single_hand ? SINGLE_HAND_BET_KEY_BOUND : BET_KEY_BOUND))
             return CFR_STATUS_INVALID_ARGUMENT;
         const unsigned int bettor_half = (unsigned int)(code % 2); code /= 2;
         const unsigned int stage = (unsigned int)(code % RESPONSE_STAGE_RADIX);
@@ -926,14 +955,15 @@ Status mus_four_score_information_set_decode(
         else if (bettor_half != 0)
             return CFR_STATUS_INVALID_ARGUMENT;
         pthread_once(&mask_once, initialize_masks);
-        if (board_decode((unsigned int)(code % BOARD_RADIX), &o) != CFR_STATUS_SUCCESS)
+        const uint64_t board_radix = single_hand ? SINGLE_HAND_BOARD_RADIX : BOARD_RADIX;
+        if (board_decode((unsigned int)(code % board_radix), &o) != CFR_STATUS_SUCCESS)
             return CFR_STATUS_INVALID_ARGUMENT;
-        code /= BOARD_RADIX;
+        code /= board_radix;
         public_mus_decode((unsigned int)(code % PUBLIC_MUS_RADIX), &o); code /= PUBLIC_MUS_RADIX;
         phase_decode((unsigned int)code, &o);
         if (stage != 0) {
             unsigned int last;
-            const unsigned int total = numeric_total(o.used_wager_action_masks, &last);
+            const unsigned int total = numeric_total(o.used_team_wager_action_masks, &last);
             o.pending_response = (uint8_t)(stage - 1);
             o.current_wager = (uint8_t)(o.current_wager_is_ordago ? 40 : total);
             o.previous_wager = (uint8_t)(o.current_wager_is_ordago
@@ -941,23 +971,53 @@ Status mus_four_score_information_set_decode(
         }
     }
     InfoSetKey encoded;
-    if (mus_four_score_information_set_encode(&o, &encoded) != CFR_STATUS_SUCCESS ||
+    if (information_set_encode(&o, &encoded, single_hand) != CFR_STATUS_SUCCESS ||
         encoded != key)
         return CFR_STATUS_INVALID_ARGUMENT;
     *information = o;
     return CFR_STATUS_SUCCESS;
 }
 
+Status mus_four_score_information_set_encode(
+    const MusFourInformationSet *information, InfoSetKey *key) {
+    return information_set_encode(information, key, false);
+}
+
+Status mus_four_information_set_encode(
+    const MusFourInformationSet *information, InfoSetKey *key) {
+    return information_set_encode(information, key, true);
+}
+
+Status mus_four_score_information_set_decode(InfoSetKey key, MusFourInformationSet *information) {
+    return information_set_decode(key, information, false);
+}
+
+Status mus_four_information_set_decode(InfoSetKey key, MusFourInformationSet *information) {
+    return information_set_decode(key, information, true);
+}
+
 static Status validate(const void *context, const GameState *raw) {
-    (void)context;
+    const bool single_hand = context == &single_hand_context;
     const MusFourGameState *s = (const MusFourGameState *)raw;
-    if (s == NULL || s->continuation == NULL || !s->continuation->four_player ||
+    if (s == NULL ||
         s->model.phase > MUS_FOUR_PHASE_TERMINAL || s->model.current_player >= 4 ||
-        s->undo_count > MUS_FOUR_UNDO_CAPACITY || s->model.score_target == 0 ||
-        s->model.score_target > 40 || s->model.score_target != s->continuation->target ||
+        s->undo_count > MUS_FOUR_UNDO_CAPACITY ||
         s->model.mus_count > MUS_GAME_MAX_MUSES)
         return CFR_STATUS_INVALID_ARGUMENT;
     const MusFourGameModel *m = &s->model;
+    if ((m->used_wager_action_masks[0] & m->used_wager_action_masks[2]) != 0 ||
+        (m->used_wager_action_masks[1] & m->used_wager_action_masks[3]) != 0)
+        return CFR_STATUS_INVALID_ARGUMENT;
+    if (single_hand) {
+        if (s->continuation != NULL || m->score_target != 0 ||
+            m->initial_scores[0] != 0 || m->initial_scores[1] != 0)
+            return CFR_STATUS_INVALID_ARGUMENT;
+    } else if (s->continuation == NULL || !s->continuation->four_player ||
+               m->score_target == 0 || m->score_target > 40 ||
+               m->score_target != s->continuation->target ||
+               !mus_score_table_contains(s->continuation, m->initial_scores[0], m->initial_scores[1])) {
+        return CFR_STATUS_INVALID_ARGUMENT;
+    }
     if (m->pending_response > MUS_FOUR_RESPONSE_ORDAGO ||
         (!betting(m->phase) && m->pending_response != MUS_FOUR_RESPONSE_NONE))
         return CFR_STATUS_INVALID_ARGUMENT;
@@ -969,17 +1029,17 @@ static Status validate(const void *context, const GameState *raw) {
         (m->phase < MUS_FOUR_PHASE_GRANDE &&
          m->last_responses[0] != MUS_FOUR_RESPONSE_NONE))
         return CFR_STATUS_INVALID_ARGUMENT;
-    if (!mus_score_table_contains(s->continuation, m->initial_scores[0], m->initial_scores[1]))
-        return CFR_STATUS_INVALID_ARGUMENT;
+    const unsigned int cap = single_hand ? 40 : m->score_target;
     unsigned int finished_teams = 0;
     for (unsigned int t = 0; t < 2; ++t)
-        if (m->initial_scores[t] >= m->score_target ||
-            m->settled_scores[t] > m->score_target - m->initial_scores[t] ||
+        if (m->initial_scores[t] >= cap ||
+            m->settled_scores[t] > cap - m->initial_scores[t] ||
             m->paid_scores[t] > m->settled_scores[t])
             return CFR_STATUS_INVALID_ARGUMENT;
         else
-            finished_teams += m->initial_scores[t] + m->settled_scores[t] >= m->score_target;
-    if (finished_teams > 1 || (finished_teams != 0 && m->phase != MUS_FOUR_PHASE_TERMINAL))
+            finished_teams += m->initial_scores[t] + m->settled_scores[t] >= cap;
+    if (!single_hand &&
+        (finished_teams > 1 || (finished_teams != 0 && m->phase != MUS_FOUR_PHASE_TERMINAL)))
         return CFR_STATUS_INVALID_ARGUMENT;
     for (unsigned int c = 0; c < 8; ++c) {
         unsigned int total = m->out_of_play[c];
@@ -1066,7 +1126,7 @@ static Status validate(const void *context, const GameState *raw) {
         MusFourInformationSet o;
         InfoSetKey key;
         if (observe(s, &o) != CFR_STATUS_SUCCESS ||
-            mus_four_score_information_set_encode(&o, &key) != CFR_STATUS_SUCCESS)
+            information_set_encode(&o, &key, single_hand) != CFR_STATUS_SUCCESS)
             return CFR_STATUS_INVALID_ARGUMENT;
     }
     return CFR_STATUS_SUCCESS;
@@ -1075,6 +1135,12 @@ static Status validate(const void *context, const GameState *raw) {
 Status mus_four_score_game_observe(const MusFourGameState *state,
                                    MusFourInformationSet *information) {
     Status status = validate(NULL, (const GameState *)state);
+    return status == CFR_STATUS_SUCCESS ? observe(state, information) : status;
+}
+
+Status mus_four_game_observe(const MusFourGameState *state,
+                             MusFourInformationSet *information) {
+    Status status = validate(&single_hand_context, (const GameState *)state);
     return status == CFR_STATUS_SUCCESS ? observe(state, information) : status;
 }
 
@@ -1380,19 +1446,28 @@ static Status undo_action(const void *context, GameState *raw) {
 
 static Status information_set_key(const void *context, const GameState *raw,
                                    InfoSetKey *result) {
-    (void)context;
     MusFourInformationSet o;
     Status status = observe((const MusFourGameState *)raw, &o);
     return status == CFR_STATUS_SUCCESS
-        ? mus_four_score_information_set_encode(&o, result) : status;
+        ? information_set_encode(&o, result, context == &single_hand_context) : status;
 }
 
 static Status terminal_utility(const void *context, const GameState *raw,
                                 Player player, Utility *result) {
-    (void)context;
     const MusFourGameState *s = (const MusFourGameState *)raw;
     if (s == NULL || result == NULL || (int)player < 0 || (int)player >= 4 ||
-        s->model.phase != MUS_FOUR_PHASE_TERMINAL || s->continuation == NULL ||
+        s->model.phase != MUS_FOUR_PHASE_TERMINAL)
+        return CFR_STATUS_INVALID_ARGUMENT;
+    if (context == &single_hand_context) {
+        if (s->continuation != NULL || s->model.score_target != 0 ||
+            s->model.initial_scores[0] != 0 || s->model.initial_scores[1] != 0 ||
+            s->model.settled_scores[0] > 40 || s->model.settled_scores[1] > 40)
+            return CFR_STATUS_INVALID_ARGUMENT;
+        const double value = (double)s->model.settled_scores[0] - s->model.settled_scores[1];
+        *result = (int)player % 2 == 0 ? value : -value;
+        return CFR_STATUS_SUCCESS;
+    }
+    if (s->continuation == NULL ||
         s->model.score_target == 0 || s->model.score_target > 40 ||
         s->model.score_target != s->continuation->target)
         return CFR_STATUS_INVALID_ARGUMENT;
@@ -1501,7 +1576,29 @@ static const GameOperations four_operations = {
     .chance_outcomes = public_chance_outcomes
 };
 
+const Game *mus_four_game_descriptor(void) {
+    static const Game game = {
+        .operations = &four_operations,
+        .context = &single_hand_context,
+        .strategic_player_count = 4,
+        .max_legal_actions = 16,
+        .strategy_schema_id = MUS_FOUR_SINGLE_HAND_STRATEGY_SCHEMA_ID,
+        .trusted_operations = &trusted_operations
+    };
+    return &game;
+}
+
+Status mus_four_game_state_init(MusFourGameState *state) {
+    if (state == NULL)
+        return CFR_STATUS_INVALID_ARGUMENT;
+    memset(state, 0, offsetof(MusFourGameState, undo_history));
+    state->model.phase = MUS_FOUR_PHASE_DEAL;
+    state->model.deal_remaining = 4;
+    return CFR_STATUS_SUCCESS;
+}
+
 bool mus_four_score_game_matches(const Game *game) {
+    game = mus_simplified_game_base(game);
     return game != NULL && game->operations == &four_operations &&
            game->trusted_operations == &trusted_operations && game->context == NULL &&
            game->strategic_player_count == 4 && game->max_legal_actions == 16;
@@ -1509,6 +1606,12 @@ bool mus_four_score_game_matches(const Game *game) {
 
 Status mus_four_score_game_init(MusScoreGame *game, const MusScoreTable *table,
                                 unsigned int a, unsigned int b) {
+    static const Game base = {
+        .operations = &four_operations,
+        .strategic_player_count = 4,
+        .max_legal_actions = 16,
+        .trusted_operations = &trusted_operations
+    };
     if (game == NULL || table == NULL || !table->four_player ||
         table->target == 0 || table->target > 40 || a >= table->target || b >= table->target)
         return CFR_STATUS_INVALID_ARGUMENT;
@@ -1518,14 +1621,12 @@ Status mus_four_score_game_init(MusScoreGame *game, const MusScoreTable *table,
     game->continuation = table;
     game->initial_scores[0] = (uint8_t)a;
     game->initial_scores[1] = (uint8_t)b;
-    game->game = (Game){
-        .operations = &four_operations,
-        .strategic_player_count = 4,
-        .max_legal_actions = 16,
-        .strategy_schema_id = game->schema,
-        .trusted_operations = &trusted_operations
-    };
-    return mus_score_game_set_schema(game);
+    game->game = base;
+    game->game.strategy_schema_id = game->schema;
+    Status status = mus_score_game_set_schema(game);
+    if (status == CFR_STATUS_SUCCESS && table->simplified)
+        mus_simplified_game_wrap(&game->game, &base, game->schema);
+    return status;
 }
 
 Status mus_four_score_game_state_init(MusFourGameState *state, const MusScoreGame *game) {
@@ -1565,6 +1666,8 @@ static const char *action_name(Action action) {
 typedef struct {
     FILE *stream;
     uint8_t initial_scores[2];
+    bool single_hand;
+    bool simplified;
 } FourStrategyWriter;
 
 static Status write_hand(FILE *stream, const MusFourInformationSet *o) {
@@ -1610,10 +1713,12 @@ static Status write_node(const InfoNode *node, void *context) {
     Action actions[16];
     Probability probabilities[16];
     size_t count;
-    Status status = mus_four_score_information_set_decode(node->key, &o);
+    Status status = information_set_decode(node->key, &o, writer->single_hand);
     if (status != CFR_STATUS_SUCCESS)
         return status;
-    status = mus_four_score_information_set_legal_actions(&o, actions, 16, &count);
+    status = writer->simplified
+        ? mus_simplified_four_information_set_legal_actions(&o, !writer->single_hand, actions, 16, &count)
+        : information_set_legal_actions(&o, actions, 16, &count, writer->single_hand);
     if (status != CFR_STATUS_SUCCESS)
         return status;
     if (node->action_count != count)
@@ -1633,10 +1738,9 @@ static Status write_node(const InfoNode *node, void *context) {
                 o.current_wager, o.previous_wager) < 0)
         return CFR_STATUS_IO_ERROR;
     if (fputs(" mano=", stream) == EOF || write_hand(stream, &o) != CFR_STATUS_SUCCESS ||
-        fprintf(stream, " pendientes=%u usados=%u/%u/%u/%u fuerza_previa=%u/%u/%u"
+        fprintf(stream, " pendientes=%u usados_pareja=%u/%u fuerza_previa=%u/%u/%u"
                 " respuesta_companero=%s corte=%s", o.prior_wager_total,
-                o.used_wager_action_masks[0], o.used_wager_action_masks[1],
-                o.used_wager_action_masks[2], o.used_wager_action_masks[3],
+                o.used_team_wager_action_masks[0], o.used_team_wager_action_masks[1],
                 o.previous_strengths[0], o.previous_strengths[1], o.previous_strengths[2],
                 o.pending_response == MUS_FOUR_RESPONSE_NONE ? "ninguna"
                     : action_name(response_action(o.pending_response)),
@@ -1678,10 +1782,11 @@ static Status write_node(const InfoNode *node, void *context) {
     return fputc('\n', stream) == EOF ? CFR_STATUS_IO_ERROR : CFR_STATUS_SUCCESS;
 }
 
-Status mus_four_score_strategy_write_text(FILE *stream, const Trainer *trainer) {
+static Status strategy_write_text(FILE *stream, const Trainer *trainer, bool single_hand) {
     if (stream == NULL || trainer == NULL || trainer->state == NULL || trainer->store == NULL ||
-        !mus_four_score_game_matches(trainer->game) ||
-        validate(NULL, trainer->state) != CFR_STATUS_SUCCESS)
+        (single_hand ? mus_simplified_game_base(trainer->game) != mus_four_game_descriptor()
+                     : !mus_four_score_game_matches(trainer->game)) ||
+        cfr_game_validate_state(trainer->game, trainer->state) != CFR_STATUS_SUCCESS)
         return CFR_STATUS_INVALID_ARGUMENT;
     InfoStoreStats stats;
     Status status = cfr_info_store_get_stats(trainer->store, &stats);
@@ -1693,9 +1798,18 @@ Status mus_four_score_strategy_write_text(FILE *stream, const Trainer *trainer) 
                 trainer->game->strategy_schema_id, variant, trainer->training_iterations, stats.size) < 0)
         return CFR_STATUS_IO_ERROR;
     const MusFourGameState *state = (const MusFourGameState *)trainer->state;
-    FourStrategyWriter writer = {.stream = stream};
+    FourStrategyWriter writer = {.stream = stream, .single_hand = single_hand,
+                                .simplified = mus_simplified_game_matches(trainer->game)};
     memcpy(writer.initial_scores, state->model.initial_scores, sizeof(writer.initial_scores));
     status = cfr_info_store_visit_sorted(trainer->store, write_node, &writer);
     return status != CFR_STATUS_SUCCESS ? status
          : ferror(stream) ? CFR_STATUS_IO_ERROR : CFR_STATUS_SUCCESS;
+}
+
+Status mus_four_score_strategy_write_text(FILE *stream, const Trainer *trainer) {
+    return strategy_write_text(stream, trainer, false);
+}
+
+Status mus_four_strategy_write_text(FILE *stream, const Trainer *trainer) {
+    return strategy_write_text(stream, trainer, true);
 }

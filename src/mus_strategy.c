@@ -8,12 +8,14 @@
 #include "mus_solver/mus_score.h"
 #include "mus_solver/mus_four.h"
 #include "mus_solver/mus_strategy.h"
+#include "mus_solver/mus_simplified.h"
 
 typedef struct {
     FILE *stream;
     bool raises_to_eight;
     bool ordago;
     bool public_generic;
+    bool simplified;
     unsigned int score_target;
     uint8_t initial_scores[2];
 } StrategyWriter;
@@ -187,7 +189,8 @@ static Status write_ordago_node(const InfoNode *node,
                      : mus_ordago_game_information_set_decode(node->key, &information);
     if (status != CFR_STATUS_SUCCESS)
         return status;
-    status = mus_ordago_game_information_set_legal_actions(
+    status = (writer->simplified ? mus_simplified_ordago_information_set_legal_actions
+                                : mus_ordago_game_information_set_legal_actions)(
         &information, actions, MUS_GAME_MAX_LEGAL_ACTIONS,
         &expected_action_count);
     if (status != CFR_STATUS_SUCCESS)
@@ -466,15 +469,17 @@ static Status write_strategy(FILE *stream, const Trainer *trainer,
         .stream = stream,
         .raises_to_eight = raises_to_eight,
         .ordago = ordago,
-        .public_generic = expected_game == mus_ordago_public_game_descriptor(),
+        .public_generic = mus_simplified_game_base(expected_game) == mus_ordago_public_game_descriptor(),
     };
     InfoStoreStats stats;
     Status status;
 
     if (stream == NULL || trainer == NULL || trainer->game == NULL ||
-        trainer->store == NULL || trainer->game != expected_game) {
+        trainer->store == NULL ||
+        mus_simplified_game_base(trainer->game) != mus_simplified_game_base(expected_game)) {
         return CFR_STATUS_INVALID_ARGUMENT;
     }
+    writer.simplified = mus_simplified_game_matches(trainer->game);
     if (ordago && trainer->state != NULL) {
         const MusGameState *root = (const MusGameState *)trainer->state;
         writer.score_target = root->model.score_target;

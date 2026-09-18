@@ -6,6 +6,7 @@
 #include "cfr/evaluation.h"
 #include "cfr/info_node.h"
 #include "mus_solver/mus_evaluation.h"
+#include "mus_solver/mus_simplified.h"
 #include "mus_solver/mus_game.h"
 
 #define BR_INITIAL_CAPACITY 1024
@@ -659,7 +660,7 @@ static Status prepare_ordago_final_lance_diagnostic(
     const uint8_t player_0[MUS_GAME_CLASS_COUNT],
     const uint8_t player_1[MUS_GAME_CLASS_COUNT],
     MusGamePhase expected_phase, const Game *game) {
-    Status status = game == mus_ordago_public_game_descriptor()
+    Status status = mus_simplified_game_base(game) == mus_ordago_public_game_descriptor()
                         ? mus_ordago_public_game_state_init(state)
                         : mus_ordago_game_state_init(state);
 
@@ -775,6 +776,10 @@ Status mus_ordago_evaluation_metrics(const InfoStore *store, EvaluationMetrics *
 
 Status mus_ordago_public_evaluation_metrics(const InfoStore *store, EvaluationMetrics *metrics_out) {
     return ordago_diagnostic_metrics(store, mus_ordago_public_game_descriptor(), metrics_out);
+}
+
+Status mus_ordago_simplified_evaluation_metrics(const InfoStore *store, EvaluationMetrics *metrics_out) {
+    return ordago_diagnostic_metrics(store, mus_simplified_game_descriptor(false), metrics_out);
 }
 
 Status mus_evaluation_metrics_from_state(const MusGameState *root,

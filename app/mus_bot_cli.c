@@ -290,8 +290,11 @@ static json_object *decision_json(const MusAdapterDecision *d) {
     json_object_object_add(diagnostic, "score_proxy",
                            json_object_new_boolean(d->score_proxy));
     json_object_object_add(diagnostic, "strategy",
-                           json_object_new_string(d->score_strategy ? "ordago-score"
-                               : d->public_strategy ? "ordago" : "ordago-deprecated"));
+                           json_object_new_string(d->score_strategy
+                               ? (d->simplified_strategy ? "ordago-score-simplified" : "ordago-score")
+                               : d->public_strategy
+                               ? (d->simplified_strategy ? "ordago-simplified" : "ordago")
+                               : "ordago-deprecated"));
     json_object_object_add(diagnostic, "strategy_reason",
                            json_object_new_string(d->strategy_reason));
     json_object *scores = NULL;

@@ -25,6 +25,8 @@
 #include "cfr/trainer.h"
 #include "mus_solver/mus_evaluation.h"
 #include "mus_solver/mus_game.h"
+#include "mus_solver/mus_four.h"
+#include "mus_solver/mus_simplified.h"
 #include "mus_solver/mus_strategy.h"
 #include "mus_solver/mus_score.h"
 #include "mus_solver/mus_training.h"
@@ -38,6 +40,7 @@ typedef enum {
     CLI_FORMAT_RAISES_TO_EIGHT,
     CLI_FORMAT_ORDAGO_DEPRECATED,
     CLI_FORMAT_ORDAGO_PUBLIC,
+    CLI_FORMAT_ORDAGO_FOUR,
     CLI_FORMAT_ORDAGO_SCORE,
     CLI_FORMAT_ORDAGO_SCORE_FOUR
 } CliFormat;
@@ -68,6 +71,7 @@ typedef struct {
     bool threads_per_cell_set;
     bool seed_set;
     bool format_set;
+    bool simplified;
     bool load_compressed;
     bool save_compressed;
     bool evaluate;
@@ -123,11 +127,15 @@ static bool print_usage(FILE *stream, const char *program) {
                "  --seed N               Semilla de un entrenamiento nuevo (0 por "
                "defecto).\n"
                "  --format FORMAT        ordago: mano aislada (por defecto).\n"
+               "                          ordago-four: mano aislada, parejas 0/2 y 1/3.\n"
                "                          ordago-score: marcador, dos jugadores.\n"
                "                          ordago-score-four: marcador, parejas 0/2 y 1/3.\n"
                "                          ordago-deprecated: estrategias historicas.\n"
                "                          ordago-public: alias compatible de ordago.\n"
                "                          single-bet y raises-to-eight: modelos reducidos.\n"
+               "                          Sufijo -simplified para ordago, ordago-four,\n"
+               "                          ordago-score y ordago-score-four: incrementos\n"
+               "                          2, 4 y 10 estrictamente crecientes; sin 7.\n"
                "  --reserve-information-sets N\n"
                "                          Reserva capacidad para N conjuntos de informacion.\n"
                "  --load FILE            Carga un checkpoint reanudable.\n"
@@ -136,6 +144,7 @@ static bool print_usage(FILE *stream, const char *program) {
                "  --save-compressed FILE Guarda un checkpoint Zstandard nivel 1.\n"
                "  --evaluate             Evalua la estrategia media. ordago y\n"
                "                          ordago-deprecated usan un diagnostico acotado.\n"
+               "                          ordago-four estima tantos por muestreo.\n"
                "  --export-strategy FILE Exporta la estrategia con etiquetas de "
                "mus.\n"
                "  --continuation DIR     Tabla y checkpoints de una version score.\n"
@@ -147,7 +156,7 @@ static bool print_usage(FILE *stream, const char *program) {
                "  --score-region A:B     Limita la tabla a continuaciones de A:B y B:A.\n"
                "                          Sin --score, empieza desde A:B.\n"
                "  --target N             Objetivo de una version score (40 por defecto).\n"
-               "  --evaluation-samples N Manos para evaluar cada celda (10000).\n"
+               "  --evaluation-samples N Manos para evaluar una celda u ordago-four (10000).\n"
                "  --evaluation-min-samples N\n"
                "  --evaluation-target-se X\n"
                "                          Juntas: muestreo adaptativo desde N manos,\n"
@@ -158,7 +167,8 @@ static bool print_usage(FILE *stream, const char *program) {
                "                          al checkpoint del marcador elegido.\n"
                "                          Requiere --save[-compressed] fuera de DIR;\n"
                "                          conserva values.txt y admite --report-every.\n"
-               "  --preload-ordago FILE   Precarga ordago u ordago-deprecated.\n"
+               "  --preload-ordago FILE   Precarga ordago, ordago-simplified\n"
+               "                          u ordago-deprecated.\n"
                "  --preload-ordago-compressed FILE\n"
                "                          Precarga desde un checkpoint Zstandard.\n"
                "  --preload-weight X     Peso inicial por nodo (1 por defecto).\n"
@@ -295,6 +305,19 @@ static bool parse_options(int argc, char *argv[], CliOptions *options) {
                 !option_value(argc, argv, &index, &value)) {
                 return false;
             }
+            if (strcmp(value, "ordago-simplified") == 0) {
+                value = "ordago";
+                options->simplified = true;
+            } else if (strcmp(value, "ordago-four-simplified") == 0) {
+                value = "ordago-four";
+                options->simplified = true;
+            } else if (strcmp(value, "ordago-score-simplified") == 0) {
+                value = "ordago-score";
+                options->simplified = true;
+            } else if (strcmp(value, "ordago-score-four-simplified") == 0) {
+                value = "ordago-score-four";
+                options->simplified = true;
+            }
             if (strcmp(value, "single-bet") == 0) {
                 options->format = CLI_FORMAT_SINGLE_BET;
             } else if (strcmp(value, "raises-to-eight") == 0) {
@@ -303,6 +326,8 @@ static bool parse_options(int argc, char *argv[], CliOptions *options) {
                 options->format = CLI_FORMAT_ORDAGO_SCORE_FOUR;
             } else if (strcmp(value, "ordago-score") == 0) {
                 options->format = CLI_FORMAT_ORDAGO_SCORE;
+            } else if (strcmp(value, "ordago-four") == 0) {
+                options->format = CLI_FORMAT_ORDAGO_FOUR;
             } else if (strcmp(value, "ordago") == 0 ||
                        strcmp(value, "ordago-public") == 0) {
                 options->format = CLI_FORMAT_ORDAGO_PUBLIC;
@@ -451,10 +476,13 @@ static bool parse_options(int argc, char *argv[], CliOptions *options) {
                (options->iterations_set || options->evaluate || options->export_path != NULL);
     }
     if (options->continuation_dir != NULL || options->extend_continuation_dir != NULL || options->score_set ||
-        options->target_set || options->score_region_set || options->evaluation_samples_set ||
-        options->evaluation_min_samples_set || options->evaluation_target_se_set ||
+        options->target_set || options->score_region_set ||
         options->preload_ordago_path != NULL || options->preload_weight_set ||
         options->threads_per_cell_set)
+        return false;
+    if ((options->evaluation_samples_set || options->evaluation_min_samples_set ||
+         options->evaluation_target_se_set) &&
+        (options->format != CLI_FORMAT_ORDAGO_FOUR || !options->evaluate))
         return false;
     if (!options->iterations_set && !options->evaluate &&
         !(options->load_path != NULL && options->export_path != NULL))
@@ -590,6 +618,8 @@ static Status export_strategy(const char *path, const Trainer *trainer,
         return CFR_STATUS_IO_ERROR;
     if (is_score_format(format)) {
         status = mus_score_strategy_write_text(stream, trainer);
+    } else if (format == CLI_FORMAT_ORDAGO_FOUR) {
+        status = mus_four_strategy_write_text(stream, trainer);
     } else if (format == CLI_FORMAT_RAISES_TO_EIGHT) {
         status = mus_raises_to_eight_strategy_write_text(stream, trainer);
     } else if (format == CLI_FORMAT_ORDAGO_PUBLIC) {
@@ -1004,6 +1034,13 @@ static Status load_score_prior_source(const CliOptions *options,
                 mus_game_state_as_game_state(*state), store, trainer,
                 options->preload_ordago_compressed);
     }
+    if (status == CFR_STATUS_INCOMPATIBLE_GAME) {
+        status = mus_ordago_public_game_state_init(*state);
+        if (status == CFR_STATUS_SUCCESS)
+            status = load_checkpoint(options->preload_ordago_path, mus_simplified_game_descriptor(false),
+                mus_game_state_as_game_state(*state), store, trainer,
+                options->preload_ordago_compressed);
+    }
     if (status != CFR_STATUS_SUCCESS) {
         fprintf(stderr, "error: no se pudo precargar '%s': %s\n",
                 options->preload_ordago_path, status_name(status));
@@ -1096,7 +1133,8 @@ static int run_score_checkpoint(const CliOptions *options) {
     if (status != CFR_STATUS_SUCCESS)
         goto done;
     if (table.target != options->score_target ||
-        table.four_player != (options->format == CLI_FORMAT_ORDAGO_SCORE_FOUR)) {
+        table.four_player != (options->format == CLI_FORMAT_ORDAGO_SCORE_FOUR) ||
+        table.simplified != options->simplified) {
         status = CFR_STATUS_INCOMPATIBLE_GAME;
         goto done;
     }
@@ -1211,8 +1249,9 @@ done:
     if (continuation_lock >= 0 && close(continuation_lock) != 0 && status == CFR_STATUS_SUCCESS)
         status = CFR_STATUS_IO_ERROR;
     if (status != CFR_STATUS_SUCCESS)
-        fprintf(stderr, "error: checkpoint %s: %s\n",
+        fprintf(stderr, "error: checkpoint %s%s: %s\n",
             options->format == CLI_FORMAT_ORDAGO_SCORE_FOUR ? "ordago-score-four" : "ordago-score",
+            options->simplified ? "-simplified" : "",
             status_name(status));
     return status == CFR_STATUS_SUCCESS ? 0 : EXIT_RUNTIME_ERROR;
 }
@@ -1236,7 +1275,8 @@ static Status read_score_extension(const CliOptions *options, MusScoreTable *sou
     if (status != CFR_STATUS_SUCCESS)
         return status;
     if (source->target != options->score_target ||
-        source->four_player != (options->format == CLI_FORMAT_ORDAGO_SCORE_FOUR))
+        source->four_player != (options->format == CLI_FORMAT_ORDAGO_SCORE_FOUR) ||
+        source->simplified != options->simplified)
         return CFR_STATUS_INCOMPATIBLE_GAME;
     return CFR_STATUS_SUCCESS;
 }
@@ -1393,6 +1433,7 @@ static int run_score(const CliOptions *options) {
                                       options->region_a, options->region_b)
         : mus_score_table_init(&table, (unsigned int)options->score_target);
     table.four_player = options->format == CLI_FORMAT_ORDAGO_SCORE_FOUR;
+    table.simplified = options->simplified;
     InfoStore store = {0};
     bool store_initialized = false;
     GameState *state = NULL;
@@ -1446,7 +1487,8 @@ static int run_score(const CliOptions *options) {
         if (status != CFR_STATUS_SUCCESS)
             goto done;
         if (table.target != options->score_target ||
-            table.four_player != (options->format == CLI_FORMAT_ORDAGO_SCORE_FOUR)) {
+            table.four_player != (options->format == CLI_FORMAT_ORDAGO_SCORE_FOUR) ||
+            table.simplified != options->simplified) {
             status = CFR_STATUS_INCOMPATIBLE_GAME;
             goto done;
         }
@@ -1471,7 +1513,7 @@ static int run_score(const CliOptions *options) {
         status = CFR_STATUS_IO_ERROR;
         goto done;
     } else {
-        if (table.four_player) {
+        if (table.four_player || table.simplified) {
             status = check_new_four_score_directory(options->continuation_dir);
             if (status != CFR_STATUS_SUCCESS) goto done;
         }
@@ -1494,7 +1536,7 @@ static int run_score(const CliOptions *options) {
                 goto done;
         }
         /* Preserve the variant and explicit coverage if the first cell is interrupted. */
-        if (new_table && (table.region_enabled || table.four_player)) {
+        if (new_table && (table.region_enabled || table.four_player || table.simplified)) {
             status = save_score_diagonal(&table, &persistence);
             if (status != CFR_STATUS_SUCCESS) goto done;
         }
@@ -1628,8 +1670,9 @@ done:
         status = CFR_STATUS_IO_ERROR;
     free(path);
     if (status != CFR_STATUS_SUCCESS)
-        fprintf(stderr, "error: %s: %s\n",
+        fprintf(stderr, "error: %s%s: %s\n",
             options->format == CLI_FORMAT_ORDAGO_SCORE_FOUR ? "ordago-score-four" : "ordago-score",
+            options->simplified ? "-simplified" : "",
             status_name(status));
     return status == CFR_STATUS_SUCCESS ? 0 : EXIT_RUNTIME_ERROR;
 }
@@ -1637,7 +1680,7 @@ done:
 static int run(const CliOptions *options) {
     if (is_score_format(options->format))
         return run_score(options);
-    MusGameState *state = NULL;
+    void *state = NULL;
     InfoStore store = {0};
     Trainer trainer;
     const Game *game;
@@ -1645,7 +1688,11 @@ static int run(const CliOptions *options) {
     int result = EXIT_RUNTIME_ERROR;
     Status status;
 
-    if (options->format == CLI_FORMAT_RAISES_TO_EIGHT) {
+    if (options->simplified) {
+        game = mus_simplified_game_descriptor(options->format == CLI_FORMAT_ORDAGO_FOUR);
+    } else if (options->format == CLI_FORMAT_ORDAGO_FOUR) {
+        game = mus_four_game_descriptor();
+    } else if (options->format == CLI_FORMAT_RAISES_TO_EIGHT) {
         game = mus_raises_to_eight_game_descriptor();
     } else if (options->format == CLI_FORMAT_ORDAGO_PUBLIC) {
         game = mus_ordago_public_game_descriptor();
@@ -1654,12 +1701,15 @@ static int run(const CliOptions *options) {
     } else {
         game = mus_single_bet_game_descriptor();
     }
-    state = malloc(sizeof(*state));
+    state = malloc(options->format == CLI_FORMAT_ORDAGO_FOUR
+                       ? sizeof(MusFourGameState) : sizeof(MusGameState));
     if (state == NULL) {
         status = CFR_STATUS_OUT_OF_MEMORY;
         goto runtime_error;
     }
-    if (options->format == CLI_FORMAT_RAISES_TO_EIGHT) {
+    if (options->format == CLI_FORMAT_ORDAGO_FOUR) {
+        status = mus_four_game_state_init(state);
+    } else if (options->format == CLI_FORMAT_RAISES_TO_EIGHT) {
         status = mus_raises_to_eight_game_state_init(state);
     } else if (options->format == CLI_FORMAT_ORDAGO_PUBLIC) {
         status = mus_ordago_public_game_state_init(state);
@@ -1672,7 +1722,7 @@ static int run(const CliOptions *options) {
         goto runtime_error;
     if (options->load_path != NULL) {
         status = load_checkpoint(options->load_path, game,
-                                 mus_game_state_as_game_state(state),
+                                 (GameState *)state,
                                  &store, &trainer,
                                  options->load_compressed);
         if (status != CFR_STATUS_SUCCESS) {
@@ -1688,7 +1738,7 @@ static int run(const CliOptions *options) {
         store_initialized = true;
         status = cfr_trainer_init_mccfr(
             &trainer, game,
-            mus_game_state_as_game_state(state), &store, options->seed);
+            (GameState *)state, &store, options->seed);
         if (status != CFR_STATUS_SUCCESS)
             goto runtime_error;
     }
@@ -1738,14 +1788,41 @@ static int run(const CliOptions *options) {
             goto cleanup;
         }
     }
-    if (options->evaluate) {
+    if (options->evaluate && options->format == CLI_FORMAT_ORDAGO_FOUR) {
+        const MusScoreEvaluationOptions evaluation_options = {
+            .min_samples = options->evaluation_min_samples_set
+                ? options->evaluation_min_samples : options->evaluation_samples,
+            .max_samples = options->evaluation_samples,
+            .target_standard_error = options->evaluation_target_se
+        };
+        MusScoreEvaluation evaluation;
+        status = (options->simplified ? mus_four_simplified_evaluate_with_options
+                                     : mus_four_evaluate_with_options)(&store, &evaluation_options,
+                                                options->seed, &evaluation);
+        if (status != CFR_STATUS_SUCCESS)
+            goto runtime_error;
+        if (printf("evaluation scope=single-hand-sampled iterations=%zu "
+                   "players=4 teams=0+2:1+3 utility=points samples=%zu "
+                   "profile_value_player_0=%.17g profile_value_player_1=%.17g "
+                   "profile_value_player_2=%.17g profile_value_player_3=%.17g "
+                   "variance_known=%u sample_variance=%.17g standard_error=%.17g\n",
+                   trainer.training_iterations, evaluation.samples,
+                   evaluation.value, -evaluation.value, evaluation.value, -evaluation.value,
+                   evaluation.variance_known ? 1U : 0U, evaluation.sample_variance,
+                   evaluation.standard_error) < 0) {
+            status = CFR_STATUS_IO_ERROR;
+            goto runtime_error;
+        }
+    } else if (options->evaluate) {
         EvaluationMetrics metrics;
 
         if (options->format == CLI_FORMAT_RAISES_TO_EIGHT) {
             status = mus_raises_to_eight_evaluation_metrics(&store,
                                                              &metrics);
         } else if (options->format == CLI_FORMAT_ORDAGO_PUBLIC) {
-            status = mus_ordago_public_evaluation_metrics(&store, &metrics);
+            status = options->simplified
+                ? mus_ordago_simplified_evaluation_metrics(&store, &metrics)
+                : mus_ordago_public_evaluation_metrics(&store, &metrics);
         } else if (options->format == CLI_FORMAT_ORDAGO_DEPRECATED) {
             status = mus_ordago_evaluation_metrics(&store, &metrics);
         } else {

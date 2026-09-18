@@ -111,6 +111,7 @@ typedef struct {
     MusBotChoice choices[MUS_ADAPTER_MAX_RESULTS];
     size_t choice_count;
     MusBotAction selected;
+    bool simplified_strategy;
 } MusAdapterDecision;
 
 typedef struct MusAdapter MusAdapter;
@@ -120,7 +121,7 @@ MusAdapterConfig mus_adapter_default_config(void);
  * Other compiled limits return CFR_STATUS_INCOMPATIBLE_GAME without creating
  * an adapter; the output pointer is unchanged. The core solver can still be
  * built and used with two muses. */
-/* Accept historical ordago and ordago-public schemas. On success, the adapter
+/* Accept historical ordago, ordago-public and ordago-simplified schemas. On success, the adapter
  * owns the loaded checkpoint. No training occurs. */
 Status mus_adapter_load(const char *path, bool compressed,
                         const MusAdapterConfig *config, uint64_t seed,
@@ -138,11 +139,14 @@ Status mus_adapter_enable_score_text(MusAdapter *adapter, const char *values_pat
                                       const char *strategies_directory);
 /* The caller must keep store alive and must not modify it during a query.
  * This entry point uses the historical ordago schema. A bare store does not
- * identify its format; use create_public for ordago-public keys. */
+ * identify its format. Use create_public for ordago-public strategies and
+ * create_simplified for ordago-simplified strategies. */
 Status mus_adapter_create(const InfoStore *store, const MusAdapterConfig *config,
                           uint64_t seed, MusAdapter **adapter_out);
 Status mus_adapter_create_public(const InfoStore *store, const MusAdapterConfig *config,
                                  uint64_t seed, MusAdapter **adapter_out);
+Status mus_adapter_create_simplified(const InfoStore *store, const MusAdapterConfig *config,
+                                     uint64_t seed, MusAdapter **adapter_out);
 void mus_adapter_destroy(MusAdapter *adapter);
 /* Queries are sequential. Errors preserve decision and the random stream. */
 Status mus_adapter_decide(MusAdapter *adapter, const MusAdapterObservation *observation,

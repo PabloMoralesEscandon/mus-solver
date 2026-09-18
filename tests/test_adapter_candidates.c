@@ -67,13 +67,19 @@ int main(void) {
     MusAdapter *adapter = NULL;
     if (mus_adapter_create(&store, NULL, 7, &adapter) != CFR_STATUS_SUCCESS)
         return 1;
+    /* Score candidates now consult the table's betting-rule variant. */
+    adapter->score_table = calloc(1, sizeof(*adapter->score_table));
+    if (adapter->score_table == NULL)
+        return 1;
     const MusGamePhase phases[] = {MUS_PHASE_GRANDE, MUS_PHASE_CHICA,
         MUS_PHASE_PARES, MUS_PHASE_JUEGO, MUS_PHASE_PUNTO};
     const int64_t boundaries[] = {0, 1, 19, 20, 38, 39, 40, 41,
                                   MUS_ADAPTER_MAX_AMOUNT};
     size_t cases = 0;
-    for (int format = 0; format < 3; ++format) {
-        adapter->public_generic = format == 1;
+    for (int format = 0; format < 5; ++format) {
+        adapter->public_generic = format == 1 || format == 3;
+        adapter->simplified = format == 3;
+        adapter->score_table->simplified = format == 4;
         for (size_t phase = 0; phase < sizeof(phases) / sizeof(phases[0]); ++phase) {
             for (size_t sample = 0; sample < 90; ++sample) {
                 BetTemplate t = adapter->templates[(sample * 37) % adapter->template_count];
@@ -91,7 +97,7 @@ int main(void) {
                     .prior_wager_total = boundaries[sample % 9],
                     .pending_wager_total = sample % 5 == 0 ? 41 : (int64_t)(sample % 7)};
                 MusOrdagoInformationSet base = {.phase = phases[phase],
-                    .player = t.player, .score_enabled = format == 2,
+                    .player = t.player, .score_enabled = format == 2 || format == 4,
                     .mus_stopped = true,
                     .previous_strength_count = observation.previous_strength_count,
                     .max_settled_score = (uint8_t)((sample * 13) % 41),

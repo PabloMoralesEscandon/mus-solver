@@ -9,6 +9,10 @@
 #define MUS_SCORE_REGION_SCHEMA_ID "mus.ordago-score-region/v1"
 #define MUS_SCORE_FOUR_SCHEMA_ID "mus.ordago-score-four/v1"
 #define MUS_SCORE_FOUR_REGION_SCHEMA_ID "mus.ordago-score-four-region/v1"
+#define MUS_SCORE_SIMPLIFIED_SCHEMA_ID "mus.ordago-score-simplified/v1"
+#define MUS_SCORE_SIMPLIFIED_REGION_SCHEMA_ID "mus.ordago-score-simplified-region/v1"
+#define MUS_SCORE_FOUR_SIMPLIFIED_SCHEMA_ID "mus.ordago-score-four-simplified/v1"
+#define MUS_SCORE_FOUR_SIMPLIFIED_REGION_SCHEMA_ID "mus.ordago-score-four-simplified-region/v1"
 
 typedef struct {
     bool ready;
@@ -55,8 +59,12 @@ struct MusScoreTable {
     /* False preserves the historical two-player format. True selects four
      * seats: team 0 contains seats 0 and 2, team 1 contains seats 1 and 3. */
     bool four_player;
+    /* Strictly increasing numeric increments from 2, 4 and 10. */
+    bool simplified;
 };
 
+/* Initialize at the final address: game.strategy_schema_id points to schema.
+ * Reinitialize after moving a game. The continuation table must outlive it. */
 typedef struct {
     Game game;
     const MusScoreTable *continuation;
@@ -65,7 +73,7 @@ typedef struct {
 } MusScoreGame;
 
 typedef struct {
-    /* Borrow an ordago or ordago-public trainer with an immutable store. */
+    /* Borrow a historical, public or simplified ordago trainer with an immutable store. */
     const Trainer *source;
     /* Synthetic regret and average-strategy mass per imported node. */
     double weight;
