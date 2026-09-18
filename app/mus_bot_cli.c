@@ -367,7 +367,7 @@ static bool emit(json_object *out) {
 
 int main(int argc, char **argv) {
     const char *path = NULL;
-    const char *score_table = NULL, *score_strategies = NULL;
+    const char *score_table = NULL, *score_strategies = NULL, *score_compact = NULL;
     bool compressed = true, text_strategy = false;
     uint64_t seed = 0;
     MusAdapterConfig config = mus_adapter_default_config();
@@ -380,7 +380,9 @@ int main(int argc, char **argv) {
                  "       mus-bot --load FILE [--seed N] [--no-score-adjustment]\n"
                  "Use an ordago policy for new training (formerly ordago-public).\n"
                  "Historical ordago policies (ordago-deprecated) remain supported.\n"
-                 "Add --score-table values.txt --score-strategies DIR for hybrid play.\n"
+                 "Add --score-table values.txt --score-strategies DIR for hybrid play,\n"
+                 "or --score-compact DIR for compact policies from mus-score-compact.\n"
+                 "A score table disables the generic score bias on every decision.\n"
                  "Hybrid observations require hand_start_scores. Trained betting\n"
                  "observations also require pending_wager_total.\n"
                  "An ordago generic policy also requires these fields.\n"
@@ -399,6 +401,8 @@ int main(int argc, char **argv) {
             score_table = argv[++i];
         } else if (!strcmp(argv[i], "--score-strategies") && i + 1 < argc && !score_strategies) {
             score_strategies = argv[++i];
+        } else if (!strcmp(argv[i], "--score-compact") && i + 1 < argc && !score_compact) {
+            score_compact = argv[++i];
         } else if (!strcmp(argv[i], "--seed") && i + 1 < argc) {
             char *end;
             const char *arg = argv[++i];
@@ -417,7 +421,11 @@ int main(int argc, char **argv) {
             return 2;
         }
     }
-    if ((score_table == NULL) != (score_strategies == NULL)) {
+    if (score_strategies != NULL && score_compact != NULL) {
+        fputs("error: score_strategies_or_compact\n", stderr);
+        return 2;
+    }
+    if ((score_table != NULL) != (score_strategies != NULL || score_compact != NULL)) {
         fputs("error: score_table_and_strategies_required\n", stderr);
         return 2;
     }
@@ -434,7 +442,9 @@ int main(int argc, char **argv) {
                         ? mus_adapter_open_text(path, &config, seed, &adapter)
                         : mus_adapter_load(path, compressed, &config, seed, &adapter);
     if (status == CFR_STATUS_SUCCESS && score_table != NULL)
-        status = mus_adapter_enable_score_text(adapter, score_table, score_strategies);
+        status = score_compact != NULL
+                     ? mus_adapter_enable_score_compact(adapter, score_table, score_compact)
+                     : mus_adapter_enable_score_text(adapter, score_table, score_strategies);
     if (status != CFR_STATUS_SUCCESS) {
         fprintf(stderr, "error: %s\n", status_code(status));
         mus_adapter_destroy(adapter);

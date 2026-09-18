@@ -25,18 +25,45 @@ make bot
 build/release/mus-bot --strategy generica.txt --seed 7
 ```
 
-Para añadir una tabla con marcador:
+Para añadir una tabla con marcador, con políticas compactas:
+
+```sh
+make score-compact
+build/release/mus-score-compact --table tabla/values.txt \
+    --checkpoints tabla --output compactas
+build/release/mus-bot --strategy generica.txt \
+    --score-table tabla/values.txt --score-compact compactas --seed 7
+```
+
+o con las exportaciones de texto:
 
 ```sh
 build/release/mus-bot --strategy generica.txt \
     --score-table tabla/values.txt --score-strategies estrategias --seed 7
 ```
 
-Las dos opciones `--score-*` se usan juntas. El directorio de estrategias debe
-contener los TXT `score-AA-BB.txt` de **todas las celdas publicadas**, exportados
-desde esa misma tabla. El bot valida las cabeceras, incluidas las iteraciones
+`--score-table` se usa junto a `--score-compact` o `--score-strategies`, nunca
+con las dos. El directorio indicado debe contener los archivos de **todas las
+celdas publicadas** de esa misma tabla: `score-AA-BB.mscz` en el modo compacto
+y `score-AA-BB.txt` en el de texto. El bot valida las cabeceras, incluidas las iteraciones
 y la identidad de la continuación. No mezcles exportaciones de tablas completas
 y regionales. Un archivo ausente o incompatible produce un error de arranque.
+
+### Políticas compactas
+
+`mus-score-compact` convierte cada checkpoint de celda en un `.mscz` que guarda
+solo la estrategia media de los nodos con masa positiva, cuantizada a 1/65535,
+en bloques Zstandard con un índice de claves. Una consulta descomprime un
+bloque, así que la memoria no crece con el tamaño del archivo. En una celda
+real de 100.000 iteraciones: checkpoint 380 MB, exportación de texto 3,57 GB y
+archivo compacto 151 KB para 53.177 nodos, unos 2,8 bytes por nodo.
+
+La conversión lee el checkpoint en streaming, comprueba su CRC32 y no lo
+modifica. `mus-score-compact --verify CHECKPOINT COMPACTO` lo recorre de nuevo
+y compara cada nodo; la diferencia máxima por cuantización queda por debajo de
+1,53e-5. Un nodo sin masa acumulada no se almacena, así que su respaldo
+coincide con el del modo binario y no con la distribución uniforme del
+exportador de texto.
 
 `--strategy` consulta el TXT ordenado en disco con una caché acotada. El modo
 híbrido mantiene la genérica y una sola celda abiertas; cambiar de celda
@@ -167,8 +194,11 @@ Sin datos, pasa, no quiere, corta mus o elige el menor descarte canónico legal.
 
 Las genéricas aplican además un límite heurístico de cantidades y multiplican
 la masa de órdago por `clamp((distancia_bot+8)/(distancia_rival+8), 0.5, 2)`.
-`--no-score-adjustment` desactiva este multiplicador. Las políticas con marcador
-no usan esos dos ajustes; su factor de órdago es siempre 1. Estas traducciones
+`--no-score-adjustment` desactiva este multiplicador. **Activar una tabla de
+marcador lo desactiva también, en todas las decisiones del proceso**, incluidas
+las manos cuyo marcador inicial no esté entrenado: una celda entrenada ya
+optimiza la partida, y las únicas aproximaciones que quedan son las de los
+envites ausentes del entrenamiento. El factor de órdago es siempre 1. Estas traducciones
 y respaldos no son estrategias aprendidas ni garantías de equilibrio.
 
 ## Respuesta y diagnóstico

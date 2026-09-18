@@ -54,9 +54,13 @@ with tempfile.TemporaryDirectory(prefix='mus-hybrid-') as directory:
             assert diagnostic['ordago_factor'] == 1 and not diagnostic['score_proxy']
             assert diagnostic['method'] == 'exact'
         else:
-            legacy = run([q], generic)[0]
+            # A table turns the generic score bias off for every decision, so an
+            # untrained start score matches the generic run without that bias.
+            legacy = run([q], generic + ['--no-score-adjustment'])[0]
             assert result['probabilities'] == legacy['probabilities']
-            assert diagnostic['ordago_factor'] == legacy['diagnostic']['ordago_factor']
+            assert diagnostic['ordago_factor'] == 1
+            biased = run([q], generic)[0]['diagnostic']['ordago_factor']
+            assert biased != 1, 'the fixture should exercise the generic bias'
     # Disabling the generic bias does not change policies in trained cells.
     assert [r['probabilities'] for r in run(queries[1:4], hybrid + ['--no-score-adjustment'])] == [r['probabilities'] for r in results[1:4]]
 
