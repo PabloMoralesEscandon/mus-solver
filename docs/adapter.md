@@ -8,6 +8,16 @@ para seguir utilizando estrategias históricas. El modo híbrido añade polític
 `ordago-score` para los marcadores entrenados. Requiere una compilación de
 un mus; no admite estrategias de cuatro jugadores.
 
+También admite la genérica `ordago-simplified` y tablas
+`ordago-score-simplified`, con los mismos modos de carga. El campo de diagnóstico
+`strategy` identifica estos nombres completos. El motor externo sigue siendo
+la autoridad sobre las acciones legales: puede ofrecer acciones que no existen
+en el entrenamiento y el adaptador aplica su búsqueda aproximada habitual.
+La genérica y las celdas con marcador pueden usar abstracciones distintas,
+incluida la combinación original/simplificada. Esto no cambia las reglas del
+motor: solo cambia la política consultada. `diagnostic.strategy` indica cuál
+se utilizó en cada decisión.
+
 ## Arranque y archivos
 
 ```sh
@@ -234,6 +244,7 @@ La referencia está en [mus_adapter.h](../include/mus_solver/mus_adapter.h).
 | `mus_adapter_enable_score_text` | Añade una tabla y su directorio de TXT. |
 | `mus_adapter_load` | Carga un checkpoint completo en RAM. |
 | `mus_adapter_create_public` | Usa un `InfoStore` prestado de la variante normal. |
+| `mus_adapter_create_simplified` | Usa un `InfoStore` prestado de `ordago-simplified`. |
 | `mus_adapter_create` | Usa un `InfoStore` prestado de `ordago-deprecated`. |
 | `mus_adapter_decide` | Recibe la observación y produce la decisión. |
 | `mus_adapter_destroy` | Libera el adaptador. |

@@ -11,9 +11,11 @@ import zlib
 SOLVER = str(Path(sys.argv[1]).resolve())
 BOT = str(Path(sys.argv[2]).resolve()) if len(sys.argv) > 2 else None
 FORMAT = 'ordago-score-four'
-RULES_SCHEMA = b'mus.four-partnership-score/v3-muses-'
+RULES_SCHEMA = b'mus.four-partnership-score/v5-muses-'
 PREVIOUS_RULES_SCHEMAS = (b'mus.four-partnership-score/v1-muses-',
-                          b'mus.four-partnership-score/v2-muses-')
+                          b'mus.four-partnership-score/v2-muses-',
+                          b'mus.four-partnership-score/v3-muses-',
+                          b'mus.four-partnership-score/v4-muses-')
 
 
 def run(args, success=True):
@@ -103,7 +105,10 @@ with tempfile.TemporaryDirectory(prefix='mus-four-cli-') as temporary:
     response_pairs = 0
     for line in exported_lines[1:]:
         fields = dict(token.split('=', 1) for token in line.split()[1:])
+        assert len(fields['usados_pareja'].split('/')) == 2 and 'usados' not in fields
         history = fields['ultima_respuesta']
+        if fields['cubierto'] == '0' or (fields['cubierto'] == '1' and fields['actual'] != '40'):
+            assert history == 'ninguna'
         if history == 'ninguna':
             continue
         proposals = [proposal.split(':', 1) for proposal in history.split('/')]
@@ -115,7 +120,7 @@ with tempfile.TemporaryDirectory(prefix='mus-four-cli-') as temporary:
             response_pairs += 1
     assert response_pairs > 0, 'No resolved partnership responses were exported'
 
-    # Checkpoints with either previous four-player rule have a valid checksum,
+    # Checkpoints with previous four-player rules have a valid checksum,
     # but its exact game schema must prevent loading it under the new rules.
     checkpoint_bytes = resumed.read_bytes()
     assert checkpoint_bytes.count(RULES_SCHEMA) == 1

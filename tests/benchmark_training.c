@@ -10,6 +10,7 @@
 
 #include "mus_solver/mus_score.h"
 #include "mus_solver/mus_four.h"
+#include "mus_solver/mus_simplified.h"
 #include "mus_solver/mus_training.h"
 
 static double seconds(void) {
@@ -37,13 +38,25 @@ static size_t number(const char *text) {
 int main(int argc, char **argv) {
     if (argc < 4 || argc == 6 || argc > 8) {
         fprintf(stderr, "Usage: %s FORMAT ITERATIONS THREADS [SEED [A B [REPORT_EVERY]]]\n"
-                        "FORMAT must be ordago, ordago-score, or ordago-score-four.\n"
+                        "FORMAT must be ordago, ordago-four, ordago-score, or ordago-score-four.\n"
+                        "Each format also accepts the -simplified suffix.\n"
                         "ordago-public is an alias of ordago.\n", argv[0]);
         return EXIT_FAILURE;
     }
-    const bool four = strcmp(argv[1], "ordago-score-four") == 0;
-    const bool score = four || strcmp(argv[1], "ordago-score") == 0;
-    if (!score && strcmp(argv[1], "ordago") != 0 && strcmp(argv[1], "ordago-public") != 0) {
+    const bool simplified = strcmp(argv[1], "ordago-simplified") == 0 ||
+        strcmp(argv[1], "ordago-four-simplified") == 0 ||
+        strcmp(argv[1], "ordago-score-simplified") == 0 ||
+        strcmp(argv[1], "ordago-score-four-simplified") == 0;
+    const bool four = strcmp(argv[1], "ordago-four") == 0 ||
+        strcmp(argv[1], "ordago-four-simplified") == 0 ||
+        strcmp(argv[1], "ordago-score-four") == 0 ||
+        strcmp(argv[1], "ordago-score-four-simplified") == 0;
+    const bool score = strcmp(argv[1], "ordago-score") == 0 ||
+        strcmp(argv[1], "ordago-score-simplified") == 0 ||
+        strcmp(argv[1], "ordago-score-four") == 0 ||
+        strcmp(argv[1], "ordago-score-four-simplified") == 0;
+    if (!score && !four && !simplified &&
+        strcmp(argv[1], "ordago") != 0 && strcmp(argv[1], "ordago-public") != 0) {
         fprintf(stderr, "Invalid format: %s\n", argv[1]);
         return EXIT_FAILURE;
     }
@@ -67,12 +80,14 @@ int main(int argc, char **argv) {
     if (state == NULL)
         return EXIT_FAILURE;
     Status status;
-    const Game *game = mus_ordago_public_game_descriptor();
+    const Game *game = simplified ? mus_simplified_game_descriptor(four)
+        : four ? mus_four_game_descriptor() : mus_ordago_public_game_descriptor();
     if (score) {
         status = mus_score_table_init(&table, MUS_ORDAGO_WAGER);
         /* Fixed synthetic continuations isolate training from table solving. */
         if (status == CFR_STATUS_SUCCESS) {
             table.four_player = four;
+            table.simplified = simplified;
             for (int x = 0; x < MUS_ORDAGO_WAGER; x += 1) {
                 for (int y = 0; y < MUS_ORDAGO_WAGER; y += 1) {
                     table.cells[x][y] = (MusScoreCell){
@@ -89,7 +104,7 @@ int main(int argc, char **argv) {
             status = mus_score_game_state_init_generic(state, &score_game);
         }
     } else {
-        status = mus_ordago_public_game_state_init(state);
+        status = four ? mus_four_game_state_init(state) : mus_ordago_public_game_state_init(state);
     }
     if (status == CFR_STATUS_SUCCESS)
         status = cfr_info_store_init(&store);

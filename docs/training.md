@@ -13,6 +13,11 @@ acumuladas, los regrets —valores que orientan el aprendizaje—, los contadore
 y el estado aleatorio. Un TXT exportado contiene probabilidades para consulta;
 no permite reanudar el entrenamiento.
 
+Para cuatro jugadores por parejas usa `ordago-four` en los mismos comandos.
+Entrena una sola estrategia para la mano, sin tabla de continuación ni marcador
+inicial. Admite `--threads`, guardado, reanudación y exportación como `ordago`.
+Sus TXT se consultan mediante la API C; el bot admite únicamente dos jugadores.
+
 ```sh
 build/release/mus-solver --format ordago \
     --iterations 100 --seed 7 --report-every 50 \
@@ -186,7 +191,13 @@ build/release/mus-solver --format ordago-score --score 39:39 \
 ```
 
 La opción conserva su nombre por compatibilidad y también admite
-`ordago-deprecated`. No acepta TXT ni estrategias de cuatro jugadores.
+`ordago-deprecated` y `ordago-simplified` como origen. El destino puede ser
+`ordago-score` u `ordago-score-simplified`. Se filtran las acciones y los
+historiales del lance actual al menú de destino. Los lances anteriores se
+conservan como resúmenes agregados; la precarga exhaustiva de la API no certifica
+que cada resumen sea alcanzable bajo las nuevas reglas. La precarga del CLI
+solo inicializa nodos alcanzados durante el entrenamiento.
+No acepta TXT ni estrategias de cuatro jugadores.
 La precarga inicializa los nodos al crearlos y conserva los ya entrenados.
 Comparte un único almacén genérico en memoria entre las celdas activas.
 
@@ -208,6 +219,7 @@ a la genérica para nodos ausentes.
 | Variante | Alcance de `--evaluate` |
 |---|---|
 | `ordago`, `ordago-deprecated` | Diagnóstico de dos repartos fijos en juego y punto, con ambas manos fijadas. No es explotabilidad desde la raíz. |
+| `ordago-four` | Diferencia de tantos por muestreo de manos completas con la estrategia media, sin continuación. |
 | `ordago-score`, `ordago-score-four` | Valor por muestreo de la estrategia media con continuaciones fijas. |
 | `single-bet`, `raises-to-eight` | Evaluación exacta de sus árboles: valor, mejores respuestas, NashConv y explotabilidad. |
 
@@ -215,6 +227,20 @@ El diagnóstico de mano aislada informa `scope=bounded-final-lances` y
 `root_bound=none`. No constituye una cota global ni restablece garantías de
 convergencia. Para medir el bot con sus traducciones y respaldos, usa la
 [evaluación de partidas](match-evaluation.md).
+
+Para evaluar una estrategia de parejas sin marcador:
+
+```sh
+build/release/mus-solver --format ordago-four \
+    --load-compressed cuatro.cfr.zst --evaluate --evaluation-samples 1000
+```
+
+La salida identifica `scope=single-hand-sampled` y `utility=points`. Informa el
+valor de los cuatro jugadores, con igual valor entre compañeros y signo opuesto
+entre parejas. `standard_error` se expresa en tantos. No informa probabilidad
+de victoria, mejores respuestas ni explotabilidad. Las opciones de muestreo
+adaptativo también se admiten con `--evaluate`. Sin checkpoint se evalúa una
+política uniforme; los nodos ausentes de una estrategia también usan esa política.
 
 Para evaluar y exportar una celda publicada:
 
@@ -254,17 +280,41 @@ Los nombres de CLI no cambian los esquemas guardados. El cargador comprueba
 variante, límite de muses y, para tablas, objetivo, marcador y huella de las
 continuaciones. Conserva los archivos de una misma tabla juntos.
 
+`ordago-four` usa `mus.four-partnership-single-hand.ordago/v3-muses-1`
+(o `muses-2`). Sus checkpoints no se intercambian con `ordago-score-four`
+ni con las variantes de dos jugadores. Los checkpoints v1/v2 requieren la versión
+correspondiente del solver o entrenamiento nuevo. La v3 agrupa los incrementos
+por pareja y olvida las respuestas individuales al terminar cada lance.
+Las variantes de parejas `-simplified` adoptan la misma abstracción con el esquema
+base `mus.four-partnership-single-hand.ordago-simplified/v2-muses-1` (o `muses-2`);
+sus archivos v1 también requieren la versión anterior o entrenamiento nuevo.
+Las variantes de dos jugadores no cambian.
+
+Las cuatro variantes `-simplified` usan las mismas opciones que sus originales,
+pero identificadores de archivo distintos: no se pueden cargar sus checkpoints
+ni ampliar sus tablas como si fueran variantes originales, o viceversa.
+Para entrenar la mano aislada simplificada de parejas, por ejemplo:
+
+```sh
+build/release/mus-solver --format ordago-four-simplified \
+    --iterations 100 --seed 7 --save-compressed cuatro-simplified.cfr.zst
+```
+
 | Tabla | Esquema |
 |---|---|
 | Dos jugadores | `mus.ordago-score/v4` |
 | Dos jugadores, región | `mus.ordago-score-region/v1` |
 | Cuatro jugadores | `mus.ordago-score-four/v1` |
 | Cuatro jugadores, región | `mus.ordago-score-four-region/v1` |
+| Dos jugadores, simplificada | `mus.ordago-score-simplified/v1` |
+| Dos jugadores, simplificada, región | `mus.ordago-score-simplified-region/v1` |
+| Cuatro jugadores, simplificada | `mus.ordago-score-four-simplified/v1` |
+| Cuatro jugadores, simplificada, región | `mus.ordago-score-four-simplified-region/v1` |
 
 Las tablas completas y las regionales no intercambian checkpoints, incluso
 con una región 0:0. Las versiones de dos jugadores anteriores a v4 requieren
 reentrenar. En cuatro jugadores, las reglas actuales son
-`mus.four-partnership-score/v3-muses-1` o `v3-muses-2`; archivos de reglas v1/v2
+`mus.four-partnership-score/v5-muses-1` o `v5-muses-2`; archivos de reglas v1–v4
 requieren la versión correspondiente del solver o entrenamiento nuevo.
 
 `values.txt` puede incluir `statistics=sample-variance-v1`. El lector actual

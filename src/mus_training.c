@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "mus_solver/mus_four.h"
+#include "mus_solver/mus_simplified.h"
 
 #include "mus_solver/mus_game.h"
 #include "mus_solver/mus_score.h"
@@ -42,11 +43,13 @@ struct TrainingControl {
 };
 
 static bool supported_game(const Game *game) {
+    game = mus_simplified_game_base(game);
     return game != NULL &&
         (game == mus_game_descriptor() ||
          game == mus_single_bet_game_descriptor() ||
          game == mus_raises_to_eight_game_descriptor() ||
          game == mus_ordago_game_descriptor() ||
+         game == mus_four_game_descriptor() ||
          game == mus_ordago_public_game_descriptor() || mus_score_game_matches_any(game));
 }
 
@@ -227,7 +230,8 @@ Status mus_training_run(Trainer *trainer, size_t iterations,
         active_count = report_every;
 
     TrainingWorker *workers = calloc(active_count, sizeof(*workers));
-    const size_t state_size = mus_four_score_game_matches(trainer->game)
+    const size_t state_size = (mus_four_score_game_matches(trainer->game) ||
+                              mus_simplified_game_base(trainer->game) == mus_four_game_descriptor())
         ? sizeof(MusFourGameState) : sizeof(MusGameState);
     unsigned char *states = NULL;
     pthread_t *thread_handles = NULL;

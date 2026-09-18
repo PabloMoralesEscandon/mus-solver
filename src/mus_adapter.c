@@ -7,6 +7,7 @@
 #include "mus_solver/mus_adapter.h"
 #include "mus_solver/mus_score.h"
 #include "mus_solver/mus_score_compact.h"
+#include "mus_solver/mus_simplified.h"
 #include "mus_text_strategy.h"
 
 /* At most two owners of each numeric increment and five numeric wagers. */
@@ -39,6 +40,7 @@ struct MusAdapter {
     InfoStore owned_store;
     MusTextStrategy *text_strategy;
     bool public_generic;
+    bool simplified;
     MusScoreTable *score_table;
     char *score_directory;
     MusTextStrategy *score_text;
@@ -190,6 +192,14 @@ Status mus_adapter_create_public(const InfoStore *store, const MusAdapterConfig 
     return status;
 }
 
+Status mus_adapter_create_simplified(const InfoStore *store, const MusAdapterConfig *config,
+                                     uint64_t seed, MusAdapter **out) {
+    const Status status = mus_adapter_create_public(store, config, seed, out);
+    if (status == CFR_STATUS_SUCCESS)
+        (*out)->simplified = true;
+    return status;
+}
+
 Status mus_adapter_load(const char *path, bool compressed,
                         const MusAdapterConfig *config, uint64_t seed,
                         MusAdapter **out) {
@@ -232,6 +242,20 @@ Status mus_adapter_load(const char *path, bool compressed,
             }
             a->public_generic = status == CFR_STATUS_SUCCESS;
         }
+        if (status == CFR_STATUS_INCOMPATIBLE_GAME) {
+            status = fseek(stream, 0, SEEK_SET) == 0 ? CFR_STATUS_SUCCESS : CFR_STATUS_IO_ERROR;
+            if (status == CFR_STATUS_SUCCESS)
+                status = mus_ordago_public_game_state_init(&state);
+            if (status == CFR_STATUS_SUCCESS) {
+                const Game *game = mus_simplified_game_descriptor(false);
+                status = compressed
+                    ? cfr_checkpoint_read_zstd(stream, game, mus_game_state_as_game_state(&state),
+                                               &a->owned_store, &trainer)
+                    : cfr_checkpoint_read(stream, game, mus_game_state_as_game_state(&state),
+                                          &a->owned_store, &trainer);
+            }
+            a->public_generic = a->simplified = status == CFR_STATUS_SUCCESS;
+        }
         a->store = &a->owned_store;
     }
     if (fclose(stream) != 0 && status == CFR_STATUS_SUCCESS)
@@ -259,6 +283,11 @@ Status mus_adapter_open_text(const char *path, const MusAdapterConfig *config,
         status = mus_text_strategy_open_schema(path, MUS_ORDAGO_PUBLIC_STRATEGY_SCHEMA_ID,
                                                0, &adapter->text_strategy);
         adapter->public_generic = status == CFR_STATUS_SUCCESS;
+    }
+    if (status == CFR_STATUS_INCOMPATIBLE_GAME) {
+        status = mus_text_strategy_open_schema(path, MUS_SIMPLIFIED_STRATEGY_SCHEMA_ID,
+                                               0, &adapter->text_strategy);
+        adapter->public_generic = adapter->simplified = status == CFR_STATUS_SUCCESS;
     }
     if (status != CFR_STATUS_SUCCESS) {
         mus_adapter_destroy(adapter);
@@ -390,8 +419,21 @@ void mus_adapter_destroy(MusAdapter *a) {
     }
 }
 
+static Status information_actions(const MusAdapter *adapter, const MusOrdagoInformationSet *info,
+                                   Action *actions, size_t capacity, size_t *count) {
+    const bool simplified = info->score_enabled ? adapter->score_table->simplified : adapter->simplified;
+    return (simplified ? mus_simplified_ordago_information_set_legal_actions
+                       : mus_ordago_game_information_set_legal_actions)(info, actions, capacity, count);
+}
+
 static Status encode_information(const MusAdapter *adapter,
                                   const MusOrdagoInformationSet *info, InfoSetKey *key) {
+    if (info->score_enabled ? adapter->score_table->simplified : adapter->simplified) {
+        Action actions[MUS_GAME_MAX_LEGAL_ACTIONS]; size_t count;
+        Status status = information_actions(adapter, info, actions, MUS_GAME_MAX_LEGAL_ACTIONS, &count);
+        if (status != CFR_STATUS_SUCCESS)
+            return status;
+    }
     return info->score_enabled ? mus_score_game_information_set_encode(info, 40, key)
         : adapter->public_generic ? mus_ordago_public_game_information_set_encode(info, key)
                                   : mus_ordago_game_information_set_encode(info, key);
@@ -444,6 +486,7 @@ static Status select_strategy(MusAdapter *a, const MusAdapterObservation *o,
     }
     d->score_strategy = trained;
     d->public_strategy = !trained;
+    d->simplified_strategy = trained ? a->score_table->simplified : a->simplified;
     if (trained) {
         d->strategy_scores[0] = x;
         d->strategy_scores[1] = y;
@@ -617,8 +660,7 @@ static Status lookup(const MusAdapter *a, const Candidate *c, MusAdapterDecision
     if (d->lookup_count >= MUS_ADAPTER_MAX_LOOKUPS)
         return CFR_STATUS_NOT_FOUND;
     d->lookup_count++;
-    Status status = mus_ordago_game_information_set_legal_actions(
-        &c->information, actions, MUS_GAME_MAX_LEGAL_ACTIONS, count);
+    Status status = information_actions(a, &c->information, actions, MUS_GAME_MAX_LEGAL_ACTIONS, count);
     if (status != CFR_STATUS_SUCCESS)
         return CFR_STATUS_FORMAT_ERROR;
     if (c->information.score_enabled && a->score_compact_files) {
@@ -943,8 +985,7 @@ static Status decide_impl(MusAdapter *a, const MusAdapterObservation *o,
                 use_bet(&before, &prefix);
                 Action allowed[MUS_GAME_MAX_LEGAL_ACTIONS];
                 size_t allowed_count;
-                if (mus_ordago_game_information_set_legal_actions(
-                        &before, allowed, MUS_GAME_MAX_LEGAL_ACTIONS, &allowed_count) ==
+                if (information_actions(a, &before, allowed, MUS_GAME_MAX_LEGAL_ACTIONS, &allowed_count) ==
                     CFR_STATUS_SUCCESS) {
                     for (size_t i = 0; i < allowed_count; ++i) {
                         int index = allowed[i] == MUS_ACTION_BET_TWO     ? 0
