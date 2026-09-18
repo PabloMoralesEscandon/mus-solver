@@ -134,6 +134,12 @@ Status mus_adapter_open_text(const char *path, const MusAdapterConfig *config,
  * Unpublished cells keep the generic behavior. Trained cells never use the
  * generic score bias, even if their query requires interpolation or fallback.
  * Call once, before queries. An error preserves the adapter configuration. */
+/* Enable hybrid play from compact per-cell policies (score-AA-BB.mscz), the
+ * format produced by mus-score-compact. Same selection rules as the text
+ * backend, with one cell open at a time. Enabling a table also turns the
+ * generic score bias off for good: a trained cell already optimizes the match. */
+Status mus_adapter_enable_score_compact(MusAdapter *adapter, const char *values_path,
+                                        const char *directory);
 Status mus_adapter_enable_score_text(MusAdapter *adapter, const char *values_path,
                                       const char *strategies_directory);
 /* The caller must keep store alive and must not modify it during a query.

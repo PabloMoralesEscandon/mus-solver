@@ -663,6 +663,14 @@ static void write_score_fixture(const char *directory) {
                 OK(mus_score_strategy_write_text(file, &trainer));
                 CHECK(fclose(file) == 0);
             }
+            /* The same policies as a checkpoint, for the compact converter. */
+            snprintf(path, sizeof(path), "%s/score-%02d-%02d.cfr.zst", directory, a, b);
+            file = fopen(path, "wb");
+            CHECK(file != NULL);
+            if (file != NULL) {
+                OK(cfr_checkpoint_write_zstd(file, &trainer));
+                CHECK(fclose(file) == 0);
+            }
             OK(cfr_info_store_destroy(&store));
         }
     }

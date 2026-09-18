@@ -26,7 +26,7 @@ RELEASE_DIR := $(BUILD_DIR)/release
 DEBUG_DIR := $(BUILD_DIR)/debug
 
 MUS_SOURCES := src/mus_game.c src/mus_four.c src/mus_evaluation.c src/mus_strategy.c src/mus_score.c \
-	src/mus_preload.c src/mus_adapter.c src/mus_text_strategy.c src/mus_training.c
+	src/mus_preload.c src/mus_adapter.c src/mus_text_strategy.c src/mus_score_compact.c src/mus_training.c
 SIMULATOR_SOURCES := Simulador-Mus/src/cartas.c \
 	Simulador-Mus/src/baraja_espanola.c Simulador-Mus/src/mus.c
 LIB_SOURCES := $(MUS_SOURCES)
@@ -54,13 +54,29 @@ DEPENDENCY_FILES := $(RELEASE_OBJECTS:.o=.d) $(DEBUG_OBJECTS:.o=.d) \
 
 .PHONY: all lto debug test test-core test-tsan test-sanitize dependencies cfr-release \
 	cfr-debug clean clean-all solver bot match-eval \
-	benchmark-score benchmark-score-threads benchmark-training benchmark-evaluation
+	benchmark-score benchmark-score-threads benchmark-training benchmark-evaluation \
+	score-compact
 
-all: $(RELEASE_BINARY) $(RELEASE_DIR)/mus-bot $(RELEASE_DIR)/mus-match-eval
+all: $(RELEASE_BINARY) $(RELEASE_DIR)/mus-bot $(RELEASE_DIR)/mus-match-eval \
+	$(RELEASE_DIR)/mus-score-compact
 
 solver: $(RELEASE_BINARY)
 bot: $(RELEASE_DIR)/mus-bot
 match-eval: $(RELEASE_DIR)/mus-match-eval
+score-compact: $(RELEASE_DIR)/mus-score-compact
+
+$(RELEASE_DIR)/mus-score-compact: $(RELEASE_DIR)/app/mus_score_compact_cli.o \
+		$(RELEASE_LIBRARY) $(RELEASE_CFR_LIBRARY)
+	$(CC) $(LDFLAGS) $(RELEASE_LINK_FLAGS) $(THREAD_FLAGS) \
+		$(RELEASE_DIR)/app/mus_score_compact_cli.o $(RELEASE_LIBRARY) \
+		$(RELEASE_CFR_LIBRARY) $(LDLIBS) -o $@
+
+$(DEBUG_DIR)/mus-score-compact: $(DEBUG_DIR)/app/mus_score_compact_cli.o \
+		$(DEBUG_LIBRARY) $(DEBUG_CFR_LIBRARY)
+	$(CC) $(LDFLAGS) $(THREAD_FLAGS) $(DEBUG_DIR)/app/mus_score_compact_cli.o \
+		$(DEBUG_LIBRARY) $(DEBUG_CFR_LIBRARY) $(LDLIBS) -o $@
+
+-include $(RELEASE_DIR)/app/mus_score_compact_cli.d $(DEBUG_DIR)/app/mus_score_compact_cli.d
 
 MATCH_SOURCES := app/mus_match_eval_cli.c app/match_evaluation.c \
 	Simulador-Mus/src/mus_sim.c Simulador-Mus/src/mus_log.c $(SIMULATOR_SOURCES)
@@ -153,6 +169,8 @@ test: test-core $(DEBUG_DIR)/mus-bot $(DEBUG_DIR)/mus_adapter_tests \
 	./$(DEBUG_DIR)/mus_adapter_candidates_tests
 	python3 tests/test_adapter_cli.py ./$(DEBUG_DIR)/mus-bot ./$(DEBUG_DIR)/mus_adapter_tests
 	python3 tests/test_hybrid_adapter_cli.py ./$(DEBUG_DIR)/mus-bot ./$(DEBUG_DIR)/mus_adapter_tests
+	python3 tests/test_score_compact.py
+	python3 tests/test_score_compact_cli.py ./$(DEBUG_DIR)/mus-bot ./$(DEBUG_DIR)/mus_adapter_tests ./$(RELEASE_DIR)/mus-score-compact
 	python3 tests/test_public_adapter_cli.py ./$(DEBUG_DIR)/mus-bot ./$(DEBUG_DIR)/mus_adapter_tests
 	python3 tests/test_four_score_cli.py ./$(DEBUG_BINARY) ./$(DEBUG_DIR)/mus-bot
 

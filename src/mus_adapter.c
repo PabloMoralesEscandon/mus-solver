@@ -6,6 +6,7 @@
 #include "cfr/checkpoint.h"
 #include "mus_solver/mus_adapter.h"
 #include "mus_solver/mus_score.h"
+#include "mus_solver/mus_score_compact.h"
 #include "mus_text_strategy.h"
 
 /* At most two owners of each numeric increment and five numeric wagers. */
@@ -41,6 +42,9 @@ struct MusAdapter {
     MusScoreTable *score_table;
     char *score_directory;
     MusTextStrategy *score_text;
+    /* Compact policies replace the text export when enabled; one cell open. */
+    bool score_compact_files;
+    MusScoreCompact *score_compact;
     int open_scores[2];
     MusAdapterConfig config;
     uint64_t rng;
@@ -288,8 +292,32 @@ static Status open_score_text(const MusScoreTable *table, const char *directory,
     return status;
 }
 
-Status mus_adapter_enable_score_text(MusAdapter *a, const char *values_path,
-                                      const char *directory) {
+static char *score_compact_path(const char *directory, int a, int b) {
+    size_t length = strlen(directory);
+    if (length > SIZE_MAX - 32)
+        return NULL;
+    char *path = malloc(length + 32);
+    if (path != NULL)
+        snprintf(path, length + 32, "%s/score-%02d-%02d.mscz", directory, a, b);
+    return path;
+}
+
+static Status open_score_compact(const MusScoreTable *table, const char *directory,
+                                 int a, int b, MusScoreCompact **out) {
+    MusScoreGame game;
+    Status status = mus_score_game_init(&game, table, (unsigned int)a, (unsigned int)b);
+    if (status != CFR_STATUS_SUCCESS)
+        return status;
+    char *path = score_compact_path(directory, a, b);
+    if (path == NULL)
+        return CFR_STATUS_OUT_OF_MEMORY;
+    status = mus_score_compact_open(path, game.schema, table->cells[a][b].iterations, out);
+    free(path);
+    return status;
+}
+
+static Status enable_score_table(MusAdapter *a, const char *values_path,
+                                 const char *directory, bool compact) {
     if (a == NULL || a->score_table != NULL || values_path == NULL || directory == NULL)
         return CFR_STATUS_INVALID_ARGUMENT;
     FILE *stream = fopen(values_path, "r");
@@ -306,9 +334,15 @@ Status mus_adapter_enable_score_text(MusAdapter *a, const char *values_path,
         for (int y = 0; y < 40 && status == CFR_STATUS_SUCCESS; ++y) {
             if (!table->cells[x][y].ready)
                 continue;
-            MusTextStrategy *text = NULL;
-            status = open_score_text(table, directory, x, y, &text);
-            mus_text_strategy_close(text);
+            if (compact) {
+                MusScoreCompact *policies = NULL;
+                status = open_score_compact(table, directory, x, y, &policies);
+                mus_score_compact_close(policies);
+            } else {
+                MusTextStrategy *text = NULL;
+                status = open_score_text(table, directory, x, y, &text);
+                mus_text_strategy_close(text);
+            }
         }
     }
     char *copy = NULL;
@@ -327,13 +361,28 @@ Status mus_adapter_enable_score_text(MusAdapter *a, const char *values_path,
     }
     a->score_table = table;
     a->score_directory = copy;
+    a->score_compact_files = compact;
+    /* Trained cells already optimize the match, so the generic score bias never
+     * applies with a table: only unknown bet amounts are approximated. */
+    a->config.score_adjustment = false;
     return CFR_STATUS_SUCCESS;
+}
+
+Status mus_adapter_enable_score_text(MusAdapter *a, const char *values_path,
+                                      const char *directory) {
+    return enable_score_table(a, values_path, directory, false);
+}
+
+Status mus_adapter_enable_score_compact(MusAdapter *a, const char *values_path,
+                                        const char *directory) {
+    return enable_score_table(a, values_path, directory, true);
 }
 
 void mus_adapter_destroy(MusAdapter *a) {
     if (a != NULL) {
         mus_text_strategy_close(a->text_strategy);
         mus_text_strategy_close(a->score_text);
+        mus_score_compact_close(a->score_compact);
         free(a->score_table);
         free(a->score_directory);
         (void)cfr_info_store_destroy(&a->owned_store);
@@ -372,7 +421,18 @@ static Status select_strategy(MusAdapter *a, const MusAdapterObservation *o,
     if ((mus_phase(o->phase) || discard_phase(o->phase) || o->phase == MUS_PHASE_GRANDE) &&
         o->pending_wager_total != 0)
         return CFR_STATUS_INVALID_ARGUMENT;
-    if (trained && (a->score_text == NULL || a->open_scores[0] != x || a->open_scores[1] != y)) {
+    if (trained && a->score_compact_files &&
+        (a->score_compact == NULL || a->open_scores[0] != x || a->open_scores[1] != y)) {
+        MusScoreCompact *compact = NULL;
+        Status status = open_score_compact(a->score_table, a->score_directory, x, y, &compact);
+        if (status != CFR_STATUS_SUCCESS)
+            return status;
+        mus_score_compact_close(a->score_compact);
+        a->score_compact = compact;
+        a->open_scores[0] = x;
+        a->open_scores[1] = y;
+    } else if (trained && !a->score_compact_files &&
+               (a->score_text == NULL || a->open_scores[0] != x || a->open_scores[1] != y)) {
         MusTextStrategy *text = NULL;
         Status status = open_score_text(a->score_table, a->score_directory, x, y, &text);
         if (status != CFR_STATUS_SUCCESS)
@@ -561,6 +621,12 @@ static Status lookup(const MusAdapter *a, const Candidate *c, MusAdapterDecision
         &c->information, actions, MUS_GAME_MAX_LEGAL_ACTIONS, count);
     if (status != CFR_STATUS_SUCCESS)
         return CFR_STATUS_FORMAT_ERROR;
+    if (c->information.score_enabled && a->score_compact_files) {
+        if (a->score_compact == NULL)
+            return CFR_STATUS_NOT_FOUND;
+        return mus_score_compact_find(a->score_compact, c->key, actions, *count,
+                                      probabilities);
+    }
     MusTextStrategy *text = c->information.score_enabled ? a->score_text : a->text_strategy;
     if (text)
         return mus_text_strategy_find(text, c->key, &c->information,
