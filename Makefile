@@ -161,7 +161,8 @@ test-core: $(TEST_BINARY) $(DEBUG_BINARY) $(DEBUG_DIR)/mus_hotpaths_tests \
 test: test-core $(DEBUG_DIR)/mus-bot $(DEBUG_DIR)/mus_adapter_tests \
 	$(DEBUG_DIR)/mus_hotpaths_tests $(DEBUG_DIR)/mus_adapter_configuration_tests \
 	$(DEBUG_DIR)/mus_ordago_public_tests $(DEBUG_DIR)/mus-match-eval $(DEBUG_DIR)/mus_match_tests \
-	$(DEBUG_DIR)/mus_adapter_candidates_tests
+	$(DEBUG_DIR)/mus_adapter_candidates_tests \
+	$(RELEASE_DIR)/mus-score-compact
 	python3 tests/test_score_locks.py ./$(DEBUG_BINARY)
 	python3 tests/test_score_recovery.py ./$(DEBUG_BINARY)
 	python3 tests/test_score_regions.py ./$(DEBUG_BINARY) ./$(DEBUG_DIR)/mus-bot
@@ -172,7 +173,7 @@ test: test-core $(DEBUG_DIR)/mus-bot $(DEBUG_DIR)/mus_adapter_tests \
 	./$(DEBUG_DIR)/mus_adapter_candidates_tests
 	python3 tests/test_adapter_cli.py ./$(DEBUG_DIR)/mus-bot ./$(DEBUG_DIR)/mus_adapter_tests
 	python3 tests/test_hybrid_adapter_cli.py ./$(DEBUG_DIR)/mus-bot ./$(DEBUG_DIR)/mus_adapter_tests
-	python3 tests/test_score_compact.py
+	python3 tests/test_score_compact.py ./$(RELEASE_DIR)/mus-score-compact
 	python3 tests/test_score_compact_cli.py ./$(DEBUG_DIR)/mus-bot ./$(DEBUG_DIR)/mus_adapter_tests ./$(RELEASE_DIR)/mus-score-compact
 	python3 tests/test_public_adapter_cli.py ./$(DEBUG_DIR)/mus-bot ./$(DEBUG_DIR)/mus_adapter_tests
 	python3 tests/test_four_score_cli.py ./$(DEBUG_BINARY) ./$(DEBUG_DIR)/mus-bot

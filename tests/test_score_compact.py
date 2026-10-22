@@ -12,7 +12,7 @@ import tempfile
 import zlib
 
 ROOT = Path(__file__).resolve().parent.parent
-TOOL = ROOT / "build/release/mus-score-compact"
+TOOL = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "build/release/mus-score-compact"
 SCHEMA = b"mus.ordago-score/v4/base-test/target-40/score-00-00/mano/signed-one/V-0"
 
 
